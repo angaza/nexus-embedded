@@ -1,0 +1,20 @@
+# Environment variable shared in all steps
+env:
+    ARTIFACTS_DIR: 'buildkite-artifacts'
+
+# All commands are executed from repository root
+steps:
+    - name: ":guardsman: Style Linting"
+      command: buildkite/clang-format-ci-wrapper.sh
+    - name: ":white_check_mark: Static Analysis: Cppcheck"
+      command: buildkite/static-analysis-cppcheck.sh
+    - name: ":shrug: Static Analysis: Frama-C (Experimental)"
+      command: buildkite/static-analysis-frama-c.sh
+    - name: ":japanese_ogre: Ceedling Unit Tests (Ceedling)"
+      command: buildkite/unit-test-ci-wrapper.sh
+    - name: ":leaves: Build: GCC + clang scan-build 'stub' program"
+      command: buildkite/static-analysis-scan-build.sh
+    - name: ":leaves: Build: GCC + clang scan-build 'desktop example' program"
+      command: buildkite/static-analysis-scan-build-example-desktop.sh
+    - name: ":sonarqube: SonarCloud Analysis"
+      command: buildkite/sonarcloud.sh

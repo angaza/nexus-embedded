@@ -1,0 +1,155 @@
+---
+
+# This file exists only to automatically build using c99, to ensure
+# c99 compatibility via the release 'stub' build.
+# To use, run `ceedling project:c99-project release`
+:project:
+  :use_exceptions: FALSE
+  :use_test_preprocessor: TRUE
+  :use_auxiliary_dependencies: TRUE
+  :build_root: build
+  :release_build: TRUE
+  :test_file_prefix: test_
+  :which_ceedling: gem
+  :default_tasks:
+    - test:all
+
+#:test_build:
+#  :use_assembly: TRUE
+
+:release_build:
+  :output: analyzed_keycode_nexus.out
+  :use_assembly: FALSE
+
+:environment:
+
+:extension:
+  :executable: .out
+
+:paths:
+  :test:
+    - +:test/**
+  :source:
+    - "#{PROJECT_ROOT}/"
+    - "#{PROJECT_ROOT}/include/**"
+    - "#{PROJECT_ROOT}/include/common/**"
+    - "#{PROJECT_ROOT}/src/**"
+    - "#{PROJECT_ROOT}/stub/**"  # only used for 'release' build
+
+:defines:
+  # in order to add common defines:
+  #  1) remove the trailing [] from the :common: section
+  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
+  :common: &common_defines []
+  :test:
+    - *common_defines
+    - NEXUS_USE_DEFAULT_ASSERT  # enable runtime asserts in unit tests
+    - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
+  :test_preprocess:
+    - *common_defines
+    - TEST
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE
+  :plugins:
+    - :ignore
+    - :ignore_arg
+    - :callback
+    - :return_thru_ptr
+    - :expect_any_args
+  :treat_as:
+    uint8:    HEX8
+    uint16:   HEX16
+    uint32:   UINT32
+    int8:     INT8
+    bool:     UINT8
+
+# See https://github.com/ThrowTheSwitch/Ceedling/tree/master/plugins/gcov
+:gcov:
+  # update abort_on_uncovered list once new Gem lands
+  # https://github.com/ThrowTheSwitch/Ceedling/issues/460
+  # XXX
+  :abort_on_uncovered: true
+  :delete: false
+  :reports:   # new reports style
+    - HtmlDetailed
+    - SonarQube
+    - Text
+  :html_report: true  # old reports style
+  :html_report_type: detailed
+  :gcovr:
+    :gcov_exclude: '^.stub.*'
+    :html_artifact_filename: nexus_keycode_coverage.html
+    :sonarqube_artifact_filename: nexus_keycode_coverage_sonar.xml
+
+:tools:
+  :gcov_fixture:
+    :executable: ${1}
+  :gcov_report:
+    :executable: gcov
+    :arguments:
+      - -p
+      - -b
+      - -o "$": GCOV_BUILD_OUTPUT_PATH
+      - "\"${1}\""
+
+  # "Release" is used to run static analysis on the source code without
+  # hitting false positives that may exist in test framework tools.
+  :release_compiler:
+      :executable: scan-build-3.9
+      :name: 'vanilla gcc wrapped with clang scan-build 3.9'
+      :arguments:
+          - --status-bugs
+          - -enable-checker core.UndefinedBinaryOperatorResult
+          - -enable-checker core.DivideZero
+          - -enable-checker alpha.core.BoolAssignment
+          - -enable-checker alpha.core.CastSize
+          - -enable-checker alpha.core.FixedAddr
+          - -enable-checker alpha.core.IdenticalExpr
+          - -enable-checker alpha.core.PointerArithm
+          - -enable-checker alpha.core.PointerSub
+          - -enable-checker alpha.deadcode.UnreachableCode
+          - -enable-checker security.FloatLoopCounter
+          - -maxloop 40
+          - gcc  # XXX update to gcc-9 or gcc-10 once updating buildkite AMI
+          - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
+          - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+          - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+          - -DDEBUG  # enables NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY
+          - -Werror
+          - -Wall
+          - -Wextra
+          - -Wundef
+          # - -Wconversion
+          - -Wlogical-op
+          # - -Wformat-overflow
+          # - -Wstringop-overflow
+          # - -Wstringop-truncation
+          - -Winline
+          - -Wswitch-default
+          - -Wsuggest-attribute=const
+          - -std=c99
+          - -c ${1} # source code input file
+          - -o ${2}
+
+# LIBRARIES
+# These libraries are automatically injected into the build process. Those specified as
+# common will be used in all types of builds. Otherwise, libraries can be injected in just
+# tests or releases. These options are MERGED with the options in supplemental yaml files.
+:libraries:
+  :placement: :end
+  :flag: "${1}"  # or "-L ${1}" for example
+  :test: []
+  :release: []
+
+:plugins:
+  :load_paths:
+    - "#{Ceedling.load_path}"
+  :enabled:
+    - stdout_pretty_tests_report
+    - xml_tests_report
+    - gcov
+    - module_generator
+...

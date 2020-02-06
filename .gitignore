@@ -1,0 +1,6 @@
+docs/*
+*.gcov
+*.gcda
+*.gcno
+*.swp
+*.xml
