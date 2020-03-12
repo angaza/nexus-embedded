@@ -4,3 +4,7 @@ docs/*
 *.gcno
 *.swp
 *.xml
+*.ccls-root
+.ccls-cache/*
+*.config
+*.config.old

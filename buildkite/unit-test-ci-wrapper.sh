@@ -9,7 +9,7 @@ za-init
 echo "--- Executing Ceedling unit tests"
 
 # `ceedling test:all` will return nonzero if any tests fail
-cd nexus_keycode && ceedling test:all
+cd nexus && ceedling test:all
 TESTS_EXIT_STATUS=$?
 
 buildkite-agent artifact upload "build/artifacts/test/report.xml"

@@ -743,7 +743,7 @@ WARN_LOGFILE           =
 # spaces.
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = README.md nexus_keycode/include/ nexus_keycode/src/
+INPUT                  = README.md nexus/include nexus/src/ nexus/utils
 USE_MDFILE_AS_MAINPAGE = README.md
 
 # This tag can be used to specify the character encoding of the source files

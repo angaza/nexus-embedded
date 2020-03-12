@@ -6,7 +6,7 @@ za-init
 za-install-sonar-scanner
 
 
-cd nexus_keycode
+cd nexus
 
 echo "--- Preparing coverage reports for later upload"
 # Generate gcov reports for scanner. Will be generated in build/artifacts/gcov

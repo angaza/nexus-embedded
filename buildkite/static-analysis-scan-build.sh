@@ -11,7 +11,7 @@ LOG_FILENAME_C99="error_logs_c99.txt"
 
 echo "--- Building stub executable with c11"
 
-pushd nexus_keycode && ceedling release 2> $LOG_FILENAME_C11
+pushd nexus && ceedling release 2> $LOG_FILENAME_C11
 
 buildkite-agent artifact upload $LOG_FILENAME_C11
 

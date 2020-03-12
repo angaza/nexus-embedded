@@ -11,7 +11,7 @@ LOG_FILENAME="error_logs.txt"
 echo "--- Building Desktop example program executable"
 
 # Ensure the 'default' build runs without errors
-cd nexus_keycode/examples/desktop_sample_program && make clean all 2> $LOG_FILENAME
+cd nexus/examples/desktop_sample_program && make clean all 2> $LOG_FILENAME
 
 buildkite-agent artifact upload $LOG_FILENAME
 

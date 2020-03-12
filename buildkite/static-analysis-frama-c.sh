@@ -9,7 +9,7 @@ za-init
 RETCODE=0
 
 RESULTS_FILE="framac-results.txt"
-SOURCE_ROOT="nexus_keycode"
+SOURCE_ROOT="nexus"
 
 echo "--- Executing Frama-C wp plugin"
 

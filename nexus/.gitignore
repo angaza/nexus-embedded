@@ -1,0 +1,15 @@
+build/artifacts
+build/gcov
+build/logs
+build/temp
+build/test
+build/*
+**/*.o
+.cache
+.ccls
+.ccls-cache/*
+compile_commands.json
+**/__pycache__
+.config
+.vscode/*
+sample_nexus_keycode_program

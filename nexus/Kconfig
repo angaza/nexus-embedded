@@ -1,0 +1,158 @@
+#
+# For a description of the syntax of this configuration file,
+# see https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
+#
+mainmenu "Angaza Nexus System Configuration"
+
+config NEXUS_COMMON_CORE_ENABLED
+    bool "Nexus Core [Required]"
+    default y
+
+if NEXUS_COMMON_CORE_ENABLED
+
+config NEXUS_KEYCODE_ENABLED
+    bool "Nexus Keycode"
+    default y
+
+if NEXUS_KEYCODE_ENABLED
+
+choice NEXUS_KEYCODE_PROTOCOL_VERSION
+    prompt "Keycode Protocol Type"
+    help 
+        Enable if using Nexus Keycode functionality
+
+    config NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+        bool "Full Keycode Protocol"
+        help
+            Use the standard 0-9, *, # keypad option.
+
+            This provides all Nexus Keycode features, including
+            Nexus Channel enabling features.
+
+            Typical physical key layout is:
+            1 2 3
+            4 5 6
+            7 8 9
+            * 0 #
+
+    config NEXUS_KEYCODE_USE_SMALL_KEYCODE_PROTOCOL
+        bool "Small/Limited Keycode Protocol"
+        help
+            Use the reduced 1-5 keypad option. 
+
+            This keypad option is useful for products that due to physical
+            limitations cannot accommodate a 12-digit keypad. The tradeoff
+            is reduced information density in the keycode. In order to keep
+            the keypad length manageable, the Small protocol includes a subset
+            of all Nexus Keycode features, and does not support Nexus Channel.
+            
+            For example
+
+            Typical physical key layout is:
+            1 2 3 4 5
+endchoice
+
+config NEXUS_KEYCODE_RATE_LIMITING_ENABLED
+    bool "Use Nexus Keycode rate limiting [recommended]?"
+    default y
+    help
+        Nexus protocol will 'rate limit' the number of keycodes entered per day
+        to prevent brute-force entry attacks. It is recommended to leave this
+        setting enabled (defined) unless the implementing product has a separate
+        method of limiting excessive keycode entry attempts.
+     
+        Rate limiting is performed using a standard Token Bucket algorithm
+        (https://en.wikipedia.org/wiki/Token_bucket), where every keycode entry
+        attempt deducts 1 from the bucket. When the bucket is empty, a keycode
+        entry attempt will always be rejected until another attempt accumulates.
+
+menu "Rate Limiting Configuration"
+    depends on NEXUS_KEYCODE_RATE_LIMITING_ENABLED
+
+    config NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX
+    int "Maximum number of tokens in rate limiting bucket."
+    range 1 255
+    default 128
+    help
+        When product is powered on, token attempts 'accumulate' in the rate
+        limiting bucket. This variable controls the maximum number of tokens
+        in the bucket. Once this number of tokens is reached, no more tokens
+        are added to the bucket.
+
+    config NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT
+    int "Initial number of tokens in rate limiting bucket."
+    range 1 255
+    default 6
+    help
+        On initial power up, how many tokens should be in the rate limiting
+        bucket? Note that Nexus Keycode detects when tokens are used below
+        this limit, which prevents 'power cycling' attacks (where the user
+        cycles power to gain more token attempts).
+
+    config NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT
+    int "Seconds per each token attempt."
+    range 1 3600
+    default 720
+    help
+        Seconds which must elapse to add one token to the rate limiting
+        bucket. 
+
+endmenu
+
+config NEXUS_KEYCODE_ENABLE_FACTORY_QC_CODES
+    bool "Enable 'universal' factory test codes [recommended]?"
+    default y
+    help
+        These are special codes which can be enabled to allow any unit to
+        gain 1 hour of credit, and 10 minutes of credit. Each unit may only
+        receive these a limited number of times over their entire lifetime.
+        It is recommended to leave this feature enabled to aid in
+        troubleshooting of product returns, and adjust the "LIFETIME_MAX"
+        parameters to meet your security needs.
+
+menu "Factory QC Code Settings"
+    depends on NEXUS_KEYCODE_ENABLE_FACTORY_QC_CODES
+
+    config NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX
+    depends on NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+        int "Number of times a device may accept '10 minute' universal code"
+        range 1 15
+        default 5
+        help
+            Number of times the 10-minute "FACTORY_QC_SHORT" code may be
+            entered into any unit in its lifetime. After reaching this limit,
+            the unit will reject all "FACTORY_QC_SHORT" code attempts.
+
+    config NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX
+        int "Number of times a device may accept '1 hour' universal code"
+        range 1 15
+        default 5
+        help
+            Number of times the 1-hour "FACTORY_QC_LONG" code may be
+            entered into any unit in its lifetime. After reaching this limit,
+            the unit will reject all "FACTORY_QC_LONG" code attempts.
+endmenu
+
+config NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS
+    int "Seconds to wait between user keypresses"
+    range 2 255
+    default 16
+    help
+        Number of seconds to wait before cancelling a keycode entry operation.
+        This timeout is measured as idle time after *each* key press, not the idle
+        time from the beginning of the keycode.
+        
+        By default, the value of 16 indicates 'the keycode entry will time out if
+        the user does not enter another key for 16 seconds'.
+
+endif # NEXUS_KEYCODE_ENABLED 
+
+config NEXUS_CHANNEL_ENABLED
+    bool "Nexus Channel"
+    help
+        Enable if using the Nexus Channel functionality (not yet available)
+    default n
+
+endif # NEXUS_COMMON_CORE_ENABLED
+
+

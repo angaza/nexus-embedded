@@ -8,9 +8,9 @@ RETCODE=0
 # XXX update to 6.0 after updating the buildkite AMI!
 CLANG_FORMAT="clang-format-3.9"
 
-PROJECT_NAME="Nexus Keycode"
-SOURCE_ROOT="../nexus_keycode"
-SEARCH_PATH="$SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/"
+PROJECT_NAME="Nexus"
+SOURCE_ROOT="../nexus"
+SEARCH_PATH="$SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/utils/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/"
 
 TOOLPATH=`which $CLANG_FORMAT`
 
@@ -27,7 +27,7 @@ mkdir -p 'tmp-out'
 for file in $(find $SEARCH_PATH \( -iname '*.c' -or -iname '*.h' \));
 do
     $CLANG_FORMAT -style=file -output-replacements-xml $file > tmp-out/${file##*/}.xml;
-    if grep -c "<replacement " tmp-out/${file##*/}.xml > 0;
+    if grep -c "<replacement " tmp-out/${file##*/}.xml > /dev/null;
     then
         printf "Correcting style errors in $file.\n"
         $CLANG_FORMAT -style=file -i $file;
