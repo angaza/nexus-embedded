@@ -180,7 +180,25 @@ uint32_t nxp_keycode_get_user_facing_id(void);
 
 //
 // OPTIONAL "PASSTHROUGH" INTERFACE BELOW
+// (Required for Nexus Channel)
+// Used to pass Nexus Channel "Origin Command" keycodes onward
 //
+
+enum nxp_keycode_passthrough_application_subtype_id
+{
+    /* Reserved.
+     */
+    NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_RESERVED = 0,
+
+    /* Passthrough data to be processed by Nexus Channel as an origin command.
+     */
+    NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_NX_CHANNEL_ORIGIN_COMMAND =
+        1,
+
+    /* Pass arbitrary ASCII key values to the implementing application.
+     */
+    NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_PROD_ASCII_KEY = 2,
+};
 
 enum nxp_keycode_passthrough_error
 {

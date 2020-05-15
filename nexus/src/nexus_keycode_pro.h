@@ -8,13 +8,16 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__
-#define __NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__
+#ifndef NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__
+#define NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__
 
 #include "src/internal_keycode_config.h"
+
+#if NEXUS_KEYCODE_ENABLED
+
 #include "src/nexus_keycode_mas.h"
-#include "src/nexus_keycode_util.h"
 #include "src/nexus_nv.h"
+#include "src/nexus_util.h"
 
 #include <stdint.h>
 
@@ -486,4 +489,5 @@ NEXUS_STATIC_ASSERT(
     "expected nexus_keycode_pro_full_message *body* size incorrect");
 NEXUS_STATIC_ASSERT(sizeof(struct nexus_keycode_pro_full_message) == 13,
                     "expected nexus_keycode_pro_full_message size incorrect");
-#endif
+#endif /* if NEXUS_KEYCODE_ENABLED */
+#endif /* ifndef NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__ */

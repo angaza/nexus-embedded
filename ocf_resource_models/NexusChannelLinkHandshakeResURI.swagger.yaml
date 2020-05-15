@@ -1,0 +1,261 @@
+swagger: '2.0'
+info:
+  title: Nexus Channel Link Handshake
+  version: 'v0.5.0-2020'
+  license:
+    name: Angaza Nexus Data Model License (MIT License)
+    url: 'https://github.com/angaza/nexus-embedded/blob/master/LICENSE'
+    x-copyright: 'Copyright 2020 Angaza, Inc. All rights reserved.'
+schemes:
+  - http  # http for schema validation only - implementation requires CoAP
+  - coap 
+consumes:
+  - application/vnd.ocf+cbor  # ISO/IEC 30118-1:2018 Clause 12.2.4
+produces:
+  - application/vnd.ocf+cbor
+paths:
+  /h:  # 'link handshake'
+    get:
+      description: >
+        Retrieve information about a Nexus Channel Link handshake in progress.
+        Only one link handshake may be in progress at any given time, this
+        endpoint provides the information about that handshake.
+      responses:
+        200:
+          description: > 
+            Current Channel Link handshake status. Example shows a handshake
+            in progress, where Controller has sent '313233343536' and the accessory
+            hosting this resources has sent back the response data '0a9183d4'.
+            A pending link is available at '/l2'.
+          x-example:
+            rt: 
+              - angaza.com.nexus.channel.link.handshake
+            chalData: h'313233343536'  # '123456' in ascii
+            respData: h'0a9183d4'
+            chalMode: 0
+            lSecMode: 0
+            state: "V"  # 'VERIFYING'
+            tInit: 35
+            tTimeout: 300
+            sCM:
+              - 0
+              - 2
+              - 1
+            sLSM:
+              - 0
+          schema:
+            $ref: '#/definitions/LinkHandshake'
+    post:
+      description: >
+        Progress to the next state of a given link handshake, the possible
+        transitions are - 
+          * (I)dle -> (V)alidating
+          * (V)alidating -> (W)aiting
+          * (W)aiting -> (V)alidating
+          * (V)alidating -> (I)dle
+          * (W)aiting -> (I)dle
+
+        "Validating" means 'data received, processing'. "Waiting" means
+        'waiting on more data/action from the challenger'. 
+        
+        Basic flow (random PIN, no key negotiation on the wire) is - 
+          1) Handshake State = Idle
+          2) Controller POSTs random PIN to this endpoint (Handshake State => Validating)
+          3) Accessory sets up a new link in a pending state
+          4) Accessory responds to controller (2.01) to confirm new link (Handshake State => Waiting)
+          5) Controller POSTs a secure message to the new link URI (Handshake State => Validating)
+          6) Accessory moves new link from pending to established state (Handshake State => Idle)
+
+      parameters:
+        - in: body
+          name: Nexus Link Challenge
+          description: Challenge used to authenticate and begin a Nexus Channel Link
+          schema:
+            $ref: "#/definitions/LinkHandshake-POSTBody"
+      responses:
+        201:
+          description: Link handshake 'step' completed successfully.
+          x-example:
+            description: included only for automatic code generation
+            chalMode: 0
+            lSecMode: 0
+            respData: "\x63\xfb\x91\x00\x38"
+          schema:
+            $ref: '#/definitions/LinkHandshake-POST201Response'
+        400:
+          description: >
+            Provided payload was not understood or ill-formatted.
+        401:
+          description: >
+            Handshake data was properly formatted, but not valid.
+        405:
+          description: >
+            Requested security or challenge mode unsupported. Supported options
+            provided in response.
+          x-example:
+            description: included only for automatic code generation
+            sChalMode:
+              - 0
+              - 1
+            sLinkSecMode: 
+              - 0
+          schema:
+            $ref: '#/definitions/LinkHandshake-POST403Response'    
+          
+parameters:
+  interface:
+    in: query
+    name: if
+    type: string
+    enum:
+      - oic.if.rw
+      - oic.if.baseline
+definitions:
+  LinkHandshake-baseline:
+    description: Response if baseline interface is specified.
+    properties:
+      rt:
+        $ref: '#/definitions/LinkHandshake/properties/rt'
+      if:
+        $ref: '#/definitions/LinkHandshake/properties/if'
+        
+  LinkHandshake-POSTBody:
+    type: object
+    required:
+      - chalData
+      - chalMode
+      - lSecMode
+    properties:
+      chalData:
+        $ref: '#/definitions/LinkHandshake/properties/chalData'
+      chalMode:
+        $ref: '#/definitions/LinkHandshake/properties/chalMode'
+      lSecMode:
+        $ref: '#/definitions/LinkHandshake/properties/lSecMode'
+
+  LinkHandshake-POST201Response:
+    type: object
+    properties:
+      chalMode:
+        $ref: '#/definitions/LinkHandshake/properties/chalMode'
+      lSecMode:
+        $ref: '#/definitions/LinkHandshake/properties/lSecMode'
+      respData:
+        $ref: '#/definitions/LinkHandshake/properties/respData'
+        
+  LinkHandshake-POST403Response:
+    type: object
+    properties:
+      sChalMode:
+        $ref: '#/definitions/LinkHandshake/properties/sChalMode'
+      sLinkSecMode:
+        $ref: '#/definitions/LinkHandshake/properties/sLinkSecMode'
+
+  LinkHandshake:
+    type: object
+    properties:
+      rt:
+        description: The OCF-Format Resource Type
+        items:
+          enum:
+            - angaza.com.nexus.channel.link.handshake
+          maxLength: 64
+          type: string
+        minItems: 1
+        uniqueItems: true
+        readOnly: true
+        type: array
+      if:
+        description: The OCF Interface set supported by this Resource.
+        items:
+          enum:
+            - oic.if.rw
+            - oic.if.baseline
+          type: string
+        minItems: 2
+        uniqueItems: true
+        readOnly: true
+        type: array        
+      chalData:
+        description: (Short Name = 'cD') Binary request data received from 'challenger' during handshake establishment.
+        type: string
+        format: binary
+        maxLength: 16
+        example: "\x12\x44\x55\x77\x7b"
+      respData: 
+        description: (Short Name = 'rD'). Binary response data sent to 'challenger' during handshake establishment.
+        type: string
+        format: binary
+        maxLength: 16
+        example: "\x63\xfb\x91\x00\x38"
+      chalMode:
+        description: >
+          (Short Name = 'cM')
+          Nexus Channel Link Handshake challenge authentication types supported. These
+          determine how the controller 'proves' that it is authenticated to establish
+          a Nexus Channel link to this accessory device, and what method the
+          controller and accessory will use to derive a shared 'link key' for
+          future symmetric encryption of data on a Nexus Channel link.
+
+          Currently, only '0' is required for a valid Nexus channel implementation.
+          Possible auth types
+            * 0 - ("Challenge Result") Controller received a random PIN
+            ('challenge result') from the origin, which the accessory can
+            independently derive based on its current state. Controller generates
+            a password using this 'challenge result' and a controller-generated
+            `chalSalt`. Controller sends `chalSalt` to the accessory, which
+            then attempts to derive the same password as the controller.
+            * 1 - ("PK0") Controller provides its own public key and a nonce as data, signed by a trusted origin/backend.
+            * 2 - ("CRT1") Controller provides an X509 certificate signed by a trusted origin/backend.
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+        example: 0
+      lSecMode:
+        description: >
+          (Short Name = 'lS')
+          Nexus Channel Link security modes supported by this device. These determine
+          the level and type of security that will be used to secure communication between
+          the controller and accessory on the link to establish.
+          See "NexusChannelLinkResURI" for meaning of these security modes.
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+          - 3
+        example: 0      
+      state:  
+        description: (Short Name = 'st') State of this incomplete handshake. Meaning depends on the value of 'CM'.
+        type: string
+        example: 'V'
+      tInit:
+        description: (Short Name = 'tI') Seconds since this link handshake began.
+        type: integer
+        format: uint16
+        example: 15
+      tTimeout:
+        description: (Short Name = 'tT') When `SInit` reaches this value, the handshake will be terminated.
+        type: integer
+        format: uint16
+        example: 300
+      sLinkSecMode:
+        description: (Short Name = 'sL') Array of supported Channel Link security modes.
+        type: array
+        uniqueItems: true
+        minItems: 1
+        readOnly: true
+        items:
+          $ref: '#/definitions/LinkHandshake/properties/lSecMode'        
+      sChalMode:
+        description: (Short Name = 'sC') Array of supported Channel Link handshake authentication 'challenge' modes.
+        type: array
+        uniqueItems: true
+        minItems: 1
+        readOnly: true
+        items:
+          $ref: '#/definitions/LinkHandshake/properties/chalMode'

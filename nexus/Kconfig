@@ -150,7 +150,66 @@ endif # NEXUS_KEYCODE_ENABLED
 config NEXUS_CHANNEL_ENABLED
     bool "Nexus Channel"
     help
-        Enable if using the Nexus Channel functionality (not yet available)
+        Enable if using the Nexus Channel functionality
+    default n
+
+if NEXUS_CHANNEL_ENABLED
+
+choice NEXUS_CHANNEL_PLATFORM_MODE_SUPPORTED
+    prompt "Nexus Channel Link Mode"
+    help
+        Enable if using Nexus Channel functionality
+
+    config NEXUS_CHANNEL_PLATFORM_CONTROLLER_MODE_SUPPORTED
+        depends on NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+        bool "Channel Controller Mode"
+        help
+            Support acting in Controller Mode for Nexus Channel, where this
+            device may initiate links to more restricted Accessory devices.
+
+    config NEXUS_CHANNEL_PLATFORM_ACCESSORY_MODE_SUPPORTED
+        bool "Channel Accessory Mode"
+        help
+            System acts in Accessory Mode for Nexus Channel, where this device 
+            may have Nexus Channel links established to it from Controller
+            devices.
+
+    config NEXUS_CHANNEL_PLATFORM_DUAL_MODE_SUPPORTED
+        depends on NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+        bool "Channel Dual-Mode"
+        help
+            System is configured for "Dual Mode", where this device may act
+            as a Controller (establishing links to multiple Accessory devices)
+            as well as an Accessory (where another Controller links to and
+            controls this device) in a 'chained' configuration.
+            Currently experimental.
+endchoice
+
+config NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
+    int "Number of simultaneous Nexus Channel links"
+    range 1 10
+    default 8
+    help
+        Number of simultaneous Nexus channel links that this device can
+        persist. Directly impacts NV storage. Accessories typically may
+        support only 1 link, controllers are recommended to support 8.
+
+endif # NEXUS_CHANNEL_ENABLED
+
+config NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
+    bool "OC Logging"
+    help
+        Enable calls to PRINT(...), PRINTipaddr(endpoint), and
+        PRINTipaddr_local(endpoint) provided by `nexus/oc/port/oc_log.h`.
+
+        Enabling will increase flash footprint.
+    default n
+config NEXUS_COMMON_CORE_OC_DEBUG_LOG_ENABLED
+    depends on NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
+    bool "OC Debug Logging"
+    help
+        Enable additional `OC_DBG`, `OC_WRN`, `OC_ERR`, and `OC_LOG`
+        diagnostic logs provided by `nexus/oc/port/oc_log.h`.
     default n
 
 endif # NEXUS_COMMON_CORE_ENABLED

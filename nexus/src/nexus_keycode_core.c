@@ -9,10 +9,13 @@
  */
 
 #include "src/nexus_keycode_core.h"
+
+#if NEXUS_KEYCODE_ENABLED
+
 #include "include/nxp_keycode.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
-#include "src/nexus_keycode_util.h"
+#include "src/nexus_util.h"
 
 // Default values - initialize based on the configuration settings
 static const struct nexus_keycode_handling_config
@@ -83,3 +86,5 @@ bool nexus_keycode_core_init_completed(void)
 {
     return _this.init_completed;
 }
+
+#endif /* if NEXUS_KEYCODE_ENABLED */

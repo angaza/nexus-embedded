@@ -21,6 +21,8 @@
 #ifndef PROCESSING_H
 #define PROCESSING_H
 
+#include <stdint.h>
+
 /* @brief Initializes the internal state of the processing module.
  *
  * This function sets up the internal timer and other details allowing
@@ -44,5 +46,9 @@ void processing_deinit(void);
  * idle periods.
  */
 void processing_execute(void);
+
+/* @brief Loop, calling `processing_execute` until `seconds` elapses.
+ */
+void processing_idle_loop(uint32_t seconds);
 
 #endif

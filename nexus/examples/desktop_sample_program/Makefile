@@ -6,11 +6,14 @@ BUILD := default
 C_STANDARD = gnu11
 
 # define compilation flags (includes, optimization, debug, warnings) here
-INCLUDES = -Iinc -Isrc -I../.. -I../../include -I../../utils
-WARNINGS.default := -Wall -Wextra -Wpedantic -Wno-type-limits
+INCLUDES = -Iinc -Isrc -I../.. -I../../include -I../../utils -I../../oc/ -I../../oc/api -I../../oc/include -I../../oc/messaging/coap -I../../oc/port -I../../oc/util
+# Wno-comment and Wno-sign-compare for IoTivity files
+WARNINGS.default := -Wall -Wextra -Wpedantic -Wno-type-limits -Wno-comment \
+	-Wno-sign-compare -Wno-unused-variable
 WARNINGS.sa := $(WARNINGS.default) -Werror -Wno-unused-parameter -Wundef \
     -Wuninitialized -Winit-self -Wswitch-default -Wunreachable-code \
-    -Wlogical-op -Winline -Wsuggest-attribute=const -Wconversion
+    -Wlogical-op -Winline -Wsuggest-attribute=const -Wconversion \
+	-Wno-sign-compare
 
 CFLAGS = $(INCLUDES) -DDEBUG -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
 
@@ -48,16 +51,18 @@ LDFLAGS = -lm -lrt
 
 SOURCE_FILES := $(shell find src -name '*.c')
 
-# These are the files from the Nexus Keycode library
+# These are the files from the Nexus library
+LIB_OC_SOURCE_FILES := $(shell find ../../oc -name '*.c')
 LIB_SOURCE_FILES := $(shell find ../../src -name '*.c')
 LIB_UTIL_SOURCE_FILES := $(shell find ../../utils -name '*.c')
 
 # take every c file, and replace the ".c" with ".o" (list of all object files)
 SRC_OBJECT_FILES = $(SOURCE_FILES:.c=.o)
+LIB_OC_SOURCE_OBJECT_FILES = $(LIB_OC_SOURCE_FILES:.c=.o)
 LIB_OBJECT_FILES = $(LIB_SOURCE_FILES:.c=.o)
 LIB_UTIL_SOURCE_OBJECT_FILES = $(LIB_UTIL_SOURCE_FILES:.c=.o)
 
-OBJECT_FILES = $(SRC_OBJECT_FILES) $(LIB_OBJECT_FILES) $(LIB_UTIL_SOURCE_OBJECT_FILES)
+OBJECT_FILES = $(SRC_OBJECT_FILES) $(LIB_OC_SOURCE_OBJECT_FILES) $(LIB_OBJECT_FILES) $(LIB_UTIL_SOURCE_OBJECT_FILES)
 
 PROGRAM_NAME = sample_nexus_keycode_program
 
@@ -90,5 +95,5 @@ format:
 	$(foreach file, $(SOURCE_FILES), clang-format-6.0 -style=file -i $(file);)
 
 clean:
-	rm -rf $(OBJECT_FILES) $(LIB_OBJECT_FILES)
+	rm -rf $(OBJECT_FILES)
 	rm -f $(PROGRAM_NAME)

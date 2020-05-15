@@ -1,4 +1,4 @@
-#include "src/nexus_keycode_util.h"
+#include "src/nexus_util.h"
 #include "unity.h"
 #include "utils/siphash_24.h"
 
@@ -6,7 +6,6 @@
 #include <arpa/inet.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 /********************************************************
@@ -460,6 +459,70 @@ void test_nexus_digits_try_pull_uint32__too_few_remaining_digits__sets_underrun_
                                  digits.length - digits.position);
 }
 
+void test_nexus_digits_pull_uint8__too_many_digits_pulled__returns_uint8_max(
+    void)
+{
+    struct nexus_digits digits = {
+        "02838844499922", // chars
+        14, // length
+        9, // position
+    };
+
+    const uint8_t result = nexus_digits_pull_uint8(&digits, 10);
+    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, result); // failure sentinel
+}
+
+void test_nexus_digits_pull_uint8__result_too_large__returns_uint8_max(void)
+{
+    struct nexus_digits digits = {
+        "02838844499922", // chars
+        14, // length
+        5, // position
+    };
+
+    // fails because result doesn't fit into a uint8_t
+    const uint8_t result = nexus_digits_pull_uint8(&digits, 3);
+    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, result); // failure sentinel
+}
+
+void test_nexus_digits_pull_uint16__valid_digits_pulled__result_expected(void)
+{
+    struct nexus_digits digits = {
+        "02838844499922", // chars
+        14, // length
+        9, // position
+    };
+
+    const uint16_t result = nexus_digits_pull_uint16(&digits, 4);
+    TEST_ASSERT_EQUAL_UINT(9992, result); // failure sentinel
+}
+
+void test_nexus_digits_pull_uint16__too_many_digits_pulled__returns_uint16_max(
+    void)
+{
+    struct nexus_digits digits = {
+        "02838844499922", // chars
+        14, // length
+        9, // position
+    };
+
+    const uint16_t result = nexus_digits_pull_uint16(&digits, 10);
+    TEST_ASSERT_EQUAL_UINT(UINT16_MAX, result); // failure sentinel
+}
+
+void test_nexus_digits_pull_uint16__result_too_large__returns_uint16_max(void)
+{
+    struct nexus_digits digits = {
+        "02838844499922", // chars
+        14, // length
+        5, // position
+    };
+
+    // fails because result doesn't fit into a uint16_t
+    const uint16_t result = nexus_digits_pull_uint16(&digits, 7);
+    TEST_ASSERT_EQUAL_UINT(UINT16_MAX, result); // failure sentinel
+}
+
 void test_nexus_bitset_init__various_bytes__result_matches(void)
 {
     struct test_scenario
@@ -555,5 +618,322 @@ void test_nexus_bitset_contains_bitset__fixed_sets__contains_expected_result(
             nexus_bitset_contains(&bitset, scenarios[i].contained_element));
         TEST_ASSERT_FALSE(
             nexus_bitset_contains(&bitset, scenarios[i].absent_element));
+    }
+}
+
+void test_nexus_window__init_valid_window_various_values__window_created_as_expected(
+    void)
+{
+    struct test_scenario
+    {
+        uint8_t flag_array[5];
+        uint8_t flag_array_bytes;
+        uint32_t center_index;
+        uint8_t size_below;
+        uint8_t size_above;
+    };
+    struct test_scenario scenarios[] = {{{128, 0, 0, 0, 0}, 1, 0, 7, 15},
+                                        {{0, 0, 128, 0, 0}, 3, 24, 23, 5},
+                                        {{127, 127, 127, 0, 0}, 5, 10, 39, 16},
+                                        {{127, 127, 127, 0, 0}, 4, 31, 31, 8}};
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        struct nexus_window window;
+        nexus_util_window_init(&window,
+                               scenarios[i].flag_array,
+                               scenarios[i].flag_array_bytes,
+                               scenarios[i].center_index,
+                               scenarios[i].size_below,
+                               scenarios[i].size_above);
+        TEST_ASSERT_EQUAL(scenarios[i].center_index, window.center_index);
+        TEST_ASSERT_EQUAL(scenarios[i].size_below, window.flags_below);
+        TEST_ASSERT_EQUAL(scenarios[i].size_above, window.flags_above);
+        TEST_ASSERT_EQUAL(scenarios[i].flag_array_bytes,
+                          window.flags.bytes_count);
+        TEST_ASSERT_EQUAL_INT_ARRAY(scenarios[i].flag_array,
+                                    window.flags.bytes,
+                                    window.flags.bytes_count);
+    }
+}
+
+void test_nexus_window__get_empty_window__is_empty(void)
+{
+    struct nexus_window window;
+    uint8_t flag_array[4] = {0};
+
+    nexus_util_window_init(&window, flag_array, 4, 31, 31, 8);
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 0));
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 30));
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 31));
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 400));
+}
+
+void test_nexus_window__set_flags__flags_are_set(void)
+{
+    struct nexus_window window;
+    uint8_t flag_array[4] = {0};
+
+    nexus_util_window_init(&window, flag_array, 4, 31, 31, 8);
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 0));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 0));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 0));
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 15));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 15));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 15));
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 30));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 30));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 30));
+
+    // 0 is still in window
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 0));
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 35));
+
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 35));
+
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 35));
+
+    // flag array should not be modified by operations below
+    uint8_t tmp_flag_array[4];
+    memcpy(tmp_flag_array, flag_array, 4);
+
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(tmp_flag_array, flag_array, 4);
+
+    // 0 is no longer in window
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 0));
+
+    // can't set 0 any longer (out of window)
+    TEST_ASSERT_FALSE(nexus_util_window_set_id_flag(&window, 0));
+
+    // can't set flags outside of window
+    TEST_ASSERT_FALSE(nexus_util_window_set_id_flag(&window, 45));
+
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(tmp_flag_array, flag_array, 4);
+}
+
+void test_nexus_window__set_flags__move_window_far__clear_all_flags(void)
+{
+    struct nexus_window window;
+    uint8_t flag_array[3] = {0};
+
+    // window is smaller below center than above center
+    nexus_util_window_init(&window, flag_array, 3, 23, 23, 40);
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 0));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 0));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 0));
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 15));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 15));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 15));
+
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 30));
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 30));
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 30));
+
+    // 0 not still in window
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 0));
+
+    // exercise moving the window far enough to clear all flags
+    TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, 60));
+
+    TEST_ASSERT_TRUE(nexus_util_window_set_id_flag(&window, 60));
+
+    TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, 60));
+}
+
+void test_endianness_htobe32__various_scenarios__result_matches_htonl(void)
+{
+    struct test_scenario
+    {
+        const uint32_t input;
+    };
+
+    const struct test_scenario scenarios[] = {{0}, {24}, {0x12345678}, {65537}};
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // not a great test because we're stuck with our host byte order
+        const struct test_scenario scenario = scenarios[i];
+        const uint32_t output = nexus_endian_htobe32(scenario.input);
+        TEST_ASSERT_EQUAL_UINT(htonl(scenario.input), output);
+    }
+}
+
+void test_nx_core_nx_id_to_ipv6_address__various_scenarios__output_expected(
+    void)
+{
+    struct test_scenario
+    {
+        const struct nx_id input;
+        const struct nx_ipv6_address expected;
+    };
+
+    const struct test_scenario scenarios[] = {
+        {
+            {0x0000, 0x12345678}, // authority ID, device ID
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0x02,
+              0,
+              0x12,
+              0xFF,
+              0xFE,
+              0x34,
+              0x56,
+              0x78},
+             0}, // ipv6 address, global scope bool
+        },
+        {
+            {0x1020, 0xAB}, // authority ID, device ID
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0x12,
+              0x20,
+              0x00,
+              0xFF,
+              0xFE,
+              0,
+              0,
+              0xAB},
+             0}, // ipv6 address, global scope bool
+        },
+        {
+            {0xD2AC, 0xFCFB0122}, // authority ID, device ID
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0xD0,
+              0xAC,
+              0xFC,
+              0xFF,
+              0xFE,
+              0xFB,
+              0x01,
+              0x22},
+             0}, // ipv6 address, global scope bool
+        },
+
+    };
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // not a great test because we're stuck with our host byte order
+        const struct test_scenario scenario = scenarios[i];
+        struct nx_ipv6_address output;
+        bool success = nx_core_nx_id_to_ipv6_address(&scenario.input, &output);
+        TEST_ASSERT_TRUE(success);
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            scenario.expected.address, output.address, 16);
+        TEST_ASSERT_EQUAL_UINT(scenario.expected.global_scope,
+                               output.global_scope);
+    }
+}
+
+void test_nx_core_ipv6_address_to_nx_id__various_scenarios__output_expected(
+    void)
+{
+    struct test_scenario
+    {
+        const struct nx_ipv6_address input;
+        const struct nx_id expected;
+    };
+
+    const struct test_scenario scenarios[] = {
+        {
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0x02,
+              0,
+              0x12,
+              0xFF,
+              0xFE,
+              0x34,
+              0x56,
+              0x78},
+             0}, // ipv6 address, global scope bool
+            {0x0000, 0x12345678}, // authority ID, device ID
+        },
+        {
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0x22,
+              0x10,
+              0xAB,
+              0xFF,
+              0xFE,
+              0,
+              0,
+              0},
+             0}, // ipv6 address, global scope bool
+            {0x2010, 0xAB000000}, // authority ID, device ID
+        },
+        {
+            {{0xFE,
+              0x80,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0xAE,
+              0xD2,
+              0x22,
+              0xFF,
+              0xFE,
+              0x01,
+              0xFB,
+              0xFC},
+             0}, // ipv6 address, global scope bool
+            {0xACD2, 0x2201FBFC}, // authority ID, device ID
+        },
+
+    };
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // not a great test because we're stuck with our host byte order
+        const struct test_scenario scenario = scenarios[i];
+        struct nx_id output;
+        bool success = nx_core_ipv6_address_to_nx_id(&scenario.input, &output);
+        TEST_ASSERT_TRUE(success);
+        TEST_ASSERT_EQUAL_UINT(scenario.expected.authority_id,
+                               output.authority_id);
+        TEST_ASSERT_EQUAL_UINT(scenario.expected.device_id, output.device_id);
     }
 }

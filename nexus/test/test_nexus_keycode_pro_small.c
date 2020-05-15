@@ -2,20 +2,26 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
-#include "src/nexus_keycode_util.h"
 #include "src/nexus_nv.h"
+#include "src/nexus_util.h"
 #include "unity.h"
 #include "utils/crc_ccitt.h"
 #include "utils/siphash_24.h"
 
 // Other support libraries
+#include <mock_nexus_channel_core.h>
 #include <mock_nxp_core.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
+// Eliminate warning: "warning: implicit declaration of function ‘resetTest’"
+// function is provided by Cmock.
+void resetTest(void);
+
 /********************************************************
  * DEFINITIONS
  *******************************************************/
+
 /********************************************************
  * PRIVATE TYPES
  *******************************************************/

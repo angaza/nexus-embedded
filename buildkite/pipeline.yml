@@ -14,7 +14,9 @@ steps:
       command: buildkite/unit-test-ci-wrapper.sh
     - name: ":leaves: Build: GCC + clang scan-build 'stub' program"
       command: buildkite/static-analysis-scan-build.sh
-    - name: ":leaves: Build: GCC + clang scan-build 'desktop example' program"
+    - name: ":desktop_computer: Build: GCC + clang scan-build 'desktop example' program"
       command: buildkite/static-analysis-scan-build-example-desktop.sh
+    - name: ":footprints: Thumb2 size analysis (with link time optimization)"
+      command: buildkite/thumb2-size.sh
     - name: ":sonarqube: SonarCloud Analysis"
       command: buildkite/sonarcloud.sh

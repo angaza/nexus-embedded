@@ -22,7 +22,7 @@ if __name__ == "__main__":
         guiconfig._main()
 
     else:
-        # Menuconfig works 'out of the box' on most *Nix distros:wq
+        # Menuconfig works 'out of the box' on most *Nix distros
         print("Detected *Nix platform, using menuconfig...")
         menuconfig._main()
 

@@ -11,6 +11,8 @@
 #include "identity.h"
 #include "nonvol.h"
 #include "nx_keycode.h"
+#include "nxp_channel.h"
+#include "nxp_core.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,8 +25,24 @@ uint32_t nxp_keycode_get_user_facing_id(void)
     return _this.serial_id;
 }
 
+struct nx_id nxp_channel_get_nexus_id(void)
+{
+    struct nx_id my_id;
+    my_id.authority_id = 0;
+    my_id.device_id = nxp_keycode_get_user_facing_id();
+    return my_id;
+}
+
 struct nx_core_check_key nxp_keycode_get_secret_key(void)
 {
+    return _this.secret_key;
+}
+
+struct nx_core_check_key nxp_channel_symmetric_origin_key(void)
+{
+    // In a real system, different keys are used for keycode validation and
+    // Nexus Channel 'origin' authentication, but we use the same key in this
+    // demo for simplicity.
     return _this.secret_key;
 }
 

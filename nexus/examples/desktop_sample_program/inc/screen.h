@@ -24,4 +24,10 @@
 */
 void screen_display_status(void);
 
+/* @brief Display the Nexus Channel link status to user.
+ *
+ * Currently this is the count of active links.
+ */
+void screen_display_nexus_channel_state(void);
+
 #endif

@@ -23,8 +23,7 @@ fi
 
 mkdir -p 'tmp-out'
 
-# /src exists for both projects, /inc only for Coprocessor
-for file in $(find $SEARCH_PATH \( -iname '*.c' -or -iname '*.h' \));
+for file in $(find $SEARCH_PATH \( -iname '*.c' -and -not -iname 'oc_*' -or -iname '*.h' -and -not -iname 'oc_*' \));
 do
     $CLANG_FORMAT -style=file -output-replacements-xml $file > tmp-out/${file##*/}.xml;
     if grep -c "<replacement " tmp-out/${file##*/}.xml > /dev/null;

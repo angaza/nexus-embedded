@@ -1,5 +1,5 @@
 /** \file
- * Nexus Protocol Internal Configuration Parameters
+ * Nexus Keycode Internal Configuration Parameters
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -8,19 +8,26 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__KEYCODE__SRC__INTERNAL_KEYCODE_CONFIG_H_
-#define __NEXUS__KEYCODE__SRC__INTERNAL_KEYCODE_CONFIG_H_
+#ifndef NEXUS__KEYCODE__SRC__INTERNAL_KEYCODE_CONFIG_H_
+#define NEXUS__KEYCODE__SRC__INTERNAL_KEYCODE_CONFIG_H_
 
 // "nxp" will be included independently by modules that them.
-#include "include/nx_core.h"
 #include "include/nx_keycode.h"
+#include "src/internal_common_config.h"
 #include "utils/crc_ccitt.h"
 #include "utils/siphash_24.h"
+
+// Convert user configuration to internal config
+// 'CONFIG' prefix from Kconfig
+#ifndef CONFIG_NEXUS_KEYCODE_ENABLED
+#define NEXUS_KEYCODE_ENABLED 0
+#else
+#define NEXUS_KEYCODE_ENABLED 1
 
 // In most cases, there is no need to modify the values of this file.
 
 // Identifies the Nexus keycode protocol public 'release version'.
-#define NEXUS_PROTOCOL_RELEASE_VERSION_COUNT 1
+#define NEXUS_KEYCODE_RELEASE_VERSION_COUNT 1
 
 #define NEXUS_KEYCODE_PROTOCOL_NO_STOP_LENGTH UINT8_MAX
 #define NEXUS_KEYCODE_UNDEFINED_END_CHAR '?'
@@ -32,7 +39,7 @@
 
 // Convert user configuration to internal config.
 // 'CONFIG' prefix from Kconfig
-#if CONFIG_NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+#ifdef CONFIG_NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
 #define NEXUS_KEYCODE_PROTOCOL NEXUS_KEYCODE_PROTOCOL_FULL
 #else
 #define NEXUS_KEYCODE_PROTOCOL NEXUS_KEYCODE_PROTOCOL_SMALL
@@ -87,11 +94,6 @@
 #define NEXUS_KEYCODE_ALPHABET "2345" // excluding start/end
 #endif
 
-// Compile-time parameter checks
-#ifndef NEXUS_KEYCODE_PROTOCOL
-#error "NEXUS_KEYCODE_PROTOCOL must be defined."
-#endif
-
 #if NEXUS_KEYCODE_PROTOCOL != NEXUS_KEYCODE_PROTOCOL_FULL
 #if NEXUS_KEYCODE_PROTOCOL != NEXUS_KEYCODE_PROTOCOL_SMALL
 #error "NEXUS_KEYCODE_PROTOCOL must be SMALL or FULL version."
@@ -137,41 +139,11 @@
 #endif
 #endif
 
-// Macro to expose certain functions during unit tests
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
-#define NEXUS_IMPL_STATIC
-#else
-#define NEXUS_IMPL_STATIC static
+#endif /* ifndef CONFIG_NEXUS_KEYCODE_ENABLED */
+
+// Compile-time parameter checks
+#ifndef NEXUS_KEYCODE_ENABLED
+#error "NEXUS_KEYCODE_ENABLED must be defined."
 #endif
 
-// use static asserts by default only under c11 and above
-// Do not use static asserts for the frama-c build
-#ifndef NEXUS_STATIC_ASSERT
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-#ifndef __FRAMAC__
-#define NEXUS_STATIC_ASSERT(b, m) _Static_assert(b, m)
-#else
-#define NEXUS_STATIC_ASSERT(b, m)
-#endif
-#else
-#define NEXUS_STATIC_ASSERT(b, m)
-#endif
-#endif
-
-// do not use runtime asserts by default
-#ifndef NEXUS_ASSERT
-#if defined(DEBUG) && !defined(NDEBUG)
-#include <assert.h>
-#define NEXUS_ASSERT(b, m) assert(b)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m) assert(b)
-#elif defined(NEXUS_USE_DEFAULT_ASSERT)
-#include <assert.h>
-#define NEXUS_ASSERT(b, m) assert(b)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
-#else
-#define NEXUS_ASSERT(b, m)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
-#endif
-#endif
-
-#endif
+#endif /* ifndef NEXUS__KEYCODE__SRC__INTERNAL_KEYCODE_CONFIG_H_ */

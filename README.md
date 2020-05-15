@@ -1,10 +1,9 @@
-# Nexus Keycode: C Implementation (Preview Release)
+# Nexus Firmware Libraries
 
-A decoding-only implementation of the Nexus Keycode protocols, portable to
-any platform supporting standard C99. No dynamic memory allocation required.
-
-This is a preview release. We plan to produce a final production release by
-the end of Q1 2020.
+This repository contains the embedded implementations of Nexus technology.
+These platform-independent libraries are standard, portable C99 requiring
+no dynamic memory allocation, suitable for use on highly constrained
+embedded platforms.
 
 [![Build status](https://badge.buildkite.com/082d9802561b1880273c1cc570f98c39e00b79ea7dd99425d1.svg?branch=master)](https://buildkite.com/angaza/nexus-embedded-nexus-keycode)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=angaza_nexus-keycode-embedded-internal&metric=alert_status&token=3c0218f9fde1d544fd2060ec1075c15fefeffd4f)](https://sonarcloud.io/dashboard?id=angaza_nexus-keycode-embedded-internal)
@@ -72,6 +71,8 @@ The tool can be run on any platform using Python 3, as below:
 python conf_nexus.py
 ```
 
+You may also need to install the package `python3-tk`.
+
 This tool must be run from within the `nexus` directory to gain access to
 the required `Kconfiglib` files.
 
@@ -81,15 +82,14 @@ Afterwards, the tool automatically updates and saves your selections into
 a header which is parsed by the Nexus code to determine what features to
 expose to your application.
 
-## Static Analysis
+## Static analysis
 
 `ceedling release` will attempt to build the Nexus Keycode library against
 a stub implementation (contained in `stub`), with high verbosity GCC warnings
 and using the Clang static analyzer. This is used to detect potential problems
 in the code that may be missed by unit tests.
 
-## Unit Tests
-
+## Unit tests
 The unit tests themselves are found within the `nexus/test` folder. The
 configuration of `ceedling` is contained within the `nexus/project.yml` file.
 

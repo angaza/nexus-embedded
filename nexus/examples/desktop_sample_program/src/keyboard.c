@@ -8,10 +8,14 @@
  * or substantial portions of the Software.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "keyboard.h"
+#include "nexus_batt_resource.h"
+
 // include 'nx_core' to get core, including configuration values
 #include "nx_core.h"
 #include "nx_keycode.h"
@@ -30,17 +34,11 @@
 static struct
 {
     char keycode_buffer[MAX_KEYCODE_LENGTH + 1];
-    bool clear_on_next_prompt;
+    bool keycode_to_process;
 } _this;
 
 void clear_input_buffer()
 {
-    if (!_this.clear_on_next_prompt)
-    {
-        _this.clear_on_next_prompt = true;
-        return;
-    }
-    memset(_this.keycode_buffer, 0, sizeof(_this.keycode_buffer));
     int c = getchar();
     while (c != '\n' && c != EOF)
     {
@@ -50,8 +48,38 @@ void clear_input_buffer()
 
 void keyboard_init()
 {
-    _this.clear_on_next_prompt = true;
     clear_input_buffer();
+    memset(&_this, 0x00, sizeof(_this));
+}
+
+// returns a character stream (max length 49). Caller may copy up to
+// 50 bytes from `received_input` back into a local copy.
+// Return 0 if length exceeds `max_length`
+size_t keyboard_obtain_generic_input(FILE* instream,
+                                     char* received_input,
+                                     size_t max_length)
+{
+    char input_chars[50] = {0};
+
+    if (fgets(input_chars, sizeof(input_chars), instream))
+    {
+        // delete trailing newline
+        input_chars[strcspn(input_chars, "\n")] = '\0';
+    }
+
+    size_t length = strnlen(input_chars, 50);
+    printf("\tInput (length=%zu): %s\n", length, input_chars);
+
+    if (length <= max_length)
+    {
+        memcpy(received_input, input_chars, length);
+    }
+    else
+    {
+        length = 0;
+    }
+    clear_input_buffer();
+    return length;
 }
 
 void keyboard_prompt_keycode(FILE* instream)
@@ -61,18 +89,9 @@ void keyboard_prompt_keycode(FILE* instream)
     printf("Please input a %s keycode (%d digits maximum): ",
            PROTOCOL_NAME,
            MAX_KEYCODE_LENGTH);
-    if (fgets(_this.keycode_buffer, sizeof(_this.keycode_buffer), instream))
-    {
-        // Delete any trailing newline.
-        _this.keycode_buffer[strcspn(_this.keycode_buffer, "\n")] = '\0';
-    }
 
-    const size_t length = strnlen(_this.keycode_buffer, MAX_KEYCODE_LENGTH);
-    printf("\tInput (length=%zu): %s\n", length, _this.keycode_buffer);
-    if (length < MAX_KEYCODE_LENGTH)
-    {
-        _this.clear_on_next_prompt = false;
-    }
+    (void) keyboard_obtain_generic_input(
+        instream, _this.keycode_buffer, MAX_KEYCODE_LENGTH);
 
 // Pre-process the input.
 #if CONFIG_NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
@@ -107,10 +126,34 @@ void keyboard_prompt_keycode(FILE* instream)
         }
     }
     strncpy(_this.keycode_buffer, processed_input, MAX_KEYCODE_LENGTH);
+    _this.keycode_to_process = true;
+}
+
+void keyboard_prompt_update_battery_threshold(FILE* instream)
+{
+    clear_input_buffer();
+
+    printf("Please input a new battery threshold (0-20)\n");
+
+    char charge_threshold[2] = {0};
+
+    (void) keyboard_obtain_generic_input(instream, charge_threshold, 2);
+
+    const uint8_t threshold_int = atoi(charge_threshold);
+    if (threshold_int > 20)
+    {
+        printf("Threshold value must be between 0-20%%\n");
+    }
+
+    battery_resource_simulate_post_update_properties(threshold_int);
 }
 
 void keyboard_process_keycode(void)
 {
+    if (!_this.keycode_to_process)
+    {
+        return;
+    }
 #ifndef NEXUS_KEYCODE_HANDLE_SINGLE_KEY
     // Pass the keycode into the Nexus Keycode library 'all at once'.
     size_t length = strnlen(_this.keycode_buffer, sizeof(_this.keycode_buffer));
@@ -133,4 +176,6 @@ void keyboard_process_keycode(void)
         }
     }
 #endif
+    memset(_this.keycode_buffer, 0, sizeof(_this.keycode_buffer));
+    _this.keycode_to_process = false;
 }

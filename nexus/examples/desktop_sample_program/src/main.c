@@ -16,6 +16,7 @@
 #include "clock.h"
 #include "identity.h"
 #include "keyboard.h"
+#include "menu.h"
 #include "nonvol.h"
 #include "nx_core.h"
 #include "nx_keycode.h"
@@ -23,6 +24,9 @@
 #include "payg_state.h"
 #include "processing.h"
 #include "screen.h"
+
+// Nexus Channel example product-specific resource
+#include "nexus_batt_resource.h"
 
 // Capture keyboard 'ctrl-C' interrupts.
 void sigint_handler(/*int sig*/)
@@ -46,8 +50,11 @@ int main(void)
     payg_state_init();
     printf("Done with product interfaces\n");
 
-    printf("Initializing Nexus Keycode library...\n");
+    printf("Initializing Nexus library...\n");
     nx_core_init();
+
+    // Initialize custom resources after `nx_core_init`
+    battery_resource_init();
     printf("Done\n");
 
     // Start the main loop.
@@ -55,8 +62,12 @@ int main(void)
     {
         processing_execute();
         screen_display_status();
-        keyboard_prompt_keycode(stdin);
+
+        // menu will block until user selects action
+        menu_prompt();
         clock_consume_credit();
+
+        // processing
         keyboard_process_keycode();
     }
 }

@@ -45,6 +45,12 @@ void keyboard_init();
 */
 void keyboard_prompt_keycode(FILE* instream);
 
+/* @brief Prompt the user for new battery threshold for battery resource.
+ *
+ * @param instream the input stream to receive keys from, e.g. `stdin`
+ */
+void keyboard_prompt_update_battery_threshold(FILE* instream);
+
 /* @brief Process the keycode previously entered via `keyboard_prompt_keycode`.
  *
  * The Nexus Keycode library allows for keys to be processed either

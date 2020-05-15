@@ -14,6 +14,7 @@
 
 #include "include/nxp_core.h"
 #include "include/nxp_keycode.h"
+#include "src/nexus_channel_core.h"
 #include "src/nexus_keycode_core.h"
 
 /** Internal struct of data persisted to NV.
@@ -33,8 +34,13 @@ void nx_core_init(void)
     _this.init_completed = false;
     _this.pending_init = true;
 
-    // initialize submodules
+#if NEXUS_KEYCODE_ENABLED
     nexus_keycode_core_init();
+#endif
+
+#if NEXUS_CHANNEL_ENABLED
+    nexus_channel_core_init();
+#endif
 
     // Request for implementing system to call
     // 'nx_core_process' after calling `nx_core_init`, to initialize
@@ -59,7 +65,13 @@ uint32_t nx_core_process(uint32_t uptime_seconds)
 
     uint32_t min_sleep = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 
+#if NEXUS_KEYCODE_ENABLED
     min_sleep = u32min(min_sleep, nexus_keycode_core_process(seconds_elapsed));
+#endif
+
+#if NEXUS_CHANNEL_ENABLED
+    min_sleep = u32min(min_sleep, nexus_channel_core_process(seconds_elapsed));
+#endif
 
     // System is initialized after first 'process' run
     // `pending_init` enforces call order (must call `init` then `process`)
@@ -80,4 +92,11 @@ bool nexus_core_init_completed(void)
 uint32_t nexus_core_uptime(void)
 {
     return _this.uptime_s;
+}
+
+void nx_core_shutdown(void)
+{
+#if NEXUS_CHANNEL_ENABLED
+    nexus_channel_core_shutdown();
+#endif
 }

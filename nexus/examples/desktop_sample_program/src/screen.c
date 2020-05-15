@@ -9,6 +9,7 @@
  */
 
 #include "screen.h"
+#include "nx_channel.h"
 #include "nxp_core.h"
 #include "nxp_keycode.h"
 #include "payg_state.h"
@@ -25,4 +26,9 @@ void screen_display_status(void)
         printf("Credit remaining: %d seconds\n",
                payg_state_get_remaining_credit());
     }
+}
+
+void screen_display_nexus_channel_state(void)
+{
+    printf("Number of active Nexus Channel links: %d", nx_channel_link_count());
 }

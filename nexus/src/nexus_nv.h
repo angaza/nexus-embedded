@@ -8,8 +8,8 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__SRC__NEXUS_NV_INTERNAL_H__
-#define __NEXUS__SRC__NEXUS_NV_INTERNAL_H__
+#ifndef NEXUS__SRC__NEXUS_NV_INTERNAL_H_
+#define NEXUS__SRC__NEXUS_NV_INTERNAL_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,6 +19,18 @@
 #define NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES 4
 extern struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS;
 extern struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_OM;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9;
+extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
 
 /** (Internal) Update a Nexus NV block.
  *
@@ -60,4 +72,4 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
 bool nexus_nv_read(const struct nx_core_nv_block_meta block_meta,
                    uint8_t* inner_data);
 
-#endif
+#endif /* ifndef NEXUS__SRC__NEXUS_NV_INTERNAL_H_ */

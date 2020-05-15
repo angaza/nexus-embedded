@@ -8,10 +8,13 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_
-#define __NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_
+#ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_
+#define NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_
 
 #include "src/internal_keycode_config.h"
+
+#if NEXUS_KEYCODE_ENABLED
+
 #include "src/nexus_core_internal.h"
 #include "src/nexus_keycode_pro.h"
 
@@ -60,4 +63,5 @@ void _nexus_keycode_core_internal_init(
     const struct nexus_keycode_handling_config* config);
 #endif
 
-#endif
+#endif /* if NEXUS_KEYCODE_ENABLED */
+#endif /* ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_ */

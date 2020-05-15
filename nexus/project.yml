@@ -30,6 +30,7 @@
   :source:
     - "#{PROJECT_ROOT}/"
     - "#{PROJECT_ROOT}/include/**"
+    - "#{PROJECT_ROOT}/oc/**"
     - "#{PROJECT_ROOT}/src/**"
     - "#{PROJECT_ROOT}/utils/**"
     - "#{PROJECT_ROOT}/stub/**"  # only used for 'release' build
@@ -41,6 +42,7 @@
   :common: &common_defines []
   :test:
     - *common_defines
+    - NEXUS_DEFINED_DURING_TESTING
     - NEXUS_USE_DEFAULT_ASSERT  # enable runtime asserts in unit tests
     - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
   :test_preprocess:
@@ -51,6 +53,7 @@
   :mock_prefix: mock_
   :when_no_prototypes: :warn
   :enforce_strict_ordering: TRUE
+  :callback_after_arg_check: TRUE  # deprecated in newer versions
   :plugins:
     - :ignore
     - :ignore_arg
@@ -96,8 +99,8 @@
   # "Release" is used to run static analysis on the source code without
   # hitting false positives that may exist in test framework tools.
   :release_compiler:
-      :executable: scan-build
-      :name: 'vanilla gcc wrapped with clang scan-build'
+      :executable: scan-build-3.9
+      :name: 'vanilla gcc wrapped with clang scan-build 3.9'
       :arguments:
           - --status-bugs
           - -enable-checker core.UndefinedBinaryOperatorResult
@@ -108,7 +111,6 @@
           - -enable-checker alpha.core.IdenticalExpr
           - -enable-checker alpha.core.PointerArithm
           - -enable-checker alpha.core.PointerSub
-          - -enable-checker alpha.deadcode.UnreachableCode
           - -enable-checker security.FloatLoopCounter
           - -maxloop 40
           - gcc  # XXX update to gcc-9 or gcc-10 once updating buildkite AMI
@@ -122,9 +124,11 @@
           - -Wundef
           # - -Wconversion
           - -Wlogical-op
+          - -Wno-sign-compare
           # - -Wformat-overflow
           # - -Wstringop-overflow
           # - -Wstringop-truncation
+          - -Wno-comment # TODO remove this when OC source files cleaned up
           - -Winline
           - -Wswitch-default
           - -Wsuggest-attribute=const

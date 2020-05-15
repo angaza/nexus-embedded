@@ -19,6 +19,13 @@ frama-c -wp-rte -wp -wp-prover none \
     -cpp-extra-args=-I$SOURCE_ROOT \
     -cpp-extra-args=-I$SOURCE_ROOT/include \
     -cpp-extra-args=-I$SOURCE_ROOT/src \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc/api \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc/include \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc/messaging/coap \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc/port \
+    -cpp-extra-args=-I$SOURCE_ROOT/oc/util \
+    -cpp-extra-args=-I$SOURCE_ROOT/utils \
     $SOURCES > $RESULTS_FILE
 
 # If frama-c fails for any reason, fail the test.

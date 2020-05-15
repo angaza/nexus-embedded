@@ -9,10 +9,13 @@
  */
 
 #include "src/nexus_keycode_pro.h"
+
+#if NEXUS_KEYCODE_ENABLED
+
 #include "include/nxp_core.h"
 #include "include/nxp_keycode.h"
 #include "src/nexus_keycode_core.h"
-#include "src/nexus_keycode_util.h"
+#include "src/nexus_util.h"
 
 //
 // NON-ADJUSTABLE PROTOCOL CONSTANTS
@@ -651,6 +654,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 
             // 1-hour QC code is "additive"
             case NEXUS_KEYCODE_PRO_SMALL_ENABLE_QC_TEST:
+#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
                 if (nexus_keycode_pro_get_long_qc_code_count() <
                         NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX &&
                     nxp_core_payg_state_get_current() !=
@@ -660,6 +664,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
                     test_credit_secs =
                         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS;
                 }
+#endif
                 break;
 
             default: // unsupported function command
@@ -1071,8 +1076,7 @@ NEXUS_IMPL_STATIC bool nexus_keycode_pro_full_parse_factory_and_passthrough(
         // passthrough data body.
         if (digits.length > 2 &&
             digits.length !=
-                NEXUS_KEYCODE_MESSAGE_LENGTH_ACTIVATION_MESSAGE_FULL &&
-            digits.length < NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_FULL)
+                NEXUS_KEYCODE_MESSAGE_LENGTH_ACTIVATION_MESSAGE_FULL)
         {
             NEXUS_ASSERT(
                 digits.position == 1,
@@ -1318,7 +1322,8 @@ nexus_keycode_pro_full_apply_factory(
             break;
 
         case NEXUS_KEYCODE_PRO_FULL_PASSTHROUGH_COMMAND:
-        // Should not reach here
+        // Should not reach here, as passthrough commands are handled
+        // at the parsing layer (before reaching this 'apply' code)
         // intentional fallthrough
 
         default:
@@ -1662,8 +1667,13 @@ void nexus_keycode_pro_reset_test_code_count(void)
 NEXUS_IMPL_STATIC bool
 nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
 {
-    uint8_t short_code_count = nexus_keycode_pro_get_short_qc_code_count();
-    uint8_t long_code_count = nexus_keycode_pro_get_long_qc_code_count();
+#if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
+    const uint8_t short_code_count =
+        nexus_keycode_pro_get_short_qc_code_count();
+#endif
+#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
+    const uint8_t long_code_count = nexus_keycode_pro_get_long_qc_code_count();
+#endif
     const bool is_short_code =
         qc_credit_seconds <= NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS;
 
@@ -1681,18 +1691,24 @@ nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
     {
         return false;
     }
-
-    if (is_short_code &&
-        short_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX)
+    if (is_short_code)
     {
-        return true;
+#if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
+        if (short_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX)
+        {
+            return true;
+        }
+#endif
     }
-    if (!is_short_code &&
-        (long_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX))
+    if (!is_short_code)
     {
-        return true;
+#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
+        if (long_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX)
+        {
+            return true;
+        }
+#endif
     }
-
     return false;
 }
 /* Increment the (persisted) count of factory test messages received.
@@ -1750,3 +1766,5 @@ nexus_keycode_pro_increment_short_qc_test_message_count(void)
         (new_short_code_count);
     _update_keycode_pro_nv_blocks();
 }
+
+#endif /* if NEXUS_KEYCODE_ENABLED */

@@ -32,8 +32,9 @@
   :source:
     - "#{PROJECT_ROOT}/"
     - "#{PROJECT_ROOT}/include/**"
-    - "#{PROJECT_ROOT}/include/common/**"
+    - "#{PROJECT_ROOT}/oc/**"
     - "#{PROJECT_ROOT}/src/**"
+    - "#{PROJECT_ROOT}/utils/**"
     - "#{PROJECT_ROOT}/stub/**"  # only used for 'release' build
 
 :defines:
@@ -110,7 +111,6 @@
           - -enable-checker alpha.core.IdenticalExpr
           - -enable-checker alpha.core.PointerArithm
           - -enable-checker alpha.core.PointerSub
-          - -enable-checker alpha.deadcode.UnreachableCode
           - -enable-checker security.FloatLoopCounter
           - -maxloop 40
           - gcc  # XXX update to gcc-9 or gcc-10 once updating buildkite AMI
@@ -127,6 +127,7 @@
           # - -Wformat-overflow
           # - -Wstringop-overflow
           # - -Wstringop-truncation
+          - -Wno-comment # for OC files
           - -Winline
           - -Wswitch-default
           - -Wsuggest-attribute=const

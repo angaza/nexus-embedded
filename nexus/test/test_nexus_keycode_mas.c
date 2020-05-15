@@ -2,13 +2,14 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
-#include "src/nexus_keycode_util.h"
 #include "src/nexus_nv.h"
+#include "src/nexus_util.h"
 #include "unity.h"
 #include "utils/crc_ccitt.h"
 #include "utils/siphash_24.h"
 
 // Other support libraries
+#include <mock_nexus_channel_core.h>
 #include <mock_nxp_core.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
@@ -150,6 +151,7 @@ void setUp(void)
     nxp_core_nv_read_IgnoreAndReturn(true);
     nxp_core_nv_write_IgnoreAndReturn(true);
     nexus_keycode_mas_init(_test_handle_frame);
+    nexus_channel_core_process_IgnoreAndReturn(0);
     _this.handled = false;
 }
 

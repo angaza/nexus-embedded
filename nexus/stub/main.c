@@ -1,13 +1,43 @@
 #include "src/internal_keycode_config.h"
 #include "include/nxp_core.h"
 #include "include/nxp_keycode.h"
-#include <stdio.h>
+#include "include/nxp_channel.h"
+#include "oc/include/oc_network_events.h"
 
-/** Stub application to run static analysis over compiled artifact.
+static bool quit = false;
+
+/** Stub application to run static analysis over compiled artifact, and
+ * estimate code size.
  */
 int main(void)
 {
-    printf("Stub Present");
+    nx_core_init();
+    // arbitrary 5 seconds
+    nx_core_process(5);
+
+    // simulate receiving an origin command
+    nx_channel_handle_origin_command(
+        NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS,
+        "123456789",
+        10
+    );
+
+    // simulate receiving a keycode
+    struct nx_keycode_complete_code dummy_keycode = {
+        .keys = "*123456789#",
+        .length = 11
+    };
+    nx_keycode_handle_complete_keycode(&dummy_keycode);
+
+    // XXX: create nx_receive_message or similar interface to pass in raw bytes from
+    // a transport layer to Nexus (security layer). Abstract away all OC.
+    while (!quit)
+    {
+        oc_main_poll();
+    }
+
+    nx_core_shutdown();
+    return 0;
 }
 
 bool port_nv_init(void)
@@ -81,4 +111,56 @@ enum nxp_keycode_passthrough_error nxp_keycode_passthrough_keycode(
 {
     (void) passthrough_keycode;
     return NXP_KEYCODE_PASSTHROUGH_ERROR_NONE;
+}
+
+void nxp_core_random_init(void)
+{
+    return;
+}
+
+uint32_t nxp_core_random_value(void)
+{
+    return 123456;
+}
+
+struct nx_core_check_key nxp_channel_symmetric_origin_key(void)
+{
+    const struct nx_core_check_key stub_key = {0};
+    return stub_key;
+}
+
+void nxp_channel_notify_event(enum nxp_channel_event_type event)
+{
+    (void) event;
+}
+
+struct nx_id nxp_channel_get_nexus_id(void)
+{
+    struct nx_id id = {0, 12345678};
+    return id;
+}
+
+nx_channel_error
+nxp_channel_network_send(const void* const bytes_to_send,
+                         uint32_t bytes_count,
+                         const struct nx_ipv6_address* const source_address,
+                         const struct nx_ipv6_address* const dest_address,
+                         bool is_multicast)
+{
+    (void) bytes_to_send;
+    (void) bytes_count;
+    (void) source_address;
+    (void) dest_address;
+    (void) is_multicast;
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+void oc_clock_init(void)
+{
+    return;
+}
+
+oc_clock_time_t oc_clock_time(void)
+{
+    return (oc_clock_time_t) 0;
 }

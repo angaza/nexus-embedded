@@ -1,6 +1,6 @@
 #include "include/nx_keycode.h"
-#include "src/nexus_keycode_util.h"
 #include "src/nexus_nv.h"
+#include "src/nexus_util.h"
 #include "unity.h"
 #include "utils/crc_ccitt.h"
 #include "utils/siphash_24.h"

@@ -1,0 +1,98 @@
+---
+
+# "Release build" is only used to execute static analysis.
+:project:
+  :use_exceptions: FALSE
+  :use_auxiliary_dependencies: TRUE
+  :build_root: build
+  :release_build: TRUE
+  :which_ceedling: gem
+
+:release_build:
+  :output: analyzed_keycode_nexus.out
+  :use_assembly: FALSE
+
+:environment:
+
+:extension:
+  :executable: .out
+
+:paths:
+  :source:
+    - "#{PROJECT_ROOT}/"
+    - "#{PROJECT_ROOT}/include/**"
+    - "#{PROJECT_ROOT}/oc/**"
+    - "#{PROJECT_ROOT}/src/**"
+    - "#{PROJECT_ROOT}/utils/**"
+    - "#{PROJECT_ROOT}/stub/**"  # only used for 'release' build
+
+:defines:
+  # in order to add common defines:
+  #  1) remove the trailing [] from the :common: section
+  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
+  :common: &common_defines []
+
+:tools:
+  :release_compiler:
+      :executable: arm-none-eabi-gcc
+      :name: 'ARM compiler for size measurements'
+      :arguments:
+          - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
+          - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+          - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+          - -Os
+          - -Wextra
+          - -Wundef
+          - -Wno-missing-field-initializers
+          - -Wswitch
+          - -Wno-format
+          - -fno-aggressive-loop-optimizations # for diagnostic PRINTbytes
+          - -Waddress
+          - -Werror
+          - -mcpu=cortex-m0
+          - -mthumb
+          - -ffunction-sections
+          - -fdata-sections
+          - -save-temps
+          - -std=c11  # c11 to gain access to static asserts
+          - -flto  # remove to make map file clearer (possibly larger binary)
+          - --specs=nano.specs
+          - -c ${1} # source code input file
+          - -o ${2}
+  :release_linker:
+      :executable: arm-none-eabi-gcc
+      :name: 'ARM linker flags'
+      :arguments:
+          - -Wl,-Map=build/artifacts/release/nexus-stub-thumb2.map,--gc-sections
+          - -flto  # remove to make map file clearer (possibly larger binary)
+          - -mthumb
+          - -mcpu=cortex-m0
+          - -static
+          - -s  # strip debug info (remove to keep debug sections in mapfile)
+          - --specs=nosys.specs
+          - --specs=nano.specs
+          - ${1}
+          - -o ${2}
+  :post_release:
+      :executable: rm
+      :arguments:
+        - '*.i'
+        - '*.s'
+
+# LIBRARIES
+# These libraries are automatically injected into the build process. Those specified as
+# common will be used in all types of builds. Otherwise, libraries can be injected in just
+# tests or releases. These options are MERGED with the options in supplemental yaml files.
+:libraries:
+  :placement: :end
+  :flag: "${1}"  # or "-L ${1}" for example
+  :test: []
+  :release: []
+
+:plugins:
+  :load_paths:
+    - "#{Ceedling.load_path}"
+  :enabled:
+    - command_hooks
+    - stdout_pretty_tests_report
+...

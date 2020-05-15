@@ -15,13 +15,14 @@
 #include "payg_state.h"
 #include <pthread.h>
 #include <signal.h>
+#include <stdio.h>
 #include <time.h>
 
 static const uint32_t ONE_HOUR_IN_SECONDS = 3600;
 
 static struct
 {
-    bool nx_keycode_process_requested;
+    bool nx_processing_requested;
 
     // Implementation-specific timer to call `nx_keycode_process` periodically.
     timer_t timerid;
@@ -51,7 +52,7 @@ void timer_thread(/*union sigval val*/)
 void processing_init(void)
 {
     _this.timerid = NULL;
-    _this.nx_keycode_process_requested = false;
+    _this.nx_processing_requested = false;
 
     // Setting this to '0' will ensure any logic which needs to 'periodically'
     // write to NV will do so soon after boot as well.
@@ -79,11 +80,10 @@ void processing_deinit(void)
 // This function executes periodically from the main loop.
 void processing_execute(void)
 {
-
     const uint32_t cur_uptime = clock_read_monotonic_time_seconds();
-    if (_this.nx_keycode_process_requested)
+    if (_this.nx_processing_requested)
     {
-        _this.nx_keycode_process_requested = false;
+        _this.nx_processing_requested = false;
         uint32_t max_secs_to_next_call = nx_core_process(cur_uptime);
 
         _this.its.it_value.tv_sec = max_secs_to_next_call;
@@ -113,5 +113,16 @@ void processing_execute(void)
  */
 void nxp_core_request_processing(void)
 {
-    _this.nx_keycode_process_requested = true;
+    _this.nx_processing_requested = true;
+}
+
+// Enter a loop where we simply execute
+void processing_idle_loop(uint32_t seconds)
+{
+    const uint32_t stop_time = clock_read_monotonic_time_seconds() + seconds;
+
+    while (clock_read_monotonic_time_seconds() < stop_time)
+    {
+        processing_execute();
+    }
 }

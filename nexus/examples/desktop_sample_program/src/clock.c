@@ -11,6 +11,7 @@
 #include <math.h>
 
 #include "clock.h"
+#include "nxp_channel.h"
 #include "payg_state.h"
 
 /**
@@ -63,4 +64,14 @@ uint32_t clock_seconds_elapsed_since(const time_t previous_time_secs)
         return (uint32_t) floor(secs_elapsed);
     }
     return 0;
+}
+
+void oc_clock_init(void)
+{
+    clock_init();
+}
+
+oc_clock_time_t oc_clock_time(void)
+{
+    return clock_read_monotonic_time_seconds();
 }

@@ -1,0 +1,171 @@
+swagger: '2.0'
+info:
+  title: Nexus Channel Link
+  version: 'v0.5.0-2020'
+  license:
+    name: Angaza Nexus Data Model License (MIT License)
+    url: 'https://github.com/angaza/nexus-embedded/blob/master/LICENSE'
+    x-copyright: 'Copyright 2020 Angaza, Inc. All rights reserved.'
+schemes:
+  - http # http for schema validation only - implementation requires CoAP
+  - coap
+consumes:
+  - application/vnd.ocf+cbor  # ISO/IEC 30118-1:2018 Clause 12.2.4
+produces:
+  - application/vnd.ocf+cbor
+paths:
+  /l:  # 'link'
+    get:
+      description: |-
+        This Resource contains read-only properties describing all active
+        Nexus Channel links between this device and other devices (either
+        as an 'accessory' or as a 'controller').
+        
+        It is similar to GET `/l?if=oic.if.b`, except that these elements
+        are not separately accessible resources/resource representations.
+
+      parameters:
+        - $ref: '#/parameters/interface'
+        - $ref: '#/parameters/linkedDeviceId'
+      responses:
+        200:
+          description: 'Detailed list of all Nexus Channel links to this device'
+          x-example:
+            rt: 
+              - angaza.com.nexus.channel.link
+            linkedDeviceId: "\x10\x0B\x33\x44\xF1\xA6"
+            chalMode: 0
+            lSecMode: 0
+            tInit: 14985
+            tActive: 300
+            tTimeout: 7776000
+          schema:
+            $ref: '#/definitions/ChannelLink-batch'
+            
+parameters:
+  interface:
+    in: query
+    name: if
+    type: string
+    enum:
+      - oic.if.r
+      - oic.if.baseline
+  linkedDeviceId:
+    in: query
+    name: lD
+    type: string
+    format: binary
+    
+definitions:
+  ChannelLink-batch:
+    type: object
+    properties:
+      rt:
+        description: The OCF-Format Resource Type
+        items:
+          enum:
+            - angaza.com.nexus.channel.link
+          maxLength: 64
+          type: string
+        minItems: 1
+        uniqueItems: true
+        readOnly: true
+        type: array
+      if:
+        description: The OCF Interface set supported by this Resource.
+        items:
+          enum:
+            - oic.if.r
+            - oic.if.baseline
+          type: string
+        minItems: 2
+        uniqueItems: true
+        readOnly: true
+        type: array
+      reps:
+        type: array
+        readOnly: true
+        uniqueItems: true
+        items:
+          $ref: '#/definitions/ChannelLink' 
+
+  ChannelLink:
+    type: object
+    properties:
+      linkedDeviceId:
+        description: >
+          (Short name = 'lD') Nexus Device ID of the *linked device*. Always
+          6 bytes in length.
+          First two bytes are big endian authority ID, next four bytes are
+          big endian device ID. Example '\x0B\x10\x06\xF1\x44\x33' represents
+          authority ID 2832 (0x0b10), device ID 116474931 (0x06F14433)
+        type: string
+        readOnly: true
+        maxLength: 6
+        minLength: 6
+        format: binary
+        example: "\x0B\x10\x06\xF1\x44\x33"
+      oMode:
+        description: >
+          (Short name = 'oM') Operating channel link mode of *this device*.
+          Possible Channel link modes of this device:
+             * 0 - accessory
+             * 1 - controller
+             * 2 - dual-mode (simultaneous accessory and controller)
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+        readOnly: true
+        example: 0
+      lSecMode:
+        description: >
+          (Short name = 'lS') Channel Link security type for this link.
+          Possible Link Security Modes:
+             * 0 - Auth->(COSE_MAC0, Alg=Siphash 2-4, Key=Sym 128-bit), Encryption->None
+             * 1 - Reserved
+             * 2 - Reserved
+             * 3 - Reserved
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+          - 3
+        readOnly: true
+        example: 0
+      tInit:
+        description: (Short name = 'tI') Seconds since this link was established.
+        type: integer
+        format: uint32
+        minimum: 0
+        readOnly: true
+        example: 14985
+      tActive:
+        description: (Short name = 'tA') Seconds since this link was active (send or receive).
+        type: integer
+        format: uint32
+        minimum: 0
+        readOnly: true
+        example: 300        
+      tTimeout:
+        description: (Short name = 'tT') When `tActive` reaches this value, the link will be deleted.
+        type: integer
+        format: uint32
+        minimum: 0
+        readOnly: true
+        example: 7776000
+
+  NexusChannelLink-baseline:
+    description: Additional metadata returned for `NexusChannelLink` if queried with ?if=oic.if.baseline
+    properties:
+      rt: 
+        $ref: '#/definitions/ChannelLink-batch/properties/rt'
+      if:
+        $ref: '#/definitions/ChannelLink-batch/properties/if'
+
+
+

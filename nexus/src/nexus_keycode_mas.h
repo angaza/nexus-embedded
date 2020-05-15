@@ -8,10 +8,12 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_
-#define __NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_
+#ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_
+#define NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_
 
 #include "src/internal_keycode_config.h"
+
+#if NEXUS_KEYCODE_ENABLED
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -117,4 +119,5 @@ uint32_t nexus_keycode_mas_bookend_process(void);
 void nexus_keycode_mas_bookend_push(const nx_keycode_key symbol);
 #endif
 
-#endif
+#endif /* if NEXUS_KEYCODE_ENABLED */
+#endif /* ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_ */

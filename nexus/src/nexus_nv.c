@@ -21,6 +21,33 @@ struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS = {
     .block_id = 0, .length = NX_CORE_NV_BLOCK_0_LENGTH};
 struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO = {
     .block_id = 1, .length = NX_CORE_NV_BLOCK_1_LENGTH};
+#if NEXUS_CHANNEL_ENABLED
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY = {
+    .block_id = 2, .length = NX_CORE_NV_BLOCK_2_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_OM = {
+    .block_id = 3, .length = NX_CORE_NV_BLOCK_3_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1 = {
+    .block_id = 4, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2 = {
+    .block_id = 5, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3 = {
+    .block_id = 6, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4 = {
+    .block_id = 7, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5 = {
+    .block_id = 8, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6 = {
+    .block_id = 9, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7 = {
+    .block_id = 10, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8 = {
+    .block_id = 11, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9 = {
+    .block_id = 12, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10 = {
+    .block_id = 13, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+#endif /* if NEXUS_CHANNEL_ENABLED */
+// blocks 4-20 reserved for link related NV
 
 // Used internally to compute CRC given a pointer to start of a full block
 uint16_t nexus_nv_compute_crc(const struct nx_core_nv_block_meta block_meta,

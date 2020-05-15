@@ -8,9 +8,10 @@
  * or substantial portions of the Software.
  */
 
-#ifndef _NEXUS__SRC__CORE__NEXUS_CORE_INTERNAL_H_
-#define _NEXUS__SRC__CORE__NEXUS_CORE_INTERNAL_H_
+#ifndef NEXUS__SRC__CORE__NEXUS_CORE_INTERNAL_H_
+#define NEXUS__SRC__CORE__NEXUS_CORE_INTERNAL_H_
 
+#include "src/internal_channel_config.h"
 #include "src/internal_keycode_config.h"
 
 #include <stdbool.h>
@@ -36,4 +37,4 @@ bool nexus_core_init_completed(void);
  */
 uint32_t nexus_core_uptime(void);
 
-#endif
+#endif /* ifndef NEXUS__SRC__CORE__NEXUS_CORE_INTERNAL_H_ */

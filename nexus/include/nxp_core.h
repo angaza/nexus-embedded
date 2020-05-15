@@ -180,4 +180,21 @@ enum nxp_core_payg_state
  */
 enum nxp_core_payg_state nxp_core_payg_state_get_current(void);
 
+//
+// PSEUDORANDOM NUMBER GENERATION INTERFACE
+//
+
+/*
+ * Initialize the pseudo-random generator.
+ *
+ */
+void nxp_core_random_init(void);
+
+/*
+ * Calculate a pseudo-random number.
+ *
+ * \return A pseudo-random number.
+ */
+uint32_t nxp_core_random_value(void);
+
 #endif /* end of include guard: _NEXUS__INC__NXP_CORE_H_ */

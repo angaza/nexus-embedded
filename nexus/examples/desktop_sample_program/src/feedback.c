@@ -1,5 +1,5 @@
 /** \file feedback.c
- * \brief Implementation of Nexus Keycode keycode entry functions.
+ * \brief Implementation of Nexus Keycode and Channel feedback (for UI).
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -8,6 +8,7 @@
  * or substantial portions of the Software.
  */
 
+#include "nxp_channel.h"
 #include "nxp_keycode.h"
 #include <stdio.h>
 
@@ -47,4 +48,39 @@ bool nxp_keycode_feedback_start(enum nxp_keycode_feedback_type feedback_type)
     }
 
     return true;
+}
+
+void nxp_channel_notify_event(enum nxp_channel_event_type event)
+{
+
+    switch (event)
+    {
+        case NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY:
+            printf("\tCHANNEL EVENT: Link established as *accessory* device "
+                   "(%u total links)\n",
+                   nx_channel_link_count());
+            break;
+
+        case NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER:
+            printf("\tCHANNEL EVENT: Link established as *controller* device "
+                   "(%u total links)\n",
+                   nx_channel_link_count());
+            break;
+
+        case NXP_CHANNEL_EVENT_LINK_DELETED:
+            printf(
+                "\tCHANNEL EVENT: A link has been deleted (%u links remain)\n",
+                nx_channel_link_count());
+            break;
+
+        case NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED:
+            printf("\tCHANNEL EVENT: Beginning link handshake\n");
+            break;
+
+        case NXP_CHANNEL_EVENT_LINK_HANDSHAKE_TIMED_OUT:
+            printf("\tCHANNEL EVENT: Link handshake timed out, no link "
+                   "created.\n");
+            break;
+            break;
+    }
 }
