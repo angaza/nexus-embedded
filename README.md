@@ -82,14 +82,15 @@ Afterwards, the tool automatically updates and saves your selections into
 a header which is parsed by the Nexus code to determine what features to
 expose to your application.
 
-## Static analysis
+## Static Analysis
 
 `ceedling release` will attempt to build the Nexus Keycode library against
 a stub implementation (contained in `stub`), with high verbosity GCC warnings
 and using the Clang static analyzer. This is used to detect potential problems
 in the code that may be missed by unit tests.
 
-## Unit tests
+## Unit Tests
+
 The unit tests themselves are found within the `nexus/test` folder. The
 configuration of `ceedling` is contained within the `nexus/project.yml` file.
 
