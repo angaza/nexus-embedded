@@ -3,11 +3,11 @@
 - [ ] I have read and understand the [Individual Contributors License Agreement](CONTRIBUTING.md).
 - [ ] I accept the [Individual Contributors License Agreement](CONTRIBUTING.md) on the entire contents of this pull request.
 
-## Proposed changes
+## Proposed Changes
 
 Describe the big picture of your changes here to communicate to the maintainers why we should accept this pull request. If it fixes a bug or resolves a feature request, be sure to link to that issue.
 
-## Types of changes
+## Types of Changes
 
 What types of changes does your code introduce to this project?
 _Put an `x` in the boxes that apply_
@@ -26,13 +26,13 @@ _Put an `x` in the boxes that apply. You can also fill these out after creating 
 - [ ] I have updated or added supplemental documentation (if appropriate)
 - [ ] Any dependent changes have been merged and published in downstream modules
 
-## Further comments
+## Further Comments
 
 If this is a relatively large or complex change, kick off the discussion by explaining why you chose the solution you did and what alternatives you considered, etc...
 
 Link to any supplemental information here.
 
-### Reviewers:
+### Reviewers
 
 This will be filled by the people who review this particular Pull Request.
 
