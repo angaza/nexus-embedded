@@ -19,6 +19,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ${{ matrix.gcc-version }}
+        sudo apt-get install -y expect  # for testing executable
         make install-dependencies
     - name: Build Executable
       run: |
@@ -39,3 +40,5 @@ jobs:
       with:
         name: executable
         path: nexus/examples/desktop_sample_program/sample_nexus_keycode_program
+    - name: Test Program Keycode Functionality
+      run: ./sample_program_expect_script
