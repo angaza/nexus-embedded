@@ -47,6 +47,7 @@ To start "new", simply specify a new file or delete the old one.
 ## Suggested Demonstration Steps (Full Keycode Protocol)
 
 - Build the project and run it
+- Enter an arbitrary path to store nonvolatile data (e.g. `test.nv`)
 - Enter a serial number: 12345678
 - Enter a secret key: DEADBEEF1020304004030201FEEBDAED
 - Select "Enter Keycode" from the demonstration selection menu
@@ -63,9 +64,9 @@ To start "new", simply specify a new file or delete the old one.
 ## Suggested Demonstration Steps (Nexus Channel, Create Link to Accessory)
 
 - Build the project and run it
+- Enter an arbitrary path to store nonvolatile data (e.g. `test.nv`)
 - Enter a serial number: 12345678
 - Enter a secret key: DEADBEEF1020304004030201FEEBDAED
-- Select "Enter Keycode" from the demonstration selection menu
 - Select "Display Nexus Channel Status" to see that there are no linked devices
 - Enter in an 'Origin Command' keycode to link accessory with Nexus ID "0x0020003322": \*8192798211668986#
 - See that the system begins to initiate a link
