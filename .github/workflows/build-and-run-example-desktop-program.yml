@@ -6,7 +6,9 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        gcc-version: [gcc-9, gcc-10]
+        gcc-version: [gcc-8, gcc-9, gcc-10]
+    env:
+      ERR_LOGFILE: err.out
     defaults:
       run:
         working-directory: nexus/examples/desktop_sample_program
@@ -18,5 +20,22 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ${{ matrix.gcc-version }}
         make install-dependencies
-    - name: Build Executable  # XXX Makefile specifies gcc-9 now
-      run: make all BUILD=sa
+    - name: Build Executable
+      run: |
+        # Run twice to ensure that the default make action is `clean all`
+        make CC=${{ matrix.gcc-version }}
+        make CC=${{ matrix.gcc-version }} 2> $ERR_LOGFILE
+        if [ -s $ERR_LOGFILE ];
+          then exit 1
+        fi
+    - name: Upload Build Error Log (if failed)
+      uses: actions/upload-artifact@v2
+      if: failure()  # executes only if previous step failed
+      with:
+        name: error_log
+        path: nexus/examples/desktop_sample_program/$ERR_LOGFILE
+    - name: Upload Executable
+      uses: actions/upload-artifact@v2
+      with:
+        name: executable
+        path: nexus/examples/desktop_sample_program/sample_nexus_keycode_program
