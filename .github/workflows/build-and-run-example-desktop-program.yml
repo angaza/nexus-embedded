@@ -1,0 +1,22 @@
+name: Build and Run Desktop Sample Program (Nexus Keycode)
+
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        gcc-version: [gcc-9, gcc-10]
+    defaults:
+      run:
+        working-directory: nexus/examples/desktop_sample_program
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: Install dependencies and ${{ matrix.gcc-version }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ${{ matrix.gcc-version }}
+        make install-dependencies
+    - name: Build Executable  # XXX Makefile specifies gcc-9 now
+      run: make all BUILD=sa
