@@ -17,7 +17,7 @@ WARNINGS.sa := $(WARNINGS.default) -Werror -Wno-unused-parameter -Wundef \
     -Wuninitialized -Winit-self -Wswitch-default -Wunreachable-code \
     -Wlogical-op -Winline -Wsuggest-attribute=const -Wno-sign-compare
 
-CFLAGS = $(INCLUDES) -DDEBUG -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
+CFLAGS = $(INCLUDES) -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
 
 SCANBUILD_FLAGS = --status-bugs\
                   -enable-checker core\

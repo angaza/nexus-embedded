@@ -33,12 +33,12 @@ jobs:
       uses: actions/upload-artifact@v2
       if: failure()  # executes only if previous step failed
       with:
-        name: error_log
+        name: error_log ${{ matrix.gcc-version }}
         path: nexus/examples/desktop_sample_program/$ERR_LOGFILE
     - name: Upload Executable
       uses: actions/upload-artifact@v2
       with:
-        name: executable
+        name: executable ${{ matrix.gcc-version }}
         path: nexus/examples/desktop_sample_program/sample_nexus_keycode_program
     - name: Test Program Keycode Demo
       run: |
