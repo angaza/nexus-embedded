@@ -75,7 +75,6 @@ bool nexus_keycode_mas_init_completed(void);
 
 // internal rate-limiting routines
 void nexus_keycode_rate_limit_add_time(const uint32_t seconds_elapsed);
-bool nexus_keycode_is_rate_limited(void);
 void nexus_keycode_rate_limit_deduct_msg(void);
 
 /* Return the number of grace period keycodes remaining.

@@ -11,7 +11,6 @@
 #ifndef NEXUS__SRC__NEXUS_SECURITY_H_
 #define NEXUS__SRC__NEXUS_SECURITY_H_
 
-#include "src/internal_channel_config.h"
 #include "src/internal_common_config.h"
 
 #if NEXUS_CHANNEL_ENABLED

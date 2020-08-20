@@ -23,8 +23,6 @@
 #define NEXUS__INC__NX_CHANNEL_H_
 
 #include "nx_core.h"
-#include <stdbool.h>
-#include <stdint.h>
 
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_ri.h"

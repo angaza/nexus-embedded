@@ -41,7 +41,7 @@ echo "--- Building stub 'full no rate limiting' configuration"
 cp buildkite/user_config_out_full_no_rate_limit.h nexus/include/user_config.h
 pushd nexus && ceedling clobber verbosity[4] release 2> $FULL_NO_RATELIMIT_LOG
 EXIT_FAILURE=$?
-buildkite-agent artifact upload $FULL_BUILD_ERROR_LOG
+buildkite-agent artifact upload $FULL_NO_RATELIMIT_LOG
 mv build/artifacts/release/nexus-stub-thumb2.map $MAPFILE_NAME
 buildkite-agent artifact upload $MAPFILE_NAME
 

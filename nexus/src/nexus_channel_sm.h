@@ -19,6 +19,7 @@
 #include "oc/messaging/coap/coap.h"
 #include "src/nexus_channel_core.h"
 #include "src/nexus_channel_res_lm.h"
+#include "src/nexus_util.h"
 
 // struct for storing Nexus Channel-secured resource methods
 typedef struct nexus_secured_resource_method_t
@@ -131,6 +132,17 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
   * by Nexus Channel. False otherwise
   */
 bool _nexus_channel_sm_message_headers_secured_mode0(coap_packet_t* const pkt);
+
+// Exposed only for demo program
+bool _nexus_channel_sm_auth_packet_mode0(
+    coap_packet_t* const pkt,
+    const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed,
+    const struct nexus_channel_link_security_mode0_data* const link_sec_data);
+
+// Exposed only for demo program
+bool _nexus_channel_sm_get_cose_mac0_data(
+    coap_packet_t* const pkt,
+    nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed);
 
 /** Determines if the input oc_rep is in canonical Angaza-COSE_MAC0 format:
   *

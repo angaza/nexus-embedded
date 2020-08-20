@@ -19,6 +19,8 @@
 #include <stdint.h>
 
 #include "oc/include/oc_ri.h"
+#include "oc/messaging/coap/transactions.h"
+#include "src/nexus_channel_sm.h"
 
 // "All OCF Nodes" FF0X:0:0:0:0:0:0:158
 extern oc_endpoint_t NEXUS_OC_WRAPPER_MULTICAST_OC_ENDPOINT_T_ADDR;
@@ -67,6 +69,15 @@ void nexus_oc_wrapper_oc_endpoint_to_nx_ipv6(
  */
 bool nexus_oc_wrapper_oc_endpoint_to_nx_id(
     const oc_endpoint_t* const source_endpoint, struct nx_id* dest_nx_id);
+
+/** Repack a CBOR-encoded payload with Nexus Channel security.
+ *
+ * \param buffer pointer to buffer to repack with Nexus Channel security
+ * \param cose_mac0 pointer to COSE_MAC0 data to use in creating the
+ * security primitives
+ */
+void nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* buffer, nexus_security_mode0_cose_mac0_t* cose_mac0);
 
 #endif /* NEXUS_CHANNEL_ENABLED */
 #endif /* ifndef NEXUS__SRC__NEXUS_OC_WRAPPER_INTERNAL_H_ */

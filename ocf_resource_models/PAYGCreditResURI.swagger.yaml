@@ -1,0 +1,196 @@
+swagger: '2.0'
+info:
+  title: PAYG Credit
+  version: 'v0.5.0-2020'
+  license:
+    name: Angaza Nexus Data Model License (MIT License)
+    url: 'https://github.com/angaza/nexus-embedded/blob/master/LICENSE'
+    x-copyright: 'Copyright 2020 Angaza, Inc. All rights reserved.'
+schemes:
+  - http # http for schema validation only - implementation requires CoAP
+  - coap
+consumes:
+  - application/vnd.ocf+cbor
+produces:
+  - application/vnd.ocf+cbor
+
+paths:
+  /c:
+    get:
+      description: |-
+        This resource indicates the remaining PAYG (pay-as-you-go) credit of
+        a specific device. Credit may be time-based or usage-based.
+
+        `supportedModes` and `modes` are implemented similar to the description
+        of  `oic.r.mode` (https://www.oneiota.org/revisions/5310).
+
+        Any device may be 'disconnected'.
+        Controller-capable devices may be 'leading'
+        Accessory-capable devices may be 'following'
+        Dual-mode capable devices may also be 'relaying'.
+        
+        A "Following" device has PAYG credit managed by another device which is
+        "Leading".
+        
+        A "Relaying" device has PAYG credit managed by another device which is
+        "Leading", but a third device follows the "Relaying" device ('chaining'
+        the same credit from device A to device C through device B, even though
+        devices A and C are not directly connected).
+
+        The default interface is 'oic.if.rw'. To retrieve the baseline OCF
+        information, it is necessary to query with 'if=oic.if.baseline'.
+
+        Application security constraints -
+        When used with Nexus Channel, the device POSTing must be a controller
+        with an active Nexus Channel Link to this device.
+
+        See also -
+        * angaza.com.nexus.channel.link - Information on Nexus channel links
+          
+      parameters:
+        - $ref: '#/parameters/interface'
+      responses:
+        200:
+          description: "PAYG Credit specific information about this device."
+          schema:
+            $ref: '#/definitions/FullPAYGState'
+          x-example:
+            description: "x-example included only for automatic code generation."
+            rt:
+              - angaza.com.nexus.channel.payg_credit
+            if:
+              - oic.if.rw
+              - oic.if.baseline
+            remaining: 603755
+            units: 'seconds'
+            mode: 0
+            supportedModes:
+              - 0
+              - 1
+
+    post:
+      description: |-
+        Sets the remaining PAYG credit of the device. If the endpoint
+        determines that the requesting device is not authorized to control
+        this device, an error response will be returned.
+      parameters:
+        - in: body
+          name: Set Remaining PAYG Credit
+          description: Amount of PAYG credit to set on this device. A value of '4294967295' will "Unlock" the device.
+          schema:
+            $ref: "#/definitions/FullPAYGState"
+
+      responses:
+        200:
+          description: Successfully updated credit (Response payload contains new credit)
+          schema:
+              properties:
+                re:
+                  $ref: '#/definitions/FullPAYGState/properties/remaining'
+        400:
+          description: Credit amount/value not supported.
+        401:
+          description: Client is not authorized to perform this action (client may lack a Nexus Channel Link to this device)
+        405:
+          description: This device is not currently capable of remotely updating credit (may be in 'independent' mode)
+          schema:
+              properties:
+                mode:
+                  $ref: '#/definitions/FullPAYGState/properties/mode'
+
+parameters:
+  interface:
+    in: query
+    name: if
+    type: string
+    enum:
+      - oic.if.rw
+      - oic.if.baseline
+
+definitions:
+  PAYGState-ocf-baseline:
+    description: |-
+      Additional properties returned if ?if=oic.if.baseline is appended to query.
+      These are returned alongside all properties described by "FullPAYGState".
+    type: object
+    properties:
+      rt:
+        description: The OCF-Format Resource Type
+        items:
+          enum:
+              - angaza.com.nexus.payg_credit
+          maxLength: 64
+          type: string
+        minItems: 1
+        uniqueItems: true
+        readOnly: true
+        type: array
+      n:
+        $ref: 'https://openconnectivityfoundation.github.io/core/schemas/oic.common.properties.core-schema.json#/definitions/n'
+      id:
+        $ref: 'https://openconnectivityfoundation.github.io/core/schemas/oic.common.properties.core-schema.json#/definitions/id'
+      if:
+        description: The OCF Interface set supported by this Resource.
+        items:
+          enum:
+            - oic.if.rw
+            - oic.if.baseline
+          type: string
+        minItems: 2
+        uniqueItems: true
+        readOnly: true
+        type: array
+
+  FullPAYGState:
+    type: object
+    properties:
+      remaining:
+        description: (Short Name = 're') Amount/units of PAYG credit remaining.
+        type: integer
+        format: uint32_t
+        example: 603755
+        minimum: 0
+        maximum: 4294967294
+      units:
+        description: (Short name = 'un') Measurement unit for PAYG credit (seconds, days, gallons).
+        type: string
+        example: 'seconds'
+        minLength: 1
+        maxLength: 10
+        readOnly: true
+      mode:
+        description: >
+          (Short name = 'mo'). Current PAYG credit management mode of this device.
+          Possible types
+            * 0 = Disconnected, not controlled by or controlling PAYG credit of other device
+            * 1 = Leading, controlling PAYG credit of at least one other device
+            * 2 = Following, PAYG credit controlled by another linked device
+            * 3 = Relaying, same as 'following', except also mirroring the same credit to another device
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+          - 3
+        example: 0
+        readOnly: true
+      supportedModes:
+        description: (Short Name = 'sM') Supported PAYG credit management modes for this device.
+        type: array
+        example:
+         - 0
+         - 1
+         - 2
+        items:
+          type: integer
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+        minItems: 1
+        maxItems: 4
+        uniqueItems: true
+        readOnly: true
+

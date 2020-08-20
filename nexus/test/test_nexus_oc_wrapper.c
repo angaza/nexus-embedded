@@ -42,7 +42,7 @@
 #include "unity.h"
 
 // Other support libraries
-#include <mock_nexus_channel_payg_credit.h>
+#include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nxp_channel.h>
 #include <mock_nxp_core.h>
 #include <mock_nxp_keycode.h>
@@ -373,4 +373,65 @@ void test_nexus_oc_wrapper__oc_send_discovery_request__identical_to_send_buffer(
                                              NX_CHANNEL_ERROR_NONE);
 
     oc_send_discovery_request(G_OC_MESSAGE);
+}
+
+void test_nexus_oc_wrapper__repack_buffer_secured__repack_ok(void)
+{
+    const char* data = "hello world";
+    uint8_t buf[50] = {0};
+    memcpy(buf, data, strlen(data));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, strlen(data));
+
+    // populate COSE_MAC0 struct
+    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
+    cose_mac0.protected_header = OC_POST; // 2
+    cose_mac0.kid = 0;
+    cose_mac0.nonce = 5; // arbitrary
+    cose_mac0.payload = buf;
+    cose_mac0.payload_len = strlen(data);
+    struct nexus_check_value mac = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+    cose_mac0.mac = &mac;
+
+    nexus_oc_wrapper_repack_buffer_secured(buf, &cose_mac0);
+
+    /* From cbor.me:
+    BF                           # map(*)
+        61                        # text(1)
+            70                     # "p"
+        41                        # bytes(1)
+            02                     # "\x02"
+        61                        # text(1)
+            75                     # "u"
+        BF                        # map(*)
+            61                     # text(1)
+                34                  # "4"
+            00                     # unsigned(0)
+            61                     # text(1)
+                35                  # "5"
+            05                     # unsigned(5)
+            FF                     # primitive(*)
+        61                        # text(1)
+            64                     # "d"
+        4B                        # bytes(11)
+            68656C6C6F20776F726C64 # "hello world"
+        61                        # text(1)
+            6D                     # "m"
+        48                        # bytes(8)
+            0001020304050607       # "\x00\x01\x02\x03\x04\x05\x06\a"
+        FF                        # primitive(*)
+
+
+        ##### 9 unused bytes after the end of the data item:
+
+        00 00 00 00 00 00 00 00 00
+    */
+
+    uint8_t expected_secured_buf[50] = {
+        0xBF, 0x61, 0x70, 0x41, 0x02, 0x61, 0x75, 0xBF, 0x61, 0x34,
+        0x00, 0x61, 0x35, 0x05, 0xFF, 0x61, 0x64, 0x4B, 0x68, 0x65,
+        0x6C, 0x6C, 0x6F, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x61,
+        0x6D, 0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+        0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, expected_secured_buf, sizeof(buf));
 }

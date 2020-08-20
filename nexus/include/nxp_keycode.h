@@ -27,7 +27,6 @@
 
 #include "include/nx_core.h"
 #include "include/nx_keycode.h"
-#include <stdbool.h>
 
 /** User feedback interface.
  *
@@ -145,7 +144,8 @@ bool nxp_keycode_payg_credit_set(uint32_t credit);
  * effective and result in this call, regardless of the current PAYG state.
  *
  * Once unlocked, the only way to enter a "PAYG" mode again is to receive
- * a "SET CREDIT" keycode (which will trigger a call to `port_payg_credit_set`).
+ * a "SET CREDIT" keycode (which will trigger a call to
+ * `nxp_keycode_payg_credit_set`).
  *
  * ADD CREDIT keycodes are ignored when the unit is unlocked.
  *

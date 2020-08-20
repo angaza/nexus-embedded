@@ -11,7 +11,7 @@ static bool quit = false;
  */
 int main(void)
 {
-    nx_core_init();
+    nx_core_init(0);
     // arbitrary 5 seconds
     nx_core_process(5);
 
@@ -97,11 +97,6 @@ uint32_t nxp_keycode_get_user_facing_id(void)
     return 123456789;
 }
 
-uint32_t nxp_core_uptime_seconds(void)
-{
-    return 100;
-}
-
 void nxp_core_request_processing(void)
 {
 }
@@ -153,6 +148,22 @@ nxp_channel_network_send(const void* const bytes_to_send,
     (void) dest_address;
     (void) is_multicast;
     return NX_CHANNEL_ERROR_NONE;
+}
+
+nx_channel_error nxp_channel_payg_credit_set(uint32_t remaining)
+{
+    (void) remaining;
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+nx_channel_error nxp_channel_payg_credit_unlock(void)
+{
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+uint32_t nxp_core_payg_credit_get_remaining(void)
+{
+    return 12345678;
 }
 
 void oc_clock_init(void)

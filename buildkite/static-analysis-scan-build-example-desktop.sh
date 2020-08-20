@@ -20,3 +20,6 @@ buildkite-agent artifact upload $LOG_FILENAME
 if [ -s $LOG_FILENAME ];
     then exit 1
 fi
+
+# We cannot run the `expect` scripts on Buildkite currently as `expect`
+# is not installed on the AMI we use.

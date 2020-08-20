@@ -16,6 +16,7 @@
 #include "include/nxp_keycode.h"
 #include "src/nexus_channel_core.h"
 #include "src/nexus_keycode_core.h"
+#include "src/nexus_util.h"
 
 /** Internal struct of data persisted to NV.
  */
@@ -28,9 +29,11 @@ static struct
 
 const uint32_t NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS = 240;
 
-void nx_core_init(void)
+void nx_core_init(uint32_t initial_uptime_s)
 {
-    _this.uptime_s = 0;
+    // on init, get the first uptime measurement from the product code so that
+    // subsequent calls compute the timedelta from application init properly
+    _this.uptime_s = initial_uptime_s;
     _this.init_completed = false;
     _this.pending_init = true;
 
@@ -43,8 +46,8 @@ void nx_core_init(void)
 #endif
 
     // Request for implementing system to call
-    // 'nx_core_process' after calling `nx_core_init`, to initialize
-    // the uptime seconds to the correct value.
+    // 'nx_core_process' after calling `nx_core_init` to
+    // complete Nexus initialization and set accurate callback interval
     (void) nxp_core_request_processing();
 }
 

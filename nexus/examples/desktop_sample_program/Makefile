@@ -1,3 +1,6 @@
+# convenience to allow bare `make` command == `make clean all`
+cleanfirst: clean all
+
 # Default build has minimal dependencies (just requires GCC)
 #default skips scan-build, run `make all BUILD=sa` to enable static analysis
 #
@@ -12,10 +15,9 @@ WARNINGS.default := -Wall -Wextra -Wpedantic -Wno-type-limits -Wno-comment \
 	-Wno-sign-compare -Wno-unused-variable
 WARNINGS.sa := $(WARNINGS.default) -Werror -Wno-unused-parameter -Wundef \
     -Wuninitialized -Winit-self -Wswitch-default -Wunreachable-code \
-    -Wlogical-op -Winline -Wsuggest-attribute=const -Wconversion \
-	-Wno-sign-compare
+    -Wlogical-op -Winline -Wsuggest-attribute=const -Wno-sign-compare
 
-CFLAGS = $(INCLUDES) -DDEBUG -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
+CFLAGS = $(INCLUDES) -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
 
 SCANBUILD_FLAGS = --status-bugs\
                   -enable-checker core\

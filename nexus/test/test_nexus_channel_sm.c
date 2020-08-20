@@ -34,7 +34,7 @@
 
 // Other support libraries
 #include <mock_nexus_channel_om.h>
-#include <mock_nexus_channel_payg_credit.h>
+#include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nexus_keycode_core.h>
 #include <mock_nxp_channel.h>
 #include <mock_nxp_core.h>
@@ -130,7 +130,7 @@ void setUp(void)
                                      2,
                                      oc_if_arr,
                                      OC_GET,
-                                     nexus_channel_payg_credit_get,
+                                     nexus_channel_res_payg_credit_get_handler,
                                      false);
 
     G_OC_REP = 0;
@@ -164,7 +164,7 @@ void test_nexus_channel_sm__nexus_channel_sm_set_request_handler__unknown_method
         "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
 
     TEST_ASSERT_FALSE(nexus_channel_sm_set_request_handler(
-        res, 5, nexus_channel_payg_credit_get, false));
+        res, 5, nexus_channel_res_payg_credit_get_handler, false));
 }
 
 void test_nexus_channel_sm__register_delete_secured_resource__ok(void)
@@ -1254,7 +1254,7 @@ void test_coap_nexus_engine__resource_unsecured_message_unsecured__ok(void)
     // is
     // currently
     // not implemented!
-    nexus_channel_payg_credit_get_ExpectAnyArgs();
+    nexus_channel_res_payg_credit_get_handler_ExpectAnyArgs();
     nexus_channel_core_process(0);
 
     TEST_ASSERT_EQUAL(0, oc_process_nevents());

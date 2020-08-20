@@ -529,8 +529,8 @@ int oc_rep_get_encoded_payload_size(void);
  * @see oc_rep_close_array
  * @see oc_rep_set_int_array
  */
-//#define oc_rep_add_int(parent, value)                                          \
-//  g_err |= cbor_encode_int(&parent##_array, value)
+#define oc_rep_add_int(parent, value)                                          \
+  g_err |= cbor_encode_int(&parent##_array, value)
 //#define oc_rep_set_value_int(parent, value)                                    \
 //  g_err |= cbor_encode_int(&parent##_map, value)
 

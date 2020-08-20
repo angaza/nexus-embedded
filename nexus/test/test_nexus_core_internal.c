@@ -21,9 +21,9 @@
 #include "src/internal_channel_config.h"
 #include "src/nexus_channel_core.h"
 #include "src/nexus_channel_om.h"
-#include "src/nexus_channel_payg_credit.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
+#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_core_internal.h"
 #include "src/nexus_keycode_core.h"
@@ -84,10 +84,6 @@ void setUp(void)
     nxp_core_random_value_IgnoreAndReturn(123456);
     nxp_core_request_processing_Expect();
     oc_clock_init_Ignore();
-    nx_core_init();
-    TEST_ASSERT_FALSE(nexus_core_init_completed());
-    nx_core_process(0);
-    TEST_ASSERT_TRUE(nexus_core_init_completed());
 }
 
 // Teardown (called after any 'test_*' function is called, automatically)
@@ -98,18 +94,26 @@ void tearDown(void)
 
 void test_keycode_core_uptime__uptime_error_on_invalid_value__ok(void)
 {
-    TEST_ASSERT_EQUAL(0, nexus_core_uptime());
-    TEST_ASSERT_EQUAL(0, nexus_core_uptime());
-    nx_core_process(40);
-    TEST_ASSERT_EQUAL(40, nexus_core_uptime());
-    // 10 is in the past compared to 40
-    nx_core_process(10);
-    TEST_ASSERT_EQUAL(40, nexus_core_uptime());
+    // arbitrary starting uptime
+    nx_core_init(1200);
+    TEST_ASSERT_FALSE(nexus_core_init_completed());
+    nx_core_process(1200);
+    TEST_ASSERT_TRUE(nexus_core_init_completed());
+    TEST_ASSERT_EQUAL(1200, nexus_core_uptime());
+    nx_core_process(1240);
+    TEST_ASSERT_EQUAL(1240, nexus_core_uptime());
+    // 1210 is in the past compared to 1240
+    nx_core_process(1210);
+    TEST_ASSERT_EQUAL(1240, nexus_core_uptime());
 }
 
 void test_keycode_core_uptime__uptime_increments_to_max_values__ok(void)
 {
     // Count up to 130+ years in seconds without rollover
+    nx_core_init(0);
+    TEST_ASSERT_FALSE(nexus_core_init_completed());
+    nx_core_process(0);
+    TEST_ASSERT_TRUE(nexus_core_init_completed());
     for (uint32_t i = 0; i < UINT32_MAX; i += UINT32_MAX / 3)
     {
         nx_core_process(i);

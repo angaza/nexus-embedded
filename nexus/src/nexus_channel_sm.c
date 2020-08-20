@@ -19,6 +19,7 @@
 
 // Create statically-allocated memory block to store resource method security
 // configs and list to manage them. Each resource may up to have 4 methods.
+// XXX: We might constrain this to 2 methods (GET and POST) in many cases
 OC_MEMB(nexus_sec_res_methods_memb,
         nexus_secured_resource_method_t,
         OC_MAX_APP_RESOURCES * 4);
@@ -35,6 +36,7 @@ nexus_channel_sm_nexus_resource_method_new(oc_resource_t* resource,
         nexus_sec_res_method->resource = resource;
         nexus_sec_res_method->method = method;
 
+        OC_DBG("Adding method %u to resource at address %x", method, resource);
         oc_list_add(nexus_sec_res_methods, nexus_sec_res_method);
     }
     else
@@ -301,9 +303,8 @@ static bool _nexus_channel_sm_parse_cose_mac0_payload(
     return true;
 }
 
-static bool
-_nexus_channel_sm_parse_cose_mac0_mac(const oc_rep_t* rep,
-                                      struct nexus_check_value** mac)
+bool _nexus_channel_sm_parse_cose_mac0_mac(const oc_rep_t* rep,
+                                           struct nexus_check_value** mac)
 {
     if (rep == NULL || rep->type != OC_REP_BYTE_STRING ||
         (strncmp(oc_string(rep->name), "m", 1) != 0))
@@ -431,7 +432,7 @@ NEXUS_IMPL_STATIC void _nexus_channel_sm_repack_no_cose_mac0(
   * \return true if the COSE_MAC0 could be parsed from the packet, false
   * otherwise
   */
-static bool _nexus_channel_sm_get_cose_mac0_data(
+NEXUS_IMPL_STATIC bool _nexus_channel_sm_get_cose_mac0_data(
     coap_packet_t* const pkt,
     nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed)
 {
@@ -468,7 +469,7 @@ static bool _nexus_channel_sm_get_cose_mac0_data(
   * used to authenticate the message
   * \return true if `pkt` is authenticated, false otherwise
   */
-static bool _nexus_channel_sm_auth_packet_mode0(
+NEXUS_IMPL_STATIC bool _nexus_channel_sm_auth_packet_mode0(
     coap_packet_t* const pkt,
     const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed,
     const struct nexus_channel_link_security_mode0_data* const link_sec_data)

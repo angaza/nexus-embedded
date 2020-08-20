@@ -17,9 +17,9 @@
 
 #include "oc/include/oc_api.h"
 #include "oc/messaging/coap/engine.h"
-#include "src/nexus_channel_payg_credit.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
+#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_oc_wrapper.h"
 #include <string.h>
@@ -82,9 +82,13 @@ bool nexus_channel_core_init(void)
 #endif
 // don't initialize these during unit tests, so we can test core independently
 #ifndef NEXUS_DEFINED_DURING_TESTING
-        nexus_channel_payg_credit_init();
         nexus_channel_res_link_hs_init();
         nexus_channel_link_manager_init();
+// Note: Because PAYG Credit depends on link information, it must
+// be initialized after the link modules are initialized
+#if NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+        nexus_channel_res_payg_credit_init();
+#endif // NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
 #endif // NEXUS_DEFINED_DURING_TESTING
         return true;
     }
@@ -123,9 +127,9 @@ uint32_t nexus_channel_core_process(uint32_t seconds_elapsed)
 
     min_sleep =
         u32min(min_sleep, nexus_channel_res_link_hs_process(seconds_elapsed));
+    // XXX send pending handshakes out
     min_sleep =
         u32min(min_sleep, nexus_channel_link_manager_process(seconds_elapsed));
-
     return min_sleep;
 }
 
@@ -166,8 +170,7 @@ nx_channel_register_resource(const char* uri,
 
     // if secured, attempt to store the resource method security configuration
     if (success && secured &&
-        nexus_channel_sm_nexus_resource_method_new(res->uri.ptr, method) ==
-            NULL)
+        nexus_channel_sm_nexus_resource_method_new(res, method) == NULL)
     {
         // unset the resource request handler
         OC_WRN("could not set the resource method security");

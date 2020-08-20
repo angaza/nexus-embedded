@@ -17,7 +17,17 @@ bool nxp_keycode_feedback_start(enum nxp_keycode_feedback_type feedback_type)
     switch (feedback_type)
     {
         case NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID:
-            printf("\tKeycode is invalid.\n");
+            if (nx_keycode_is_rate_limited())
+            {
+                printf(
+                    "\tNexus Keycode is rate-limited, please wait %d seconds "
+                    "before entering another keycode.\n",
+                    CONFIG_NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT);
+            }
+            else
+            {
+                printf("\tKeycode is invalid.\n");
+            }
             break;
         case NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED:
             printf("\tKeycode is valid.\n");

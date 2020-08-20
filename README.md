@@ -16,29 +16,45 @@ embedded platforms.
 3. Run `cd nexus && python conf_nexus.py` and select configuration options (*Important*: Must run `python conf_nexus.py` from within the `nexus` folder).
 4. Implement the functions specified in `nexus/include/nxp_core.h`
 5. [Keycode only] Implement the functions specified in `nexus/include/nxp_keycode.h`
-5. Use the functions provided by `nexus/include/nx_keycode.h` and `nexus/include/nx_core.h` to interact with Nexus
+6. [Channel only] Implement the functions specified in `nexus/include/nxp_channel.h`
+7. Use the functions provided by `nexus/include/nx_keycode.h`, `nexus/include/nx_channel.h`, and `nexus/include/nx_core.h` to interact with Nexus
 
 The functions declared in `include/nxp_core.h` provide the Nexus
-Keycode Protocol with the ability to store and retrieve data from nonvolatile
+System with the ability to store and retrieve data from nonvolatile
 storage (flash), as well as determine the current system uptime. These are
 platform dependent, which is why they must be implemented by your code.
+(This is a non-exhaustive list).
 
-The functions provided by `include/nxp_keycode.h` are platform independent
-and represent the core Nexus Keycode functionality, including the ability to
-accept and process keycodes (key-by-key or all at once) and provide immediate
-feedback to those keypresses.
+The functions declared in `include/nxp_keycode.h` are platform independent
+and provide Nexus Keycode with a way to signal keycode feedback (rejected,
+accepted, etc), methods to modify remaining PAYG credit based on keycode
+receipt, and a way to retrieve the secret key (used for keycode validation)
+from the implementing system. (This is a non-exhaustive list).
 
-Note that only the files in `nexus/src`, `nexus/include`, and
-`nexus/utils` must be included in your project. Other
-folders are used for testing and support purposes.
+The functions declared in `include/nxp_channel.h` are platform independent
+and provide Nexus Channel with a way to signal channel events (link established,
+link handshake begun, etc), send outbound Nexus Channel messages to the network
+hardware (dependent on the implementing platform), and retrieve unique keying
+information used to validate Nexus Channel link communications.
+(This is a non-exhaustive list).
+
+Please add the following folders to your project include paths:
+
+* `nexus`
+* `nexus/src`
+* `nexus/include`
+* `nexus/utils`
+* `nexus/oc` (Required only for Nexus Channel or Nexus debug logs)
+
+Other folders are used for automated testing or support, and are not required
+to build a project using Nexus.
 
 ## Project Structure
 
-The C implementation of Nexus Keycode uses the [ceedling](https://www.throwtheswitch.org/ceedling)
+The C implementation of Nexus uses the [ceedling](https://www.throwtheswitch.org/ceedling)
 framework to organize automated testing of this source code.
 
-The source code to implement Nexus Keycode Protocol is within the
-`nexus` folder.
+All source code is contained under the `nexus` folder.
 
 Note that files named `nxp` contain functions that *your code* must implement,
 and files named `nx` expose functions and structures that the Nexus system
@@ -50,9 +66,10 @@ Keycode protocol are `nexus/include`, `nexus/src`, and `nexus/utils`**.
 The folders in this project are:
 
 * `nexus/include` - Header files that must be included in a project using the
-Nexus Keycode protocol
+Nexus embedded solutions (do not modify)
 * `nexus/src` - Nexus module implementation files (do not modify)
-* `nexus/utils` - Nexus support utilities and functions
+* `nexus/oc` - IoTivity-based files for Nexus Channel (do not modify)
+* `nexus/utils` - Nexus support utilities and functions (do not modify)
 * `nexus/stub` - Stub functions used during static analysis
 * `nexus/build` - temporary output artifacts related to unit tests and static
 * `nexus/test` - Unit tests for the code contained in `src`
@@ -82,15 +99,14 @@ Afterwards, the tool automatically updates and saves your selections into
 a header which is parsed by the Nexus code to determine what features to
 expose to your application.
 
-## Static Analysis
+## Static analysis
 
-`ceedling release` will attempt to build the Nexus Keycode library against
-a stub implementation (contained in `stub`), with high verbosity GCC warnings
-and using the Clang static analyzer. This is used to detect potential problems
-in the code that may be missed by unit tests.
+`ceedling release` will attempt to build a stub implementation of Nexus (
+contained in `nexus/stub`) with Channel and Keycode featured enabled. This
+build is used as a supplemental static analysis build (static analysis is also
+performed against unit test builds).
 
-## Unit Tests
-
+## Unit tests
 The unit tests themselves are found within the `nexus/test` folder. The
 configuration of `ceedling` is contained within the `nexus/project.yml` file.
 

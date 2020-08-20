@@ -160,20 +160,22 @@ NEXUS_PACKED_STRUCT nx_core_check_key
 
 /** Call at startup to initialize Nexus system and all enabled modules.
  *
- * Must be called before the Nexus System is ready for use.
+ * Must be called before Nexus is ready for use.
  * Will initialize values, triggering reading of the latest values
  * from NV if available.
  *
+ * \param initial_uptime_s current system uptime, in seconds. Should be
+ * the same counter used to pass values into `nx_core_process`
  * \return void
  */
-void nx_core_init(void);
+void nx_core_init(uint32_t initial_uptime_s);
 
-/** Perform any 'long-running' Nexus Keycode operations.
+/** Perform any 'long-running' Nexus operations.
  *
  * This function must be called within 20ms after `nxp_core_request_processing`
  * is called.
  *
- * Within this function, the Nexus Keycode library executes 'long-running'
+ * Within this function, the Nexus library executes 'long-running'
  * operations that are not appropriate to run in an interrupt (such as
  * computing CRCs or hash results, and parsing or interpreting
  * entire keycodes).

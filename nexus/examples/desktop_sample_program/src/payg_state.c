@@ -11,7 +11,7 @@
 #include "payg_state.h"
 #include "identity.h"
 #include "nonvol.h"
-#include "nxp_core.h"
+#include "nxp_channel.h"
 #include "nxp_core.h"
 #include "nxp_keycode.h"
 #include "processing.h"
@@ -83,6 +83,11 @@ bool update_payg_state(bool is_unlocked, uint32_t credit)
     return true;
 }
 
+uint32_t nxp_core_payg_credit_get_remaining(void)
+{
+    return _this.stored.credit;
+}
+
 void payg_state_update_nv(void)
 {
     prod_nv_write_payg_state(sizeof(struct payg_state_struct),
@@ -118,4 +123,21 @@ void payg_state_consume_credit(const uint32_t amount)
 uint32_t payg_state_get_remaining_credit(void)
 {
     return _this.stored.credit;
+}
+
+// Below functions relate to the PAYG credit resource built-in to Nexus
+// Channel.
+//
+// Used when managing PAYG credit over the Nexus Channel link, or having
+// credit managed by another Nexus Channel device.
+nx_channel_error nxp_channel_payg_credit_set(uint32_t remaining)
+{
+    update_payg_state(false, remaining);
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+nx_channel_error nxp_channel_payg_credit_unlock(void)
+{
+    update_payg_state(true, 0);
+    return NX_CHANNEL_ERROR_NONE;
 }

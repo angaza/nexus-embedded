@@ -20,6 +20,8 @@
 #include "messaging/coap/transactions.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_oc_wrapper.h"
+#include "src/nexus_security.h"
+
 /*
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
@@ -58,6 +60,7 @@ dispatch_coap_request(void)
 
   // Initial payload size, of packed application CBOR data
   int payload_size = oc_rep_get_encoded_payload_size();
+  uint8_t * const transaction_data_ptr = transaction->message->data + COAP_MAX_HEADER_SIZE;
 
   if (payload_size > 0) {
     // any request type may be secured by Nexus Channel
@@ -86,38 +89,22 @@ dispatch_coap_request(void)
       cose_mac0.nonce = sec_data.nonce;
       cose_mac0.payload_len = payload_size;
       // the encoded payload has been written here by `prepare_coap_request`
-      cose_mac0.payload = transaction->message->data + COAP_MAX_HEADER_SIZE;
+      cose_mac0.payload = transaction_data_ptr;
 
       // compute MAC
       struct nexus_check_value mac = _nexus_channel_sm_compute_mac_mode0(&cose_mac0, &sec_data);
       cose_mac0.mac = &mac;
 
-      // repack message securely in the same transaction.
-      // first, set up a new OC rep allowing us to encode our 'new message'
-      // into a payload. This buffer temporarily exists within this packing step
-      uint8_t payload_buffer[OC_BLOCK_SIZE];
-      oc_rep_new(payload_buffer, OC_BLOCK_SIZE);
-      oc_rep_begin_root_object();
-      // 'protected' in a bstr;
-      oc_rep_set_byte_string(root, p, (uint8_t*) &client_cb->method, 1);
-      // 'unprotected' elements as a map of length 2
-      oc_rep_open_object(root, u);
-      oc_rep_set_uint(u, 4, cose_mac0.kid);
-      oc_rep_set_uint(u, 5, cose_mac0.nonce);
-      oc_rep_close_object(root, u);
-      // 'payload' in a bstr
-      oc_rep_set_byte_string(root, d, cose_mac0.payload, cose_mac0.payload_len);
-      // 'tag' in a bstr
-      oc_rep_set_byte_string(root, m, (uint8_t*) cose_mac0.mac, sizeof(struct nexus_check_value));
-      oc_rep_end_root_object();
+      // repack the message stored in the transaction with secured data
+      nexus_oc_wrapper_repack_buffer_secured(transaction_data_ptr, &cose_mac0);
 
-      // New payload size, after packing as a COSE MAC0 object
-      // Required for downstream logic which will set the CoAP packet payload
-      // length fields
-      payload_size = oc_rep_get_encoded_payload_size();
+      // set the header content-format to indicate the payload is secured
+      coap_set_header_content_format(request, APPLICATION_COSE_MAC0);
 
-      // now, copy back the packed buffer back over the packed application data
-      memcpy(transaction->message->data + COAP_MAX_HEADER_SIZE, payload_buffer, payload_size);
+      // securely clear the Nexus Channel security data from the stack
+      nexus_secure_memclr(&sec_data,
+                sizeof(struct nexus_channel_link_security_mode0_data),
+                sizeof(struct nexus_channel_link_security_mode0_data));
     }
   #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
     // only PUT and POST are expected to have payloads
@@ -147,8 +134,7 @@ dispatch_coap_request(void)
           }
       #else  // OC_BLOCK_WISE
       */
-          coap_set_payload(request, transaction->message->data + COAP_MAX_HEADER_SIZE,
-                          payload_size);
+          coap_set_payload(request, transaction_data_ptr, payload_size);
       //#endif / !OC_BLOCK_WISE
     }
   }

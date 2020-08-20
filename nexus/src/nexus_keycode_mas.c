@@ -84,7 +84,7 @@ nexus_keycode_rate_limit_add_time(const uint32_t seconds_elapsed)
     }
 }
 
-NEXUS_IMPL_STATIC bool nexus_keycode_is_rate_limited(void)
+bool nx_keycode_is_rate_limited(void)
 {
     if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX == 0)
     {
@@ -202,7 +202,6 @@ NEXUS_IMPL_STATIC bool nexus_keycode_mas_graceperiod_keycodes_update_nv(
     {
         return false;
     }
-
     _this_core.stored.graceperiod_keycodes = new_graceperiod_keycodes;
     nexus_nv_update(NX_NV_BLOCK_KEYCODE_MAS, (uint8_t*) &_this_core.stored);
     return true;
@@ -363,7 +362,7 @@ NEXUS_IMPL_STATIC void nexus_keycode_mas_bookend_push(const nx_keycode_key key)
     nxp_core_request_processing();
 
     // process the actual keypress
-    if (nexus_keycode_is_rate_limited())
+    if (nx_keycode_is_rate_limited())
     {
         nxp_keycode_feedback_start(NXP_KEYCODE_FEEDBACK_TYPE_KEY_REJECTED);
     }
@@ -432,7 +431,7 @@ bool nx_keycode_handle_complete_keycode(
         return false;
     }
 
-    else if (nexus_keycode_is_rate_limited())
+    else if (nx_keycode_is_rate_limited())
     {
         nxp_keycode_feedback_start(NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID);
     }

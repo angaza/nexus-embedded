@@ -12,10 +12,6 @@
  * inside an example without requiring multiple 'full' Nexus Channel devices
  * running at the same time.
  *
- * There should be *no need* to copy or otherwise use most of the code inside
- * of this file when using Nexus Channel (coap_packet_t, CBOR parsing, message
- * serialization, etc should be ignored).
- *
  * Instead, an implementing product only needs to call
  * `nx_channel_network_receive`
  * to pass the received application data into Nexus Channel.

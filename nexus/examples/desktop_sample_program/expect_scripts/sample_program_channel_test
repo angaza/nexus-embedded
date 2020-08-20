@@ -1,0 +1,156 @@
+#!/usr/bin/expect -f
+
+set timeout 2
+
+proc expect_fail_timeout {expect_string} {
+    expect {
+        $expect_string {}
+        timeout {send_user [subst {"\n Expect timed out waiting for" $expect_string}]; exit 1}
+    }
+}
+
+spawn ./sample_nexus_keycode_program
+
+# Test creating a link to an 'accessory'
+
+expect_fail_timeout "Please enter the path"
+send -- "test_nv_file.nv\r"
+
+expect_fail_timeout "Please enter an integer serial ID"
+send -- "123456789\r"
+
+expect_fail_timeout "Please enter the 16-byte"
+send -- "deadbeef1020304004030201feebdaed\r"
+
+expect_fail_timeout "Credit remaining: 0 seconds"
+expect_fail_timeout "Menu"
+expect_fail_timeout "2. Display Nexus Channel Status"
+send -- "2\r"
+
+expect_fail_timeout "Number of active Nexus Channel links: 0"
+expect_fail_timeout "Menu"
+# XXX Required for proper operation, init condition?
+sleep 5  
+send -- "1\r"
+
+expect_fail_timeout "Please input a Full keycode"
+send -- "*8192798211668986#\r\r"
+
+expect_fail_timeout "Generating link key using salt"
+expect_fail_timeout "Beginning link handshake"
+expect_fail_timeout "Origin command was successfully applied"
+expect_fail_timeout "Preparing multicast POST to URI 'h'"
+expect_fail_timeout "Requesting link handshake *challenge* mode 0"
+expect_fail_timeout "Credit remaining: 0 seconds"
+send -- "\r"
+
+expect_fail_timeout "Menu"
+send -- "3\r"
+
+expect_fail_timeout "Menu"
+send -- "2\r"
+
+expect_fail_timeout "Number of active Nexus Channel links: 1"
+expect_fail_timeout "Menu"
+send -- "1\r"
+
+expect_fail_timeout "Please input a Full keycode"
+send -- "*8192798211668986#\r"
+send -- "\r"
+
+expect_fail_timeout "Handling origin command"
+expect_fail_timeout "Origin command already used or invalid"
+expect_fail_timeout "Failed to apply origin command"
+
+# Close and reload, confirm data is loaded from the NV file correctly
+close
+
+spawn ./sample_nexus_keycode_program
+
+expect "Please enter the path"
+send -- "test_nv_file.nv\r"
+
+expect_fail_timeout "Initializing Nexus library..."
+expect_fail_timeout "Done"
+expect_fail_timeout "Credit remaining: 0 seconds"
+send -- "\r"
+
+expect_fail_timeout "Menu"
+send -- "2\r"
+
+expect_fail_timeout "Number of active Nexus Channel links: 1"
+expect_fail_timeout "Menu"
+send -- "1\r"
+
+expect_fail_timeout "Please input a Full keycode"
+send -- "*81000856304#\r"
+send -- "\r"
+
+expect_fail_timeout "Unlink all/clear links"
+expect_fail_timeout "Origin command was successfully applied"
+expect_fail_timeout "A link has been deleted (0 links remain)"
+expect_fail_timeout "all channel links are now deleted"
+send -- "\r"
+
+expect_fail_timeout "Menu"
+send -- "2\r"
+
+expect_fail_timeout "Number of active Nexus Channel links: 0"
+expect_fail_timeout "Menu"
+
+send -- "1\r"
+
+expect_fail_timeout "Please input a Full keycode"
+send -- "*81000856304#\r"
+send -- "\r"
+expect_fail_timeout "Handling origin command"
+expect_fail_timeout "Origin command already used or invalid"
+expect_fail_timeout "Failed to apply origin command"
+send -- "\r"
+
+# Now, we attempt to get the simulated battery resource
+
+expect_fail_timeout "Menu"
+send -- "4\r"
+
+expect_fail_timeout "nx_channel_network: Receiving"
+expect_fail_timeout "Menu"
+send -- "3\r"
+
+expect_fail_timeout "Begin get_batt: interface"
+expect_fail_timeout "batterythreshold"
+expect_fail_timeout "20"
+expect_fail_timeout "capacity"
+expect_fail_timeout "3000"
+expect_fail_timeout "End get_batt"
+expect_fail_timeout "Menu"
+send -- "5\r"
+
+expect_fail_timeout "Please input a new battery threshold (0-20)"
+send -- "10\r"
+send -- "\r"
+
+expect_fail_timeout "Receiving 38 byte message"
+send -- "\r"
+
+expect_fail_timeout "Menu"
+send -- "3\r"
+
+expect_fail_timeout "Begin post_batt"
+expect_fail_timeout "'batterythreshold' : 10"
+expect_fail_timeout "Menu"
+send -- "4\r"
+
+expect_fail_timeout "Receiving 18 byte message"
+expect_fail_timeout "Menu"
+send -- "3\r"
+
+expect_fail_timeout "Begin get_batt: interface"
+expect_fail_timeout "batterythreshold"
+expect_fail_timeout "10"
+expect_fail_timeout "capacity"
+expect_fail_timeout "3000"
+expect_fail_timeout "End get_batt"
+
+close
+exit

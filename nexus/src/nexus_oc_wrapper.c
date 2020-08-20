@@ -14,6 +14,10 @@
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_buffer.h"
 #include "oc/include/oc_ri.h"
+#include "oc/messaging/coap/transactions.h"
+#include "src/nexus_channel_sm.h"
+
+#if NEXUS_CHANNEL_ENABLED
 
 // common define for the multicast OCF address
 // broadcast endpoint, not dynamically allocated
@@ -56,7 +60,6 @@ bool nexus_resource_set_request_handler(oc_resource_t* resource,
                                         oc_method_t method,
                                         oc_request_callback_t callback)
 {
-#if NEXUS_CHANNEL_ENABLED
     const oc_request_handler_t* handler = NULL;
     switch (method)
     {
@@ -98,17 +101,10 @@ bool nexus_resource_set_request_handler(oc_resource_t* resource,
             return false;
         }
     }
-#else
-    (void) resource;
-    (void) method;
-    (void) callback;
-    return false;
-#endif /* if NEXUS_CHANNEL_ENABLED */
 }
 
 bool nexus_add_resource(oc_resource_t* resource)
 {
-#if NEXUS_CHANNEL_ENABLED
     if (!resource)
     {
         return false;
@@ -123,10 +119,6 @@ bool nexus_add_resource(oc_resource_t* resource)
     }
 
     return oc_ri_add_resource(resource);
-#else
-    (void) resource;
-    return false;
-#endif /* if NEXUS_CHANNEL_ENABLED */
 }
 
 void oc_random_init(void)
@@ -260,3 +252,36 @@ void oc_send_discovery_request(oc_message_t* message)
 {
     oc_send_buffer(message);
 }
+
+void nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* buffer, nexus_security_mode0_cose_mac0_t* cose_mac0)
+{
+    // first, set up a new OC rep allowing us to encode our 'new message'
+    // into a payload. This buffer temporarily exists within this packing step
+    uint8_t payload_buffer[OC_BLOCK_SIZE];
+    oc_rep_new(payload_buffer, OC_BLOCK_SIZE);
+    oc_rep_begin_root_object();
+    // 'protected' in a bstr;
+    oc_rep_set_byte_string(root, p, (uint8_t*) &cose_mac0->protected_header, 1);
+    // 'unprotected' elements as a map of length 2
+    oc_rep_open_object(root, u);
+    oc_rep_set_uint(u, 4, cose_mac0->kid);
+    oc_rep_set_uint(u, 5, cose_mac0->nonce);
+    oc_rep_close_object(root, u);
+    // 'payload' in a bstr
+    oc_rep_set_byte_string(root, d, cose_mac0->payload, cose_mac0->payload_len);
+    // 'tag' in a bstr
+    oc_rep_set_byte_string(
+        root, m, (uint8_t*) cose_mac0->mac, sizeof(struct nexus_check_value));
+    oc_rep_end_root_object();
+
+    // New payload size, after packing as a COSE MAC0 object
+    // Required for downstream logic which will set the CoAP packet payload
+    // length fields
+    int payload_size = oc_rep_get_encoded_payload_size();
+
+    // now, copy back the packed buffer back over the packed application data
+    memcpy(buffer, payload_buffer, payload_size);
+}
+
+#endif /* NEXUS_CHANNEL_ENABLED */

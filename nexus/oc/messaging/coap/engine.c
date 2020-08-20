@@ -58,6 +58,9 @@
 #include "oc_api.h"
 #include "oc_buffer.h"
 #include "oc/include/nexus_channel_security.h"
+#include "src/nexus_channel_sm.h"
+#include "src/nexus_oc_wrapper.h"
+#include "src/nexus_security.h"
 
 /*
 #ifdef OC_SECURITY
@@ -522,7 +525,7 @@ coap_receive(oc_message_t *msg)
                                              transaction->message->data +
                                                COAP_MAX_HEADER_SIZE,
                                              &msg->endpoint)) {
-        OC_DBG("CoAP response type=%d", response->code);
+          OC_DBG("CoAP response type=%d", response->code);
 
 //#endif // !OC_BLOCK_WISE
 /*
@@ -865,9 +868,56 @@ send_message:
       }
 #endif // OC_CLIENT && OC_BLOCK_WISE
 */
-      transaction->message->length =
-        coap_serialize_message(response, transaction->message->data);
       if (transaction->message->length > 0) {
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        bool secured = false;
+        bool sec_data_exists = false;
+
+        // send secured replies to requests to resource methods that are secured
+        const char *href;
+        size_t href_len = coap_get_header_uri_path(message, &href);
+        oc_resource_t* res = oc_ri_get_app_resource_by_uri(
+          href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+        secured = nexus_channel_sm_resource_method_is_secured(res, message->code);
+
+        // get Nexus ID
+        struct nx_id nexus_id = {0};
+        (void) nexus_oc_wrapper_oc_endpoint_to_nx_id(&transaction->message->endpoint, &nexus_id);
+
+        // get security data
+        struct nexus_channel_link_security_mode0_data sec_data = {0};
+        sec_data_exists = nexus_channel_link_manager_security_data_from_nxid(
+                &nexus_id, &sec_data);
+
+        if (secured && sec_data_exists)
+        {
+          // populate COSE_MAC0 struct
+          nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
+
+          // the `code` field is shared between requests and responses
+          cose_mac0.protected_header = (uint8_t) response->code;
+          cose_mac0.kid = 0;
+          cose_mac0.nonce = sec_data.nonce;
+          cose_mac0.payload_len = coap_get_payload(response, (const uint8_t**) &cose_mac0.payload);
+
+          // compute MAC
+          struct nexus_check_value mac = _nexus_channel_sm_compute_mac_mode0(&cose_mac0, &sec_data);
+          cose_mac0.mac = &mac;
+
+          // repack the message stored in the transaction with secured data
+          nexus_oc_wrapper_repack_buffer_secured(transaction->message->data + COAP_MAX_HEADER_SIZE, &cose_mac0);
+
+          // set the header content-format to indicate the payload is secured
+          coap_set_header_content_format(response, APPLICATION_COSE_MAC0);
+
+          // securely clear the Nexus Channel security data from the stack
+          nexus_secure_memclr(&sec_data,
+                    sizeof(struct nexus_channel_link_security_mode0_data),
+                    sizeof(struct nexus_channel_link_security_mode0_data));
+        }
+#endif
+        transaction->message->length =
+          coap_serialize_message(response, transaction->message->data);
         coap_send_transaction(transaction);
       } else {
         coap_clear_transaction(transaction);

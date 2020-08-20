@@ -135,6 +135,38 @@ bool nexus_channel_link_manager_create_link(
  */
 void nexus_channel_link_manager_clear_all_links(void);
 
+/* Return the current operating mode of this device.
+ *
+ * Used by other modules to determine if this device is operating in an
+ * accessory or controller mode currently.
+ *
+ * \return current Nexus Channel mode of this device.
+ */
+enum nexus_channel_link_operating_mode
+nexus_channel_link_manager_operating_mode(void);
+
+/* Return true if this device is linked to another controller device.
+ *
+ * This implies that another device is capable of controlling this device
+ * for resources that depend on a controller/accessory link.
+ *
+ * Does not guarantee that only one controller is linked - multiple
+ * controllers may be present (although this is practically unlikely).
+ *
+ * This method may need to be extended when/if multiple controllers control
+ * a single accessory. The ID of the first linked controller found (if any)
+ * will be populated in the struct pointed to by `linked_controller`.
+ *
+ * \return true if linked to an controller, false otherwise
+ */
+bool nexus_channel_link_manager_has_linked_controller(void);
+
+/* Return true if this device is linked to another accessory device.
+ *
+ * \return true if linked to an accessory, false otherwise
+ */
+bool nexus_channel_link_manager_has_linked_accessory(void);
+
 /* Obtain a Nexus channel link from a Nexus ID.
  *
  * Will look for a link to the referenced Nexus ID, and if present, will

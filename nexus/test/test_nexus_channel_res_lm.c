@@ -27,6 +27,7 @@
 #include "src/nexus_channel_om.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
+#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_core_internal.h"
 #include "src/nexus_keycode_core.h"
@@ -920,9 +921,7 @@ void test_link_manager_reset_link_secs_since_active__reset_ok(void)
 void test_link_manager_reset_link_expires__reset_ok(void)
 {
     // initializes with no links present
-    struct nx_id linked_id = {0};
-    linked_id.authority_id = 5921;
-    linked_id.device_id = 123456;
+    struct nx_id linked_id = {5921, 123456};
 
     struct nx_core_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
@@ -986,4 +985,153 @@ void test_link_manager_reset_link_expires__reset_ok(void)
     result =
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
+}
+
+void test_link_manager_operating_mode__dual_mode_no_links__returns_idle_dual_mode(
+    void)
+{
+    // tests are compiled with 'dual mode', so we handle this case
+    enum nexus_channel_link_operating_mode result =
+        nexus_channel_link_manager_operating_mode();
+
+    TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_DUAL_MODE_IDLE, result);
+}
+
+void test_link_manager_operating_mode__single_controller_link__controller_mode(
+    void)
+{
+    // tests are compiled with 'dual mode', so we handle this case
+    enum nexus_channel_link_operating_mode result;
+    struct nx_id linked_acc_id = {5921, 123456};
+
+    struct nx_core_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+
+    nxp_core_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_acc_id,
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
+    nexus_channel_link_manager_process(0);
+
+    result = nexus_channel_link_manager_operating_mode();
+    TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_CONTROLLER, result);
+}
+
+void test_link_manager_operating_mode__single_accessory_link__accessory_mode(
+    void)
+{
+    enum nexus_channel_link_operating_mode result;
+    struct nx_id linked_cont_id = {5921, 123458};
+
+    struct nx_core_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+
+    nxp_core_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_cont_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_link_manager_process(0);
+
+    result = nexus_channel_link_manager_operating_mode();
+    TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_ACCESSORY, result);
+}
+
+void test_link_manager_operating_mode__controller_and_accessory_link__dual_mode_active(
+    void)
+{
+    enum nexus_channel_link_operating_mode result;
+    struct nx_id linked_cont_id = {5921, 123458};
+    struct nx_id linked_acc_id = {5921, 123466};
+
+    struct nx_core_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+
+    nxp_core_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_acc_id,
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
+    nexus_channel_link_manager_process(0);
+
+    nxp_core_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_cont_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_link_manager_process(0);
+
+    result = nexus_channel_link_manager_operating_mode();
+    TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_DUAL_MODE_ACTIVE, result);
+}
+
+void test_link_manager_has_linked_controller__no_controller__returns_false(void)
+{
+    TEST_ASSERT_FALSE(nexus_channel_link_manager_has_linked_controller());
+}
+
+void test_link_manager_has_linked_controller__controller_present__returns_true(
+    void)
+{
+    struct nx_id linked_cont_id = {5921, 123458};
+
+    struct nx_core_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+
+    nxp_core_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_cont_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_link_manager_process(0);
+
+    TEST_ASSERT_TRUE(nexus_channel_link_manager_has_linked_controller());
 }

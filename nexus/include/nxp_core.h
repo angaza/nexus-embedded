@@ -22,7 +22,6 @@
 #define _NEXUS__INC__NXP_CORE_H_
 
 #include "include/nx_core.h"
-#include <stdbool.h>
 
 //
 // CORE PROCESSING FUNCTIONALITY
@@ -79,10 +78,10 @@ void nxp_core_request_processing(void);
  *
  * \par Example Scenario:
  * (For reference only.  Actual implementation will differ based on platform)
- * -# In this implementation of `port_com_nv_write`, platform firmware uses its
+ * -# In this implementation of `nxp_core_nv_write`, platform firmware uses its
  *    internal NV write function (`nonvol_update_block`)
  *    - @code
- *      bool port_com_nv_write(
+ *      bool nxp_core_nv_write(
  *          struct nx_nv_block_meta block_meta,
  *          void* write_buffer)
  *      {
@@ -115,14 +114,14 @@ bool nxp_core_nv_write(const struct nx_core_nv_block_meta block_meta,
  * \par Example Scenario:
  * (For reference only. Actual implementation will differ based on platform)
  *     - @code
- *       bool port_com_nv_read(
+ *       bool nxp_core_nv_read(
  *           struct nx_nv_block_meta block_meta,
  *           void* read_buffer)
  *       {
  *           memcpy(
  *               read_buffer,
  *               nx_nv_block_0_ram,
- *               block_meta.length;
+ *               block_meta.length);
  *
  *           return true;
  *       }
@@ -179,6 +178,15 @@ enum nxp_core_payg_state
  * \return current PAYG state of the device
  */
 enum nxp_core_payg_state nxp_core_payg_state_get_current(void);
+
+/* Retrieve the current remaining PAYG credit of this device.
+ *
+ * Used to display the remaining credit of this device to other Nexus Channel
+ * devices. Currently only used in Nexus Channel devices.
+ *
+ * \return value of credit remaining
+ */
+uint32_t nxp_core_payg_credit_get_remaining(void);
 
 //
 // PSEUDORANDOM NUMBER GENERATION INTERFACE

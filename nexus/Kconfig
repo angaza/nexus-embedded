@@ -194,6 +194,18 @@ config NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
         persist. Directly impacts NV storage. Accessories typically may
         support only 1 link, controllers are recommended to support 8.
 
+config NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+    bool "Secure PAYG Credit with Nexus Channel"
+    default y
+    help
+        Recommended enabled.
+        If true, PAYG credit will be exposed to, and may be updated by,
+        other authorized Nexus Channel devices. Enabling this option enables
+        additional functions in `nxp_channel.h` and `nx_channel.h` which
+        allow for credit information to pass between this resource and the
+        implementing product, which manages the remaining credit on the device
+        accordingly.
+
 endif # NEXUS_CHANNEL_ENABLED
 
 config NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED

@@ -173,7 +173,7 @@ void test_keycode_mas_rate_limiting_deduct_msg__rate_limiting_deducts_to_zero(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT *
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT));
 
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
 
     for (uint8_t i = 0;
          i <= NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT;
@@ -181,7 +181,7 @@ void test_keycode_mas_rate_limiting_deduct_msg__rate_limiting_deducts_to_zero(
     {
         nexus_keycode_rate_limit_deduct_msg();
     }
-    TEST_ASSERT_TRUE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_TRUE(nx_keycode_is_rate_limited());
 }
 
 void test_keycode_mas_rate_limiting_add_time__rate_limiting_recovers_from_zero(
@@ -198,12 +198,12 @@ void test_keycode_mas_rate_limiting_add_time__rate_limiting_recovers_from_zero(
     {
         nexus_keycode_rate_limit_deduct_msg();
     }
-    TEST_ASSERT_TRUE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_TRUE(nx_keycode_is_rate_limited());
 
     nexus_keycode_rate_limit_add_time(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT);
 
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
 }
 
 void test_keycode_mas_rate_limiting__disabled_rate_limiting__not_rate_limited(
@@ -214,7 +214,7 @@ void test_keycode_mas_rate_limiting__disabled_rate_limiting__not_rate_limited(
     {
         return;
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
 
     for (uint8_t i = 0;
          i <= NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT;
@@ -222,7 +222,7 @@ void test_keycode_mas_rate_limiting__disabled_rate_limiting__not_rate_limited(
     {
         nexus_keycode_rate_limit_deduct_msg();
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
 }
 
 void test_keycode_mas_rate_limiting__rate_limit_attempts_remaining__updates_correctly(
@@ -233,7 +233,7 @@ void test_keycode_mas_rate_limiting__rate_limit_attempts_remaining__updates_corr
     {
         return;
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
     TEST_ASSERT_EQUAL_UINT(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT,
         nexus_keycode_rate_limit_attempts_remaining());
@@ -256,7 +256,7 @@ void test_keycode_mas_rate_limiting__add_overflow__overflow_prevented(void)
     {
         return;
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
     TEST_ASSERT_EQUAL_UINT(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT,
         nexus_keycode_rate_limit_attempts_remaining());
@@ -275,7 +275,7 @@ void test_keycode_mas_rate_limiting__add_large_not_overflow__set_to_max_seconds(
     {
         return;
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
     TEST_ASSERT_EQUAL_UINT(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT,
         nexus_keycode_rate_limit_attempts_remaining());
@@ -295,7 +295,7 @@ void test_keycode_mas_process__time_elapsed__rate_limiting_count_increments(
     {
         return;
     }
-    TEST_ASSERT_FALSE(nexus_keycode_is_rate_limited());
+    TEST_ASSERT_FALSE(nx_keycode_is_rate_limited());
     TEST_ASSERT_EQUAL_UINT(
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT,
         nexus_keycode_rate_limit_attempts_remaining());
@@ -420,6 +420,11 @@ void test_keycode_mas_bookend_push__various_key_sequences__expected_end_states_r
 
 void test_keycode_mas_bookend_push__rate_limited__rejected_feedback(void)
 {
+    // skip test if rate limiting is disabled
+    if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX == 0)
+    {
+        return;
+    }
     struct test_scenario
     {
         const char* input_chars;
@@ -475,7 +480,7 @@ void test_keycode_mas_bookend_push__rate_limited__rejected_feedback(void)
         {
             nexus_keycode_rate_limit_deduct_msg();
         };
-        TEST_ASSERT_TRUE(nexus_keycode_is_rate_limited());
+        TEST_ASSERT_TRUE(nx_keycode_is_rate_limited());
         _mas_bookend_push_chars_check_feedback(
             scenario.input_chars, scenario.expected_scripts, false);
     }

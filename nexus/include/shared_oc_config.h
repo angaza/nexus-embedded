@@ -66,6 +66,13 @@
 // this could be a configurable option in the future
 #define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 1
 
+// Used to conditionally include internal PAYG credit resource
+#if defined(CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE)
+#define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 1
+#else
+#define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 0
+#endif
+
 #else
 
 #define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 0

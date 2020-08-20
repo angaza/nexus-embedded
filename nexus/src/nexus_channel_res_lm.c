@@ -40,10 +40,10 @@ static NEXUS_PACKED_STRUCT
         nexus_channel_link_t links[NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS];
     }
     stored;
-    bool link_idx_in_use[NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS];
-    uint8_t link_count;
-    bool pending_add_link;
     nexus_channel_link_t pending_link_to_create;
+    uint8_t link_count;
+    bool link_idx_in_use[NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS];
+    bool pending_add_link;
     bool pending_clear_all_links;
 }
 _this;
@@ -191,7 +191,10 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
                              "Links exceed limit, unexpected.");
 
                 _this.link_idx_in_use[i] = true;
-                memcpy(&_this.stored.links[i],
+
+                nexus_channel_link_t* new_link = &_this.stored.links[i];
+
+                memcpy(new_link,
                        &_this.pending_link_to_create,
                        sizeof(nexus_channel_link_t));
                 // Write the update to NV
@@ -201,22 +204,20 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
                 (void) _nexus_channel_link_manager_index_to_nv_block(
                     i, &tmp_block_meta);
                 NEXUS_ASSERT(tmp_block_meta != 0, "Block ID not found");
-                nexus_nv_update(*tmp_block_meta,
-                                (uint8_t*) &_this.stored.links[i]);
+                nexus_nv_update(*tmp_block_meta, (uint8_t*) new_link);
 
                 PRINT("\nres_lm: New link persisted! Total link count %u\n",
                       _this.link_count);
                 PRINT(
                     "res_lm: Linked to Nexus ID authority ID=%u, device ID=%u",
-                    _this.stored.links[i].linked_device_id.authority_id,
-                    _this.stored.links[i].linked_device_id.device_id);
+                    new_link->linked_device_id.authority_id,
+                    new_link->linked_device_id.device_id);
                 PRINT("\nres_lm: Link security mode: %u\n",
-                      _this.stored.links[i].security_mode);
+                      new_link->security_mode);
                 PRINT("res_lm: Persisting link key: ");
-                PRINTbytes(
-                    _this.stored.links[i].security_data.mode0.sym_key.bytes,
-                    sizeof(struct nx_core_check_key));
-                if (_this.stored.links[i].operating_mode ==
+                PRINTbytes(new_link->security_data.mode0.sym_key.bytes,
+                           sizeof(struct nx_core_check_key));
+                if (new_link->operating_mode ==
                     CHANNEL_LINK_OPERATING_MODE_CONTROLLER)
                 {
                     nxp_channel_notify_event(
@@ -382,6 +383,81 @@ void nexus_channel_link_manager_clear_all_links(void)
     // `process`
     _this.pending_clear_all_links = true;
     nxp_core_request_processing();
+}
+
+enum nexus_channel_link_operating_mode
+nexus_channel_link_manager_operating_mode(void)
+{
+// if this device only supports one mode or the other, return that mode
+#if (NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                                  \
+     !NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
+    return CHANNEL_LINK_OPERATING_MODE_CONTROLLER;
+#elif (!NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                               \
+       NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
+    return CHANNEL_LINK_OPERATING_MODE_ACCESSORY;
+#else
+    NEXUS_STATIC_ASSERT(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&
+                            NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE,
+                        "Neither controller nor accessory mode is supported, "
+                        "but device is not dual mode - unexpected");
+
+    const bool is_accessory =
+        nexus_channel_link_manager_has_linked_controller();
+    const bool is_controller =
+        nexus_channel_link_manager_has_linked_accessory();
+
+    enum nexus_channel_link_operating_mode op_mode =
+        CHANNEL_LINK_OPERATING_MODE_DUAL_MODE_IDLE;
+
+    if (is_controller && is_accessory)
+    {
+        op_mode = CHANNEL_LINK_OPERATING_MODE_DUAL_MODE_ACTIVE;
+    }
+    else if (is_controller && !is_accessory)
+    {
+        op_mode = CHANNEL_LINK_OPERATING_MODE_CONTROLLER;
+    }
+    else if (!is_controller && is_accessory)
+    {
+        op_mode = CHANNEL_LINK_OPERATING_MODE_ACCESSORY;
+    }
+
+    return op_mode;
+#endif
+}
+
+static bool _nexus_channel_link_manager_has_link_with_role(
+    enum nexus_channel_link_operating_mode mode)
+{
+    bool found = false;
+    for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
+    {
+        if (!_this.link_idx_in_use[i])
+        {
+            continue;
+        }
+
+        const nexus_channel_link_t* link = &_this.stored.links[i];
+
+        if (link->operating_mode == mode)
+        {
+            found = true;
+            break;
+        }
+    }
+    return found;
+}
+
+bool nexus_channel_link_manager_has_linked_controller(void)
+{
+    return _nexus_channel_link_manager_has_link_with_role(
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY);
+}
+
+bool nexus_channel_link_manager_has_linked_accessory(void)
+{
+    return _nexus_channel_link_manager_has_link_with_role(
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER);
 }
 
 bool nexus_channel_link_manager_security_data_from_nxid(

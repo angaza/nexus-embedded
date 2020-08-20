@@ -51,7 +51,8 @@ int main(void)
     printf("Done with product interfaces\n");
 
     printf("Initializing Nexus library...\n");
-    nx_core_init();
+    // Pass in current system uptime to initialize Nexus timekeeping
+    nx_core_init(clock_read_monotonic_time_seconds());
 
     // Initialize custom resources after `nx_core_init`
     battery_resource_init();

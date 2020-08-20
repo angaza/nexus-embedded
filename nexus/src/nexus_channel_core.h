@@ -8,11 +8,10 @@
  * or substantial portions of the Software.
  */
 
-#ifndef __NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_
-#define __NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_
+#ifndef NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_
+#define NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_
 
 #include "src/internal_channel_config.h"
-#include "src/nexus_channel_om.h"
 
 #if NEXUS_CHANNEL_ENABLED
 
@@ -44,6 +43,7 @@ void nexus_channel_core_shutdown(void);
 uint32_t nexus_channel_core_process(uint32_t seconds_elapsed);
 
 #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+
 /*! \brief Apply a parsed, valid origin command.
  *
  * Origin commands may create links, delete links, or perform
@@ -59,4 +59,4 @@ bool nexus_channel_core_apply_origin_command(
 #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
 #endif /* NEXUS_CHANNEL_ENABLED */
-#endif
+#endif // NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_

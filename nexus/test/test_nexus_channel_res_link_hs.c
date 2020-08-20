@@ -27,6 +27,7 @@
 #include "src/nexus_channel_om.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
+#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_core_internal.h"
 #include "src/nexus_keycode_core.h"

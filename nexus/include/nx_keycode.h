@@ -53,17 +53,17 @@ struct nx_keycode_complete_code
  *   @endcode
  *
  *   Once an entire keycode has been received, the Nexus Keycode library
- *   will call the appropriate `port_payg_credit` and `port_feedback` functions
- *   based on the contents of the code (see `nexus_keycode_port.h`).
+ *   will call the appropriate `payg_credit` and `feedback` functions
+ *   based on the contents of the code (see `nxp_keycode.h`).
  *
  *   For example, after a keycode adding '5 days' of credit is received, Nexus
  *   Keycode logic will call the following two functions:
  *   @code
  *   // request to add 2 days of PAYG credit to product, in seconds
- *   port_payg_credit_add(172800);
+ *   nxp_keycode_payg_credit_add(172800);
  *
  *   // request to show 'accepted/applied' feedback to end user.
- *   port_feedback_start(PORT_FEEDBACK_TYPE_MESSAGE_APPLIED);
+ *   nxp_keycode_feedback_start(PORT_FEEDBACK_TYPE_MESSAGE_APPLIED);
  *   @endcode
  *
  * \param key value of a single key being entered
@@ -96,5 +96,16 @@ bool nx_keycode_handle_single_key(const nx_keycode_key key);
  */
 bool nx_keycode_handle_complete_keycode(
     const struct nx_keycode_complete_code* keycode);
+
+/** Determine if keycode rate-limiting is active.
+ *
+ * This can be called after receiving a `NXP_KEYCODE_FEEDBACK_TYPE_KEY_REJECTED`
+ * or `NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID` feedback display request from
+ * `nxp_keycode_feedback_start` in order to provide additional context
+ * to the user as to why the key/keycode was rejected.
+ *
+ * \return true if keycode rate-limiting is active, false otherwise
+ */
+bool nx_keycode_is_rate_limited(void);
 
 #endif /* end of include guard: __NEXUS__INC__NX_KEYCODE_H_ */

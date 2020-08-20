@@ -19,8 +19,6 @@
 #define NEXUS__INC__NXP_CHANNEL_H_
 
 #include "include/nx_channel.h"
-#include "include/nx_core.h"
-#include <stdbool.h>
 
 /** Return device-specific unique 16-byte authentication key.
  *
@@ -115,5 +113,44 @@ nxp_channel_network_send(const void* const bytes_to_send,
  * \return copy of the permanent Nexus ID of this device
  */
 struct nx_id nxp_channel_get_nexus_id(void);
+
+#ifdef CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+
+/* Update the remaining PAYG credit on this device.
+ *
+ * This function is called when this device is operating in a 'dependent'
+ * PAYG credit mode, and another (authorized) Nexus Channel device updates
+ * the credit on this device.
+ *
+ * If '0', the device should be functionally disabled. If any value other than
+ * 0, the remaining amount of PAYG credit on the device should be updated to
+ * that value.
+ *
+ * Units are determined at compile-time, but are assumed to be 'seconds' if
+ * not otherwise specified.
+ *
+ * See also `nxp_channel_payg_credit_unlock`.
+ *
+ * \param remaining amount of credit (in `units`) which this device now has
+ * \return `nx_channel_error` indicating success or failure (and cause)
+ */
+nx_channel_error nxp_channel_payg_credit_set(uint32_t remaining);
+
+/* Remove PAYG restrictions from this device.
+ *
+ * This function is called when this device is operating in a 'dependent'
+ * PAYG credit mode, and another (authorized) Nexus Channel device permanently
+ * unlocks this PAYG device.
+ *
+ * After receiving this command, the device should be able to be used
+ * indefinitely, until a subsequent `payg_credit_update` command is received
+ * to set the credit to a value other than 'unlocked'.
+ * * See also `nxp_channel_payg_credit_update`.
+ *
+ * \return `nx_channel_error` indicating success or failure (and cause)
+ */
+nx_channel_error nxp_channel_payg_credit_unlock(void);
+
+#endif // #ifdef CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
 
 #endif /* end of include guard: NEXUS__INC__NXP_CHANNEL_H_ */
