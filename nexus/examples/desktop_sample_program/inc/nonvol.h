@@ -8,6 +8,13 @@
  * or substantial portions of the Software.
  */
 
+#include <stdbool.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool nv_init(void);
 
 // Functions to write serial ID and secret key (not from Nexus)
@@ -17,3 +24,7 @@ bool prod_nv_write_identity(uint8_t length, void* write_buffer);
 // Functions to write PAYG state (not from Nexus)
 bool prod_nv_read_payg_state(uint8_t length, void* read_buffer);
 bool prod_nv_write_payg_state(uint8_t length, void* write_buffer);
+
+#ifdef __cplusplus
+}
+#endif

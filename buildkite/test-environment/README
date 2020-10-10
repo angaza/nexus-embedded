@@ -1,0 +1,5 @@
+## `test-environment` Dockerfile ##
+
+This Dockerfile defines an environment with a consistent set of tooling
+required for running a complete set of CI tests on the embedded code contained
+in this repository.

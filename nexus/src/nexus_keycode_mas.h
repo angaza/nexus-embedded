@@ -15,14 +15,19 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-#include <stdbool.h>
-#include <stdint.h>
+    #include <stdbool.h>
+    #include <stdint.h>
 
-// keycodev1 activation messages are 14 characters long
-// smallpadv1 activation messages are 15 characters long
-// "Passthrough" keycode messages may be up to 30 characters
-// This limit is only used to determine the max 'buffer' for incoming messages
-#define NEXUS_KEYCODE_MAX_MESSAGE_LENGTH 30
+    #ifdef __cplusplus
+extern "C" {
+    #endif
+
+    // keycodev1 activation messages are 14 characters long
+    // smallpadv1 activation messages are 15 characters long
+    // "Passthrough" keycode messages may be up to 30 characters
+    // This limit is only used to determine the max 'buffer' for incoming
+    // messages
+    #define NEXUS_KEYCODE_MAX_MESSAGE_LENGTH 30
 
 /** "Frame" of incoming keys to process.
  *
@@ -64,12 +69,12 @@ void nexus_keycode_mas_bookend_init(const nx_keycode_key start,
                                     uint8_t stop_length);
 void nexus_keycode_mas_bookend_reset(void);
 
-/** Internal functions, not for calls outside this module.
- *
- * The `NEXUS_INTERNAL_IMPL_NON_STATIC` flag exposes these functions in
- * the header if in a unit testing scenario.
- */
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    /** Internal functions, not for calls outside this module.
+     *
+     * The `NEXUS_INTERNAL_IMPL_NON_STATIC` flag exposes these functions in
+     * the header if in a unit testing scenario.
+     */
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 
 bool nexus_keycode_mas_init_completed(void);
 
@@ -101,9 +106,9 @@ uint8_t nexus_keycode_mas_remaining_graceperiod_keycodes(
  *
  * Compares the value of `new_graceperiod_keycodes` to the internal counter
  * of grace period keycodes remaining.  If the values are the same, this
- * function returns false.  If the values are different, the internal counter
- * is set to the value `new_graceperiod_keycodes`, and an NV update occurs
- * (block `PAYG_NV_BLOCK_ID_KEYCODE_MAS_STORED`).
+ * function returns false.  If the values are different, the internal
+ * counter is set to the value `new_graceperiod_keycodes`, and an NV update
+ * occurs (block `PAYG_NV_BLOCK_ID_KEYCODE_MAS_STORED`).
  *
  * \param new_graceperiod_keycodes New value of grace period keycodes to set
  * \returns true if an attempt to update NV occurred, false otherwise.
@@ -116,7 +121,11 @@ void nexus_keycode_mas_finish(void);
 
 uint32_t nexus_keycode_mas_bookend_process(void);
 void nexus_keycode_mas_bookend_push(const nx_keycode_key symbol);
-#endif
+    #endif
+
+    #ifdef __cplusplus
+}
+    #endif
 
 #endif /* if NEXUS_KEYCODE_ENABLED */
 #endif /* ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_MAS_H_ */

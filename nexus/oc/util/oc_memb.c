@@ -33,6 +33,9 @@
  * Modifications (c) 2020 Angaza, Inc.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcomment"
+
 #include "oc_memb.h"
 #include "port/oc_log.h"
 #include <string.h>
@@ -201,3 +204,5 @@ void oc_memb_set_buffers_avail_cb(struct oc_memb * m,
 }
 //---------------------------------------------------------------------------
 */
+
+#pragma GCC diagnostic pop

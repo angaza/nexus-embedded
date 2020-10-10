@@ -43,6 +43,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-sign"
+
 /********************************************************
  * DEFINITIONS
  *******************************************************/
@@ -56,17 +59,19 @@ extern void oc_nexus_testing_reinit_mmem_lists(void);
 /********************************************************
  * PRIVATE DATA
  *******************************************************/
-static const oc_interface_mask_t oc_if_arr[] = {OC_IF_BASELINE, OC_IF_RW};
+static const oc_interface_mask_t if_mask_arr[] = {OC_IF_BASELINE, OC_IF_RW};
 
+// represents Nexus ID = {53932, 4244308258}, which is stored as 0xACD22201FBFC
+// on a LE platform
 oc_endpoint_t FAKE_ACCESSORY_ENDPOINT = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
-         0xfe,
+         0xFE,
          0x80,
          0,
          0,
@@ -83,7 +88,8 @@ oc_endpoint_t FAKE_ACCESSORY_ENDPOINT = {
          0x01,
          0x22},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (unused)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -124,14 +130,21 @@ void setUp(void)
 
     nexus_channel_link_manager_init();
 
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/nx/pc",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/nx/pc",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = false,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 
     G_OC_REP = 0;
     G_OC_MESSAGE = oc_allocate_message();
@@ -157,14 +170,23 @@ void tearDown(void)
     oc_nexus_testing_reinit_mmem_lists();
 }
 
-void test_nexus_channel_sm__nexus_channel_sm_set_request_handler__unknown_method_fails(
-    void)
+void test_nexus_channel_sm__secured_method_list_full__fails(void)
 {
     oc_resource_t* res = oc_ri_get_app_resource_by_uri(
         "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
 
-    TEST_ASSERT_FALSE(nexus_channel_sm_set_request_handler(
-        res, 5, nexus_channel_res_payg_credit_get_handler, false));
+    // exhaust the possible resource handler allocations
+    // WARNING: we assume that the max number of methods allowed is
+    // OC_MAX_APP_RESOURCES * 2 as defined in the OC_MEMB initialization in
+    // nexus_channel_sm.c
+    for (int i = 0; i < OC_MAX_APP_RESOURCES * 2; i++)
+    {
+        TEST_ASSERT_TRUE(
+            nexus_channel_sm_nexus_resource_method_new(res, OC_POST) != NULL);
+    }
+
+    TEST_ASSERT_TRUE(nexus_channel_sm_nexus_resource_method_new(res, OC_POST) ==
+                     NULL);
 }
 
 void test_nexus_channel_sm__register_delete_secured_resource__ok(void)
@@ -284,7 +306,6 @@ void test_sm_parse_cose_mac0__format_ok(void)
     oc_rep_set_pool(&rep_objects);
 
     // decode rep
-    oc_rep_t* rep; // rep to store the output into
     nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
     int err = oc_parse_rep(enc_data, enc_size, &G_OC_REP);
     TEST_ASSERT_TRUE(err == 0);
@@ -465,7 +486,7 @@ void test_sm_repack_no_cose_mac_0__repack_success__ok(void)
     // struct used to repack the CoAP packet
     nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
     cose_mac0.payload = payload;
-    cose_mac0.payload_len = strlen(payload);
+    cose_mac0.payload_len = (uint8_t) strlen(payload);
     cose_mac0.mac = &mac;
 
     // encode the outgoing data to test
@@ -539,8 +560,6 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__ok
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
 
-    nexus_channel_link_t result_link = {0};
-
     // create a link
     nxp_core_request_processing_Expect();
     nexus_channel_link_manager_create_link(
@@ -612,7 +631,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__ok
         &FAKE_ACCESSORY_ENDPOINT, &request_packet);
     TEST_ASSERT_EQUAL(COAP_NO_ERROR, status);
     // security information stripped out
-    TEST_ASSERT_TRUE(request_packet.payload_len < enc_size);
+    TEST_ASSERT_TRUE((int) request_packet.payload_len < enc_size);
     // a bit brittle; this is the size of the CBOR-encoded map representing
     // a single key-bytestring pair ({"d": "hello world"})
     TEST_ASSERT_EQUAL(request_packet.payload_len, 16);
@@ -639,8 +658,6 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
     sec_data.mode0.nonce = 0;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -706,7 +723,7 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
         &FAKE_ACCESSORY_ENDPOINT, &request_packet);
     TEST_ASSERT_EQUAL(COAP_NO_ERROR, status);
     // security information stripped out
-    TEST_ASSERT_TRUE(request_packet.payload_len < enc_size);
+    TEST_ASSERT_TRUE((int) request_packet.payload_len < enc_size);
     // a bit brittle; this is the size of the CBOR-encoded map representing
     // a single key-bytestring pair ({"d": "hello world"})
     TEST_ASSERT_EQUAL(request_packet.payload_len, 16);
@@ -721,8 +738,7 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
 {
     // initializes with no links present
     struct nx_id linked_id = {0};
-    // CAUSE OF FAILURE: INCOMING MESSAGE DOES NOT MATCH LINKED NEXUS ID
-    linked_id.authority_id = 12345;
+    linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
     struct nx_core_check_key link_key;
@@ -734,8 +750,6 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -759,9 +773,6 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
     // set the request URI path and content format
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_VND_OCF_CBOR);
-
-    // payload
-    const char* payload = "hello world";
 
     // encode the outgoing data to test
     uint8_t enc_data[OC_BLOCK_SIZE] = {0};
@@ -817,8 +828,6 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_cos
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -913,8 +922,6 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_inv
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
 
-    nexus_channel_link_t result_link = {0};
-
     // create a link
     nxp_core_request_processing_Expect();
     nexus_channel_link_manager_create_link(
@@ -996,7 +1003,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
 {
     // initializes with no links present
     struct nx_id linked_id = {0};
-    // CAUSE OF FAILURE: INCOMING MESSAGE DOES NOT MATCH LINKED NEXUS ID
+    // CAUSE OF FAILURE: INCOMING MESSAGE NX_ID DOES NOT MATCH LINKED NX_ID
     linked_id.authority_id = 12345;
     linked_id.device_id = 4244308258;
 
@@ -1009,8 +1016,6 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -1105,8 +1110,6 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__in
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -1385,5 +1388,7 @@ void test_do_post_cose_mac0_appended__ok(void)
      * 0xbf, 0x61, 0x64, 0x4b, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f,
      * 0x72, 0x6c, 0x64, 0xff, 0x61, 0x6d, 0x48, 0xc9, 0x96, 0xe8, 0xca,
      * 0x7a, 0x73, 0x29, 0x8, 0xff}
-    */
+     */
 }
+
+#pragma GCC diagnostic pop

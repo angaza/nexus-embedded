@@ -16,13 +16,21 @@
 
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* @brief Prompt the user for an action to perform.
  *
  * This is essentially a thin layer allowing the user to call other functions
  * that will handle further processing (see `keyboard.h` for instance).
  *
  * @param instream the input stream to receive keys from, e.g. `stdin`
-*/
+ */
 void menu_prompt(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

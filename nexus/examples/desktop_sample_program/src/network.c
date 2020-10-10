@@ -13,7 +13,7 @@
 
 static bool simulate_accessory_response = false;
 extern void simulate_message_link_handshake_response_accessory(
-    void* data, uint32_t data_len, struct nx_ipv6_address* source_address);
+    void* data, uint32_t data_len, struct nx_id* source_nx_id);
 
 // for demonstration only
 void enable_simulated_accessory_response(void)
@@ -31,7 +31,7 @@ void disable_simulated_accessory_response(void)
 //
 void receive_data_from_network(void* data,
                                uint32_t data_len,
-                               struct nx_ipv6_address* source_addr)
+                               struct nx_id* source_nx_id)
 {
     // any product-specific validation of data occurs here - if there are
     // link layer specific CRCs or headers, remove them before passing the data
@@ -41,20 +41,19 @@ void receive_data_from_network(void* data,
     // In other words, data sent out by `nxp_channel_network_send` on one
     // device should be received, unmodified, by `nx_channel_network_receive`
     // on the destination device(s).
-    nx_channel_network_receive(data, data_len, source_addr);
+    nx_channel_network_receive(data, data_len, source_nx_id);
 }
 
 // Product-specific implementation of `network_send`, used by Nexus Channel
 // Send bytes to a destination address. Source and destination address must
 // be included in the transmitted payload 'over the wire'
-nx_channel_error
-nxp_channel_network_send(const void* const bytes_to_send,
-                         uint32_t bytes_count,
-                         const struct nx_ipv6_address* const source_address,
-                         const struct nx_ipv6_address* const dest_address,
-                         bool is_multicast)
+nx_channel_error nxp_channel_network_send(const void* const bytes_to_send,
+                                          uint32_t bytes_count,
+                                          const struct nx_id* const source,
+                                          const struct nx_id* const dest,
+                                          bool is_multicast)
 {
-    (void) dest_address;
+    (void) dest;
     if (is_multicast)
     {
         // Send to all connected devices (dest address is a special multicast
@@ -73,9 +72,7 @@ nxp_channel_network_send(const void* const bytes_to_send,
     if (simulate_accessory_response)
     {
         simulate_message_link_handshake_response_accessory(
-            (void*) bytes_to_send,
-            bytes_count,
-            (struct nx_ipv6_address*) source_address);
+            (void*) bytes_to_send, bytes_count, (struct nx_id*) source);
     }
 
     return NX_CHANNEL_ERROR_NONE;

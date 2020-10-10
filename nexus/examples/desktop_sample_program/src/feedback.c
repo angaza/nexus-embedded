@@ -44,7 +44,7 @@ bool nxp_keycode_feedback_start(enum nxp_keycode_feedback_type feedback_type)
             printf("\tInvalid key entry. Small keycodes must be entered "
                    "without spaces and in the form of 1-5.\n");
 #else
-#error "Error: Keycode protocol configuration missing..."
+    #error "Error: Keycode protocol configuration missing..."
 #endif
             break;
         case NXP_KEYCODE_FEEDBACK_TYPE_DISPLAY_SERIAL_ID:;

@@ -22,20 +22,23 @@
 #ifndef OC_REP_H
 #define OC_REP_H
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-sign"
+#pragma GCC diagnostic ignored "-Wcomment"
+
 
 #include "deps/tinycbor/src/cbor.h"
 
 #include "oc_helpers.h"
 #include "util/oc_memb.h"
-#include "oc_config.h"
+// included by 'oc_helpers.h'
+//#include "oc_config.h"
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
 #ifdef __cplusplus
 extern "C" {
 #endif
-*/
 
 extern CborEncoder g_encoder, root_map, links_array;
 extern int g_err;
@@ -108,11 +111,13 @@ int oc_rep_get_encoded_payload_size(void);
  *     oc_rep_end_root_object();
  * ~~~
  */
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
 #define oc_rep_set_double(object, key, value)                                  \
   do {                                                                         \
     g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));       \
     g_err |= cbor_encode_double(&object##_map, value);                         \
   } while (0)
+#endif
 
 /**
  * Add an integer `value` to the cbor `object` under the `key` name
@@ -961,20 +966,22 @@ typedef enum {
   OC_REP_OBJECT_ARRAY = 0x0E
 } oc_rep_value_type_t;
 
+typedef union {
+  int64_t integer;
+  bool boolean;
+  double double_p;
+  oc_string_t string;
+  oc_array_t array;
+  struct oc_rep_s *object;
+  struct oc_rep_s *object_array;
+} oc_rep_value;
+
 typedef struct oc_rep_s
 {
   oc_rep_value_type_t type;
   struct oc_rep_s *next;
   oc_string_t name;
-  union oc_rep_value {
-    int64_t integer;
-    bool boolean;
-    double double_p;
-    oc_string_t string;
-    oc_array_t array;
-    struct oc_rep_s *object;
-    struct oc_rep_s *object_array;
-  } value;
+  oc_rep_value value;
 } oc_rep_t;
 
 
@@ -1362,10 +1369,10 @@ void oc_free_rep(oc_rep_t *rep);
 /*
 size_t oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,
                       bool pretty_print);
-
+*/
 #ifdef __cplusplus
 }
 #endif
-*/
 
+#pragma GCC diagnostic pop
 #endif /* OC_REP_H */

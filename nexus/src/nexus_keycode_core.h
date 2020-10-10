@@ -15,11 +15,15 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-#include "src/nexus_core_internal.h"
-#include "src/nexus_keycode_pro.h"
+    #include "src/nexus_core_internal.h"
+    #include "src/nexus_keycode_pro.h"
 
-#include <stdbool.h>
-#include <stdint.h>
+    #include <stdbool.h>
+    #include <stdint.h>
+
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
 // Protocol-specific (small or full) initialization parameters
 struct nexus_keycode_handling_config
@@ -53,15 +57,20 @@ uint32_t nexus_keycode_core_process(uint32_t seconds_elapsed);
  */
 bool nexus_keycode_core_init_completed(void);
 
-/** Internal functions, not for calls outside this module.
- *
- * The `NEXUS_INTERNAL_IMPL_NON_STATIC` flag exposes these functions in
- * the header if in a unit testing scenario.
- */
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    /** Internal functions, not for calls outside this module.
+     *
+     * The `NEXUS_INTERNAL_IMPL_NON_STATIC` flag exposes these functions in
+     * the header if in a unit testing scenario.
+     */
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 void _nexus_keycode_core_internal_init(
     const struct nexus_keycode_handling_config* config);
-#endif
+    #endif
+
+    #ifdef __cplusplus
+}
+    #endif
 
 #endif /* if NEXUS_KEYCODE_ENABLED */
+
 #endif /* ifndef NEXUS__KEYCODE__SRC__NEXUS_KEYCODE_CORE_H_ */

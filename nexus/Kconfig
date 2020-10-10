@@ -4,11 +4,11 @@
 #
 mainmenu "Angaza Nexus System Configuration"
 
-config NEXUS_COMMON_CORE_ENABLED
-    bool "Nexus Core [Required]"
+config NEXUS_COMMON_ENABLED
+    bool "Nexus Common Base [Required]"
     default y
 
-if NEXUS_COMMON_CORE_ENABLED
+if NEXUS_COMMON_ENABLED
 
 config NEXUS_KEYCODE_ENABLED
     bool "Nexus Keycode"
@@ -18,7 +18,8 @@ if NEXUS_KEYCODE_ENABLED
 
 choice NEXUS_KEYCODE_PROTOCOL_VERSION
     prompt "Keycode Protocol Type"
-    help 
+    default NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
+    help
         Enable if using Nexus Keycode functionality
 
     config NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
@@ -38,14 +39,14 @@ choice NEXUS_KEYCODE_PROTOCOL_VERSION
     config NEXUS_KEYCODE_USE_SMALL_KEYCODE_PROTOCOL
         bool "Small/Limited Keycode Protocol"
         help
-            Use the reduced 1-5 keypad option. 
+            Use the reduced 1-5 keypad option.
 
             This keypad option is useful for products that due to physical
             limitations cannot accommodate a 12-digit keypad. The tradeoff
             is reduced information density in the keycode. In order to keep
             the keypad length manageable, the Small protocol includes a subset
             of all Nexus Keycode features, and does not support Nexus Channel.
-            
+
             For example
 
             Typical physical key layout is:
@@ -60,7 +61,7 @@ config NEXUS_KEYCODE_RATE_LIMITING_ENABLED
         to prevent brute-force entry attacks. It is recommended to leave this
         setting enabled (defined) unless the implementing product has a separate
         method of limiting excessive keycode entry attempts.
-     
+
         Rate limiting is performed using a standard Token Bucket algorithm
         (https://en.wikipedia.org/wiki/Token_bucket), where every keycode entry
         attempt deducts 1 from the bucket. When the bucket is empty, a keycode
@@ -95,7 +96,7 @@ menu "Rate Limiting Configuration"
     default 720
     help
         Seconds which must elapse to add one token to the rate limiting
-        bucket. 
+        bucket.
 
 endmenu
 
@@ -141,19 +142,28 @@ config NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS
         Number of seconds to wait before cancelling a keycode entry operation.
         This timeout is measured as idle time after *each* key press, not the idle
         time from the beginning of the keycode.
-        
+
         By default, the value of 16 indicates 'the keycode entry will time out if
         the user does not enter another key for 16 seconds'.
 
-endif # NEXUS_KEYCODE_ENABLED 
+endif # NEXUS_KEYCODE_ENABLED
 
-config NEXUS_CHANNEL_ENABLED
+config NEXUS_CHANNEL_CORE_ENABLED
+  bool "Nexus Channel Core"
+  help
+      Enable if using the Nexus Channel Core functionality to enable data
+      interoperability between devices.
+      (see https://angaza.github.io/nexus-channel-models/ for more info)
+  default y
+
+config NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    depends on NEXUS_CHANNEL_CORE_ENABLED
     bool "Nexus Channel"
     help
-        Enable if using the Nexus Channel functionality
+        Enable if using the Nexus Channel security and linking functionality
     default n
 
-if NEXUS_CHANNEL_ENABLED
+if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 choice NEXUS_CHANNEL_PLATFORM_MODE_SUPPORTED
     prompt "Nexus Channel Link Mode"
@@ -170,7 +180,7 @@ choice NEXUS_CHANNEL_PLATFORM_MODE_SUPPORTED
     config NEXUS_CHANNEL_PLATFORM_ACCESSORY_MODE_SUPPORTED
         bool "Channel Accessory Mode"
         help
-            System acts in Accessory Mode for Nexus Channel, where this device 
+            System acts in Accessory Mode for Nexus Channel, where this device
             may have Nexus Channel links established to it from Controller
             devices.
 
@@ -206,9 +216,9 @@ config NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
         implementing product, which manages the remaining credit on the device
         accordingly.
 
-endif # NEXUS_CHANNEL_ENABLED
+endif # NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-config NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
+config NEXUS_COMMON_OC_PRINT_LOG_ENABLED
     bool "OC Logging"
     help
         Enable calls to PRINT(...), PRINTipaddr(endpoint), and
@@ -216,14 +226,12 @@ config NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
 
         Enabling will increase flash footprint.
     default n
-config NEXUS_COMMON_CORE_OC_DEBUG_LOG_ENABLED
-    depends on NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
+config NEXUS_COMMON_OC_DEBUG_LOG_ENABLED
+    depends on NEXUS_COMMON_OC_PRINT_LOG_ENABLED
     bool "OC Debug Logging"
     help
         Enable additional `OC_DBG`, `OC_WRN`, `OC_ERR`, and `OC_LOG`
         diagnostic logs provided by `nexus/oc/port/oc_log.h`.
     default n
 
-endif # NEXUS_COMMON_CORE_ENABLED
-
-
+endif # NEXUS_COMMON_ENABLED

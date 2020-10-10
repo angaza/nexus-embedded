@@ -14,12 +14,16 @@
  * keycodes of the matching types.
  */
 
-#include "nxp_keycode.h"
 #ifndef PAYG_STATE_H
 #define PAYG_STATE_H
 
+#include "nxp_keycode.h"
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Naive implementation of tracking credit.
 NEXUS_PACKED_STRUCT payg_state_struct
@@ -106,5 +110,9 @@ uint32_t payg_state_get_remaining_credit(void);
  * \return void
  */
 void payg_state_update_nv(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

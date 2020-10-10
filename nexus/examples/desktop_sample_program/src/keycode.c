@@ -48,12 +48,19 @@ enum nxp_keycode_passthrough_error nxp_keycode_passthrough_keycode(
             break;
 
         case NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_PROD_ASCII_KEY:
-        // product/device specific data contained in the keycode
-        /* intentional fallthrough */
+            // product/device specific data contained in the keycode
+            /* intentional fallthrough */
 
         default:
             // not supported
             break;
     }
     return error_code;
+}
+
+// ignored in this application
+void nxp_keycode_notify_custom_flag_changed(enum nx_keycode_custom_flag flag,
+                                            bool value)
+{
+    printf("Keycode: Custom flag %d changed to value %d", flag, value);
 }

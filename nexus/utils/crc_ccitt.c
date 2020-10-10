@@ -3,7 +3,7 @@
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
-*/
+ */
 
 #include "crc_ccitt.h"
 

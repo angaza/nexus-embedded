@@ -17,17 +17,25 @@
  * to pass the received application data into Nexus Channel.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 #include "network.h"
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_buffer.h"
 #include "oc/include/oc_endpoint.h"
 #include "oc/messaging/coap/coap.h"
+#include "src/nexus_oc_wrapper.h"
 #include <stdint.h>
+
+extern void
+nexus_oc_wrapper_nx_id_to_oc_endpoint(const struct nx_id* input_id,
+                                      struct oc_endpoint_t* output_ep);
 
 // simulate an accessory receiving data (assuming the data is a valid handshake
 // message for that accessory), and simulate a successful response
 void simulate_message_link_handshake_response_accessory(
-    void* data, uint32_t data_len, struct nx_ipv6_address* source_address)
+    void* data, uint32_t data_len, struct nx_id* source_nx_id)
 {
     static coap_packet_t rcvd_coap_packet[1];
 
@@ -35,8 +43,7 @@ void simulate_message_link_handshake_response_accessory(
     oc_message_t message = {0};
     message.length = data_len;
     memcpy(message.data, data, data_len);
-    memcpy(message.endpoint.addr.ipv6.address, source_address->address, 16);
-    message.endpoint.device = 0;
+    nexus_oc_wrapper_nx_id_to_oc_endpoint(source_nx_id, &message.endpoint);
 
     (void) coap_udp_parse_message(
         rcvd_coap_packet, message.data, message.length);
@@ -95,27 +102,10 @@ void simulate_message_link_handshake_response_accessory(
     uint32_t response_length =
         coap_serialize_message(&resp_packet, &response_buffer[0]);
 
-    // authority ID 770, device ID 2864434397 (0xAABBCCDD)
-    struct nx_ipv6_address simulated_accessory_address = {{0xFE,
-                                                           0x80,
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           0x01,
-                                                           0x02,
-                                                           0xAA,
-                                                           0xFF,
-                                                           0xFE,
-                                                           0xBB,
-                                                           0xCC,
-                                                           0xDD},
-                                                          0};
+    struct nx_id simulated_client_nx_id = {0, 0xAFBB440D};
 
-    PRINT("Simulated accessory sending back %d bytes\n", response_length);
-    // send the simulated response to the receiver in `network.c`
     receive_data_from_network(
-        response_buffer, response_length, &simulated_accessory_address);
+        response_buffer, response_length, &simulated_client_nx_id);
 }
+
+#pragma GCC diagnostic pop

@@ -9,7 +9,7 @@
   :which_ceedling: gem
 
 :release_build:
-  :output: analyzed_keycode_nexus.out
+  :output: analyzed_nexus.out
   :use_assembly: FALSE
 
 :environment:
@@ -47,6 +47,7 @@
           - -Wswitch
           - -Wno-format
           - -fno-aggressive-loop-optimizations # for diagnostic PRINTbytes
+          - -Wno-implicit-fallthrough # avoid false positives in OC code
           - -Waddress
           - -Werror
           - -mcpu=cortex-m0

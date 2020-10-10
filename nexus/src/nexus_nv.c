@@ -21,7 +21,7 @@ struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS = {
     .block_id = 0, .length = NX_CORE_NV_BLOCK_0_LENGTH};
 struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO = {
     .block_id = 1, .length = NX_CORE_NV_BLOCK_1_LENGTH};
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY = {
     .block_id = 2, .length = NX_CORE_NV_BLOCK_2_LENGTH};
 struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_OM = {
@@ -46,7 +46,7 @@ struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9 = {
     .block_id = 12, .length = NX_CORE_NV_BLOCK_4_LENGTH};
 struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10 = {
     .block_id = 13, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-#endif /* if NEXUS_CHANNEL_ENABLED */
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 // blocks 4-20 reserved for link related NV
 
 // Used internally to compute CRC given a pointer to start of a full block

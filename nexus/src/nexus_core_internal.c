@@ -41,7 +41,7 @@ void nx_core_init(uint32_t initial_uptime_s)
     nexus_keycode_core_init();
 #endif
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_CORE_ENABLED
     nexus_channel_core_init();
 #endif
 
@@ -72,7 +72,7 @@ uint32_t nx_core_process(uint32_t uptime_seconds)
     min_sleep = u32min(min_sleep, nexus_keycode_core_process(seconds_elapsed));
 #endif
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_CORE_ENABLED
     min_sleep = u32min(min_sleep, nexus_channel_core_process(seconds_elapsed));
 #endif
 
@@ -99,7 +99,7 @@ uint32_t nexus_core_uptime(void)
 
 void nx_core_shutdown(void)
 {
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_CORE_ENABLED
     nexus_channel_core_shutdown();
 #endif
 }

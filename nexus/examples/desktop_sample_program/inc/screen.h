@@ -17,11 +17,15 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* @brief Display the PAYG status to the user.
  *
  * Periodically called by the application, as required, to retrieve and
  * display the number of remaining credit seconds to the user.
-*/
+ */
 void screen_display_status(void);
 
 /* @brief Display the Nexus Channel link status to user.
@@ -29,5 +33,9 @@ void screen_display_status(void);
  * Currently this is the count of active links.
  */
 void screen_display_nexus_channel_state(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

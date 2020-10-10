@@ -16,7 +16,12 @@
  // Modifications (c) 2020 Angaza, Inc.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include "oc_core_res.h"
+#include "oc/include/oc_api.h"
 /*
 #include "api/cloud/oc_cloud_internal.h"
 #include "oc_api.h"
@@ -327,13 +332,13 @@ oc_core_add_new_device(const char *uri, const char *rt, const char *name,
   // Construct device resource
   if (strlen(rt) == 8 && strncmp(rt, "oic.wk.d", 8) == 0) {
     oc_core_populate_resource(
-      OCF_D, device_count, uri, OC_IF_R | OC_IF_BASELINE, OC_IF_R,
+      OCF_D, device_count, uri, (oc_interface_mask_t) (OC_IF_R | OC_IF_BASELINE), OC_IF_R,
       OC_DISCOVERABLE, NULL, 0, 0, 0, 1, rt);
       // TODO enable oc_core_device_handler when ready for full replies
       //OC_DISCOVERABLE, oc_core_device_handler, 0, 0, 0, 1, rt);
   } else {
     oc_core_populate_resource(
-      OCF_D, device_count, uri, OC_IF_R | OC_IF_BASELINE, OC_IF_R,
+      OCF_D, device_count, uri, (oc_interface_mask_t) (OC_IF_R | OC_IF_BASELINE), OC_IF_R,
       OC_DISCOVERABLE, NULL, 0, 0, 0, 2, rt, "oic.wk.d");
       // TODO enable oc_core_device_handler when ready for full replies
       //OC_DISCOVERABLE, oc_core_device_handler, 0, 0, 0, 2, rt, "oic.wk.d");
@@ -351,7 +356,7 @@ oc_core_add_new_device(const char *uri, const char *rt, const char *name,
   if (oc_get_con_res_announced()) {
     // Construct oic.wk.con resource for this device.
     oc_core_populate_resource(
-      OCF_CON, device_count, "/" OC_NAME_CON_RES, OC_IF_RW | OC_IF_BASELINE,
+      OCF_CON, device_count, "/" OC_NAME_CON_RES, (oc_interface_mask_t) (OC_IF_RW | OC_IF_BASELINE),
       OC_IF_RW, OC_DISCOVERABLE | OC_OBSERVABLE, NULL, NULL, NULL, 0, 1, "oic.wk.con");
       // TODO enable oc_core_con_handler_* when ready for full replies
       //OC_IF_RW, OC_DISCOVERABLE | OC_OBSERVABLE, oc_core_con_handler_get,
@@ -452,7 +457,7 @@ oc_core_init_platform(const char *mfg_name, oc_core_init_platform_cb_t init_cb,
   }
 
   // Populating resource object
-  oc_core_populate_resource(OCF_P, 0, "oic/p", OC_IF_R | OC_IF_BASELINE,
+  oc_core_populate_resource(OCF_P, 0, "oic/p", (oc_interface_mask_t) (OC_IF_R | OC_IF_BASELINE),
                             OC_IF_R, OC_DISCOVERABLE, NULL,
                             // TODO enable oc_core_platform_handler when we're ready
                             // to return full replies
@@ -486,9 +491,9 @@ void
 oc_core_populate_resource(int core_resource, size_t device_index,
                           const char *uri, oc_interface_mask_t iface_mask,
                           oc_interface_mask_t default_interface, int properties,
-                          oc_request_callback_t get, oc_request_callback_t put,
-                          oc_request_callback_t post,
-                          oc_request_callback_t delete, int num_resource_types,
+                          oc_request_callback_t get_cb, oc_request_callback_t put_cb,
+                          oc_request_callback_t post_cb,
+                          oc_request_callback_t delete_cb, int num_resource_types,
                           ...)
 {
   oc_resource_t *r = oc_core_get_resource_by_index(core_resource, device_index);
@@ -497,7 +502,7 @@ oc_core_populate_resource(int core_resource, size_t device_index,
   }
   r->device = device_index;
   oc_store_uri(uri, &r->uri);
-  r->properties = properties;
+  r->properties = (oc_resource_properties_t) properties;
   va_list rt_list;
   int i;
   va_start(rt_list, num_resource_types);
@@ -508,10 +513,10 @@ oc_core_populate_resource(int core_resource, size_t device_index,
   va_end(rt_list);
   r->interfaces = iface_mask;
   r->default_interface = default_interface;
-  r->get_handler.cb = get;
-  r->put_handler.cb = put;
-  r->post_handler.cb = post;
-  r->delete_handler.cb = delete;
+  r->get_handler.cb = get_cb;
+  r->put_handler.cb = put_cb;
+  r->post_handler.cb = post_cb;
+  r->delete_handler.cb = delete_cb;
 }
 /*
 oc_uuid_t *
@@ -672,3 +677,4 @@ oc_filter_resource_by_rt(oc_resource_t *resource, oc_request_t *request)
   return match;
 }
 */
+#pragma GCC diagnostic pop

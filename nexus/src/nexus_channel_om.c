@@ -14,24 +14,25 @@
 #include "src/nexus_nv.h"
 #include "src/nexus_util.h"
 
-#if NEXUS_CHANNEL_ENABLED
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 
-// Windowing scheme:
-// All Origin commands are created using a 'command ID flag'
-// [0 ... 32 ... 40]
-// Center is at '32', recognizes messages with command IDs between 0 and 40
-// If receiving a valid command which has not previously been received, set
-// a flag preventing future attempts to apply the same command, and update
-// NV.
+        // Windowing scheme:
+        // All Origin commands are created using a 'command ID flag'
+        // [0 ... 32 ... 40]
+        // Center is at '32', recognizes messages with command IDs between 0 and
+        // 40 If receiving a valid command which has not previously been
+        // received, set a flag preventing future attempts to apply the same
+        // command, and update NV.
 
-// recognize up to 31 "OM command counts" behind the command count center
-#define NEXUS_CHANNEL_OM_RECEIVE_WINDOW_BEFORE_CENTER_INDEX 31
-// and 8 'beyond' the current command count
-#define NEXUS_CHANNEL_OM_RECEIVE_WINDOW_AFTER_CENTER_INDEX 8
+        // recognize up to 31 "OM command counts" behind the command count
+        // center
+        #define NEXUS_CHANNEL_OM_RECEIVE_WINDOW_BEFORE_CENTER_INDEX 31
+        // and 8 'beyond' the current command count
+        #define NEXUS_CHANNEL_OM_RECEIVE_WINDOW_AFTER_CENTER_INDEX 8
 
-// Number of flags stored [32] / CHAR_BIT [8]
-#define NEXUS_CHANNEL_OM_MAX_RECEIVE_FLAG_BYTE 4
+        // Number of flags stored [32] / CHAR_BIT [8]
+        #define NEXUS_CHANNEL_OM_MAX_RECEIVE_FLAG_BYTE 4
 
 static NEXUS_PACKED_STRUCT
 {
@@ -165,7 +166,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_parse_message(
             break;
 
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_INVALID:
-        // intentional fallthrough
+            // intentional fallthrough
 
         default:
             NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
@@ -512,7 +513,8 @@ _nexus_channel_om_handle_ascii_origin_command(const char* const command_data,
     // * N-digit body
 
     // * 6-digit MAC/auth
-    struct nexus_channel_om_command_message message = {0};
+    struct nexus_channel_om_command_message message = {
+        NEXUS_CHANNEL_OM_COMMAND_TYPE_INVALID, {{0}}, {0}, 0};
     if (!_nexus_channel_om_ascii_parse_message(&command_digits, &message))
     {
         PRINT("nx_channel_om: Failed to parse origin command contents\n");
@@ -536,19 +538,18 @@ _nexus_channel_om_handle_ascii_origin_command(const char* const command_data,
     // If we completed the sequence and updated NV, return true
     return true;
 }
-#endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
-#endif /* if NEXUS_CHANNEL_ENABLED */
+    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
 nx_channel_error nx_channel_handle_origin_command(
     const enum nx_channel_origin_command_bearer_type bearer_type,
     const void* command_data,
     const uint32_t command_length)
 {
-// We include this stubbed function implementation in accessory mode to
-// simplify the product-facing interface, but this function does nothing
-// if controller mode is not supported.
-#if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                         \
-     NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE)
+    // We include this stubbed function implementation in accessory mode to
+    // simplify the product-facing interface, but this function does nothing
+    // if controller mode is not supported.
+    #if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                     \
+         NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE)
     bool parsed = false;
     switch (bearer_type)
     {
@@ -556,7 +557,7 @@ nx_channel_error nx_channel_handle_origin_command(
             PRINT("nx_channel_om: Handling origin command (bearer=ASCII "
                   "digits)\n");
             parsed = _nexus_channel_om_handle_ascii_origin_command(
-                command_data, command_length);
+                (const char*) command_data, command_length);
             break;
 
         default:
@@ -573,16 +574,16 @@ nx_channel_error nx_channel_handle_origin_command(
     {
         return NX_CHANNEL_ERROR_ACTION_REJECTED;
     }
-#else
+    #else
     (void) bearer_type;
     (void) command_data;
     (void) command_length;
     return NX_CHANNEL_ERROR_UNSPECIFIED;
-#endif /* if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                \
-          NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) */
+    #endif /* if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&            \
+              NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) */
 }
 
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 // only used in unit tests
 bool _nexus_channel_om_is_command_index_set(uint32_t command_index)
 {
@@ -613,4 +614,5 @@ bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index)
     return !((command_index < (window.center_index - window.flags_below)) ||
              (command_index > (window.center_index + window.flags_above)));
 }
-#endif /* ifdef NEXUS_INTERNAL_IMPL_NON_STATIC */
+    #endif /* ifdef NEXUS_INTERNAL_IMPL_NON_STATIC */
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */

@@ -19,7 +19,7 @@
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_rep.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 // Abbreviated property names
 const char* L_LINKED_DEVICE_ID_SHORT_PROP_NAME = "lD";
@@ -90,11 +90,11 @@ NEXUS_IMPL_STATIC bool _nexus_channel_link_manager_index_to_nv_block(
             *dest_block_meta_ptr = &NX_NV_BLOCK_CHANNEL_LM_LINK_10;
             break;
         default:
-#ifndef DEBUG
+    #ifndef DEBUG
             // need to conditionally include, as in debug mode, the function
             // will never return and thus this value is 'never read'.
             success = false;
-#endif
+    #endif
             NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
                 0, "Error looking up NV block metadata, should never occur.");
             break;
@@ -106,7 +106,8 @@ bool nexus_channel_link_manager_init(void)
 {
     memset(&_this, 0x00, sizeof(_this));
 
-    struct nx_core_nv_block_meta* tmp_block_meta;
+    // Must initialize tmp_block_meta for CWE-457
+    struct nx_core_nv_block_meta* tmp_block_meta = {0};
     nexus_channel_link_t tmp_link;
     // load data for each link from nonvolatile
     for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
@@ -135,14 +136,19 @@ bool nexus_channel_link_manager_init(void)
     }
 
     const oc_interface_mask_t if_mask_arr[] = {OC_IF_RW, OC_IF_BASELINE};
-    const nx_channel_error result =
-        nx_channel_register_resource("/l",
-                                     "angaza.com.nexus.link",
-                                     2,
-                                     if_mask_arr,
-                                     OC_GET,
-                                     nexus_channel_res_lm_server_get,
-                                     false);
+    const struct nx_channel_resource_props lm_props = {
+        .uri = "/l",
+        .resource_type = "angaza.com.nexus.link",
+        .rtr = 65002,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_lm_server_get,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error result = nx_channel_register_resource(&lm_props);
+
     NEXUS_ASSERT(result == NX_CHANNEL_ERROR_NONE,
                  "Unexpected error registering resource");
 
@@ -325,8 +331,8 @@ bool nexus_channel_link_manager_create_link(
     _this.pending_add_link = true;
 
     memset(&_this.pending_link_to_create, 0x00, sizeof(nexus_channel_link_t));
-    _this.pending_link_to_create.operating_mode = operating_mode;
-    _this.pending_link_to_create.security_mode = security_mode;
+    _this.pending_link_to_create.operating_mode = (uint8_t) operating_mode;
+    _this.pending_link_to_create.security_mode = (uint8_t) security_mode;
     memcpy(&_this.pending_link_to_create.linked_device_id,
            linked_device_id,
            sizeof(struct nx_id));
@@ -388,14 +394,14 @@ void nexus_channel_link_manager_clear_all_links(void)
 enum nexus_channel_link_operating_mode
 nexus_channel_link_manager_operating_mode(void)
 {
-// if this device only supports one mode or the other, return that mode
-#if (NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                                  \
-     !NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
+    // if this device only supports one mode or the other, return that mode
+    #if (NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                              \
+         !NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
     return CHANNEL_LINK_OPERATING_MODE_CONTROLLER;
-#elif (!NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                               \
-       NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
+    #elif (!NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&                           \
+           NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE)
     return CHANNEL_LINK_OPERATING_MODE_ACCESSORY;
-#else
+    #else
     NEXUS_STATIC_ASSERT(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE &&
                             NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE,
                         "Neither controller nor accessory mode is supported, "
@@ -423,7 +429,7 @@ nexus_channel_link_manager_operating_mode(void)
     }
 
     return op_mode;
-#endif
+    #endif
 }
 
 static bool _nexus_channel_link_manager_has_link_with_role(
@@ -606,7 +612,7 @@ void nexus_channel_res_lm_server_get(oc_request_t* request,
     oc_send_response(request, OC_STATUS_OK);
 }
 
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    #ifdef NEXUS_DEFINED_DURING_TESTING
 uint32_t
 _nexus_channel_link_manager_secs_since_link_active(const struct nx_id* id)
 {
@@ -624,6 +630,6 @@ _nexus_channel_link_manager_secs_since_link_active(const struct nx_id* id)
         return UINT32_MAX;
     }
 }
-#endif
+    #endif
 
-#endif // NEXUS_CHANNEL_ENABLED
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED

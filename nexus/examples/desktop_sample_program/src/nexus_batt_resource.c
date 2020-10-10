@@ -9,8 +9,10 @@
  * For more info: https://github.com/openconnectivityfoundation/DeviceBuilder
  */
 
-#include <stdbool.h>
-#include <stdint.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
+#include "nexus_batt_resource.h"
 #include <stdio.h> // for snprintf
 
 // time included for timestamp when data is updated
@@ -30,7 +32,7 @@
 
 void nx_network_receive(const void* const bytes_received,
                         uint32_t bytes_count,
-                        const struct nx_ipv6_address* const source_address);
+                        const struct nx_id* const source);
 
 #define btoa(x) ((x) ? "true" : "false")
 
@@ -67,9 +69,8 @@ bool g_batt_charging =
     false; /* current value of property "charging" The status of charging. */
 static char g_batt_RESOURCE_PROPERTY_NAME_defect[] =
     "defect"; /* the name for the attribute */
-bool g_batt_defect =
-    false; /* current value of property "defect" Battery defect detected.
-              True = defect, False = no defect */
+bool g_batt_defect = false; /* current value of property "defect" Battery defect
+                               detected. True = defect, False = no defect */
 static char g_batt_RESOURCE_PROPERTY_NAME_discharging[] =
     "discharging"; /* the name for the attribute */
 bool g_batt_discharging = false; /* current value of property "discharging" The
@@ -126,35 +127,28 @@ void battery_resource_init(void)
     // registers the GET endpoint as 'unsecured'.
     // The resource is registered at URI '/batt', and the type is
     // "oic.r.energy.battery" (since this is a standard OIC/OCF resource).
-    nx_channel_error result = nx_channel_register_resource(
-        "/batt",
-        "oic.r.energy.battery",
-        2, // 2 interfaces in `if_mask_arr`
-        if_mask_arr,
-        OC_GET, // "GET" (read) is supported for this resource
-        get_batt, // function called to handle GET requests
-        false // not secured
-        );
+    // (Note that this implementation is more complex than the
+    // nexus.channel.core.battery model here:
+    // https://angaza.github.io/nexus-channel-models/resource_types/core/101-battery/redoc_wrapper.html)
+    const struct nx_channel_resource_props batt_props = {
+        .uri = "/batt",
+        .resource_type = "oic.r.energy.battery",
+        .rtr = 65005,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = get_batt,
+        .get_secured = false,
+        .post_handler = post_batt,
+        .post_secured = false};
+
+    nx_channel_error result = nx_channel_register_resource(&batt_props);
+
     if (result != NX_CHANNEL_ERROR_NONE)
     {
         // debug only - should not occur
         OC_WRN("Error registering battery resource");
     }
 
-    // At this point, Nexus Channel is aware of the resource, and will route
-    // GET requests to `get_batt`. Lets add support for POST requests as well,
-    // which will be handled by the function `post_batt`.
-    // Not secured here, to simplify demonstration. Could secure the result,
-    // but will require Nexus Channel link in order to POST..
-    result = nx_channel_register_resource_handler(
-        "/batt", OC_POST, post_batt, false);
-
-    // XXX secure post endpoint
-    if (result != NX_CHANNEL_ERROR_NONE)
-    {
-        // debug only - should not occur
-        OC_WRN("Error registering battery resource POST handler");
-    }
     // at this point, any incoming messages received by Nexus Channel for
     // this endpoint will be properly handled
 }
@@ -179,26 +173,9 @@ void battery_resource_simulate_get(void)
 
     uint8_t send_buffer[200] = {0};
     uint32_t send_length = coap_serialize_message(&request_packet, send_buffer);
-    const struct nx_ipv6_address simulated_accessory_address = {{0xFE,
-                                                                 0x80,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 0,
-                                                                 0x01,
-                                                                 0x02,
-                                                                 0xAA,
-                                                                 0xFF,
-                                                                 0xFE,
-                                                                 0xBB,
-                                                                 0xCC,
-                                                                 0xDD},
-                                                                0};
-
+    const struct nx_id simulated_client_nx_id = {0, 0xAFBB440D};
     nx_channel_network_receive(
-        send_buffer, send_length, &simulated_accessory_address);
+        send_buffer, send_length, &simulated_client_nx_id);
 }
 
 void battery_resource_simulate_post_update_properties(uint8_t battery_threshold)
@@ -230,26 +207,10 @@ void battery_resource_simulate_post_update_properties(uint8_t battery_threshold)
 
     uint8_t send_buffer[200] = {0};
     uint32_t send_length = coap_serialize_message(&request_packet, send_buffer);
-    const struct nx_ipv6_address simulated_client_address = {{0xFE,
-                                                              0x80,
-                                                              0,
-                                                              0,
-                                                              0,
-                                                              0,
-                                                              0,
-                                                              0,
-                                                              0x00,
-                                                              0x05,
-                                                              0xAF,
-                                                              0xFF,
-                                                              0xFE,
-                                                              0xBB,
-                                                              0x44,
-                                                              0x0D},
-                                                             0};
+    const struct nx_id simulated_client_nx_id = {0, 0xAFBB440D};
 
     nx_channel_network_receive(
-        send_buffer, send_length, &simulated_client_address);
+        send_buffer, send_length, &simulated_client_nx_id);
 }
 
 void _battery_resource_update_timestamp(void)
@@ -327,9 +288,9 @@ void battery_resource_update_low_threshold(uint8_t threshold_percent)
 */
 
 /**
-* intializes the global variables
-* registers and starts the handler
-*/
+ * intializes the global variables
+ * registers and starts the handler
+ */
 void initialize_variables(void)
 {
     /* initialize global variables for resource "/batt" */
@@ -342,10 +303,9 @@ void initialize_variables(void)
                            percentage. */
     g_batt_charging =
         false; /* current value of property "charging" The status of charging.
-                  */
-    g_batt_defect =
-        false; /* current value of property "defect" Battery defect detected.
-                  True = defect, False = no defect */
+                */
+    g_batt_defect = false; /* current value of property "defect" Battery defect
+                              detected. True = defect, False = no defect */
     g_batt_discharging = false; /* current value of property "discharging" The
                                    status of discharging. */
     g_batt_lowbattery = false; /* current value of property "lowbattery" The
@@ -362,12 +322,12 @@ void initialize_variables(void)
 }
 
 /**
-* helper function to check if the POST input document contains
-* the common readOnly properties or the resouce readOnly properties
-* @param name the name of the property
-* @return the error_status, e.g. if error_status is true, then the input
-* document contains something illegal
-*/
+ * helper function to check if the POST input document contains
+ * the common readOnly properties or the resouce readOnly properties
+ * @param name the name of the property
+ * @return the error_status, e.g. if error_status is true, then the input
+ * document contains something illegal
+ */
 static bool check_on_readonly_common_resource_properties(oc_string_t name,
                                                          bool error_state)
 {
@@ -400,19 +360,19 @@ static bool check_on_readonly_common_resource_properties(oc_string_t name,
 }
 
 /**
-* post method for "/batt" resource.
-* The function has as input the request body, which are the input values of the
-* POST method.
-* The input values (as a set) are checked if all supplied values are correct.
-* If the input values are correct, they will be assigned to the global  property
-* values.
-* Resource Description:
-* Sets current battery values
-*
-* @param request the request representation.
-* @param interfaces the used interfaces during the request.
-* @param user_data the supplied user data.
-*/
+ * post method for "/batt" resource.
+ * The function has as input the request body, which are the input values of the
+ * POST method.
+ * The input values (as a set) are checked if all supplied values are correct.
+ * If the input values are correct, they will be assigned to the global property
+ * values.
+ * Resource Description:
+ * Sets current battery values
+ *
+ * @param request the request representation.
+ * @param interfaces the used interfaces during the request.
+ * @param user_data the supplied user data.
+ */
 static void post_batt(oc_request_t* request,
                       oc_interface_mask_t interfaces,
                       void* user_data)
@@ -498,7 +458,7 @@ static void post_batt(oc_request_t* request,
         oc_rep_begin_root_object(); // changed to 'begin', Angaza
         /*oc_process_baseline_interface(request->resource); */
         oc_rep_set_int(root, batterythreshold, g_batt_batterythreshold);
-        oc_rep_set_double(root, capacity, g_batt_capacity);
+        oc_rep_set_int(root, capacity, g_batt_capacity);
         oc_rep_set_int(root, charge, g_batt_charge);
         oc_rep_set_boolean(root, charging, g_batt_charging);
         oc_rep_set_boolean(root, defect, g_batt_defect);
@@ -525,25 +485,25 @@ static void post_batt(oc_request_t* request,
 }
 
 /**
-* get method for "/batt" resource.
-* function is called to intialize the return values of the GET method.
-* initialisation of the returned values are done from the global property
-* values.
-* Resource Description:
-* This Resource describes the attributes associated with a battery. The Property
-* "charge" is an integer showing the current battery charge level as a
-* percentage in the range 0 (fully discharged) to 100 (fully charged). The
-* Property "capacity" represents the total capacity of battery in Amp Hours
-* (Ah). The "charging" status and "discharging" status are represented by
-* boolean values set to "true" indicating enabled and "false" indicating
-* disabled. Low battery status is represented by a boolean value set to "true"
-* indicating low charge level and "false" indicating otherwise, based upon the
-* battery threshold represented as a percentage.
-*
-* @param request the request representation.
-* @param interfaces the interface used for this call
-* @param user_data the user data.
-*/
+ * get method for "/batt" resource.
+ * function is called to intialize the return values of the GET method.
+ * initialisation of the returned values are done from the global property
+ * values.
+ * Resource Description:
+ * This Resource describes the attributes associated with a battery. The
+ * Property "charge" is an integer showing the current battery charge level as a
+ * percentage in the range 0 (fully discharged) to 100 (fully charged). The
+ * Property "capacity" represents the total capacity of battery in Amp Hours
+ * (Ah). The "charging" status and "discharging" status are represented by
+ * boolean values set to "true" indicating enabled and "false" indicating
+ * disabled. Low battery status is represented by a boolean value set to "true"
+ * indicating low charge level and "false" indicating otherwise, based upon the
+ * battery threshold represented as a percentage.
+ *
+ * @param request the request representation.
+ * @param interfaces the interface used for this call
+ * @param user_data the user data.
+ */
 static void
 get_batt(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -629,3 +589,5 @@ get_batt(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
     }
     PRINT("-- End get_batt\n");
 }
+
+#pragma GCC diagnostic pop

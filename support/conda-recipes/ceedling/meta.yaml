@@ -1,0 +1,14 @@
+package:
+  name: ceedling
+  version: 0.30.0
+
+source:
+  git_url: https://github.com/ThrowTheSwitch/Ceedling.git
+
+requirements:
+  build:
+  - ruby
+
+about:
+  home: http://www.throwtheswitch.org/ceedling
+  summary: Ceedling is a build system for C projects that is something of an extension around Ruby’s Rake (make-ish) build system.

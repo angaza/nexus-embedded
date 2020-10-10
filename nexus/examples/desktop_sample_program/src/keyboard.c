@@ -21,14 +21,15 @@
 #include "nx_keycode.h"
 #include "screen.h"
 #if CONFIG_NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL
-#define MAX_KEYCODE_LENGTH (14u + 2u /* * & # */ + 4u /* hypens or spaces */)
-#define PROTOCOL_NAME "Full"
+    #define MAX_KEYCODE_LENGTH                                                 \
+        (14u + 2u /* * & # */ + 4u /* hypens or spaces */)
+    #define PROTOCOL_NAME "Full"
 #elif CONFIG_NEXUS_KEYCODE_USE_SMALL_KEYCODE_PROTOCOL
-#define MAX_KEYCODE_LENGTH (15u + 4u /* hypens or spaces */)
-#define PROTOCOL_NAME "Small"
+    #define MAX_KEYCODE_LENGTH (15u + 4u /* hypens or spaces */)
+    #define PROTOCOL_NAME "Small"
 #else
-#define MAX_KEYCODE_LENGTH 0
-#error "Undefined keycode protocol. Is Nexus Keycode enabled in config?"
+    #define MAX_KEYCODE_LENGTH 0
+    #error "Undefined keycode protocol. Is Nexus Keycode enabled in config?"
 #endif
 
 static struct

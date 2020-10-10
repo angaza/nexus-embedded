@@ -14,23 +14,25 @@
 #include "src/internal_channel_config.h"
 #include "src/nexus_util.h"
 
-#if NEXUS_CHANNEL_ENABLED
-// Origin commands are only relevant for a Channel Controller
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
-#define NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH 20
-#define NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH 15
-#define NEXUS_CHANNEL_OM_INVALID_COMMAND_COUNT 0xFFFFFFFF // sentinel
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    // Origin commands are only relevant for a Channel Controller
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+        #define NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH 20
+        #define NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH 15
+        #define NEXUS_CHANNEL_OM_INVALID_COMMAND_COUNT 0xFFFFFFFF // sentinel
+
+        #ifdef __cplusplus
+extern "C" {
+        #endif
 
 /*! \brief Initialize Channel Origin Manager state
  *
  * Loads parameters from NV (if present) and initializes state variables.
- *
- * \return void
  */
 void nexus_channel_om_init(void);
 
-// expose certain functions for unit tests
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+        // expose certain functions for unit tests
+        #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 
 enum nexus_channel_om_command_type
 _nexus_channel_om_ascii_validate_command_type(const uint8_t type_int);
@@ -49,8 +51,8 @@ bool _nexus_channel_om_ascii_parse_message(
  * present (and the auth field to account for finding those inner inferred
  * fields) so it may mutate the message.
  *
- * Typically called by `nexus_channel_om_ascii_infer_command_id_compute_auth`,
- * not directly.
+ * Typically called by
+ * `nexus_channel_om_ascii_infer_command_id_compute_auth`, not directly.
  *
  * \param message compute auth value for this message. Message may be mutated
  * \param origin_key key to use when computing auth
@@ -63,9 +65,10 @@ bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
 /*! \brief Determine command ID and validate auth field for a message
  *
  * Given a message without a known `computed command ID`, loop through all
- * viable command IDs, and determine if any results in a valid message. If so,
- * set the message to that command ID, and confirm that the authentication
- * transmitted in the message matches the calculated authentication field.
+ * viable command IDs, and determine if any results in a valid message. If
+ * so, set the message to that command ID, and confirm that the
+ * authentication transmitted in the message matches the calculated
+ * authentication field.
  *
  * Will modify the contents of `message`, will not modify the contents of
  * `window`. The caller must update the NV (if any) backing the data
@@ -91,8 +94,13 @@ bool _nexus_channel_om_handle_ascii_origin_command(
 bool _nexus_channel_om_is_command_index_set(uint32_t command_index);
 bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index);
 
-#endif /* NEXUS_INTERNAL_IMPL_NON_STATIC */
+        #endif /* NEXUS_INTERNAL_IMPL_NON_STATIC */
 
-#endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
-#endif /* if NEXUS_CHANNEL_ENABLED */
+    #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 #endif /* end of include guard: NEXUS__SRC__CHANNEL__CHANNEL_OM_H_ */

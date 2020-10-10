@@ -2,10 +2,23 @@
 # For example, cppcheck won't upload the failed tests if we exit on any
 # intermediate step having an exit code of 1.
 
-GCC_VERSION=gcc-9
+# common artifacts directory expected to be present on the Docker container
+ARTIFACTS_DIR=/buildkite_artifacts
+
 
 function za-init {
-    :
+    # used to pick up automatic conda environment activation
+    # see https://github.com/conda/conda/issues/7980
+    # `source` and `conda` are fairly verbose
+    set +u
+    source /opt/conda/etc/profile.d/conda.sh 2>/dev/null
+    conda activate nexusemb 2>/dev/null
+    set -u
+    # 'rake aborted!
+    # ArgumentError: invalid byte sequence in US-ASCII'
+    # (Currently set directly in Dockerfile)
+    #export LANG=C.UTF-8
+    #export LC_ALL=C.UTF-8
 }
 
 function za-install-sonar-scanner {

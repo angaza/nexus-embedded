@@ -18,12 +18,16 @@
 // Included to confirm bit widths (char == 8 bits)
 #include <limits.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef CHAR_BIT
-#error "Cannot confirm number of bits in a byte is 8."
+    #error "Cannot confirm number of bits in a byte is 8."
 #endif
 #if CHAR_BIT != 8
-#error                                                                         \
-    "Number of bits in a byte is not reporting 8 - bitshift operations may be invalid!"
+    #error                                                                     \
+        "Number of bits in a byte is not reporting 8 - bitshift operations may be invalid!"
 #endif
 
 #define U8TO64_LE(p)                                                           \
@@ -88,10 +92,10 @@ static inline uint32_t nexus_endian_htobe32(uint32_t host)
 {
     // Can be replaced by `return host` on a big endian host platform
     uint32_t result = 0;
-    ((unsigned char*) &result)[0] = host >> 24;
-    ((unsigned char*) &result)[1] = (host & 0x00FF0000) >> 16;
-    ((unsigned char*) &result)[2] = (host & 0x0000FF00) >> 8;
-    ((unsigned char*) &result)[3] = host;
+    ((unsigned char*) &result)[0] = (unsigned char) (host >> 24);
+    ((unsigned char*) &result)[1] = (unsigned char) ((host & 0x00FF0000) >> 16);
+    ((unsigned char*) &result)[2] = (unsigned char) ((host & 0x0000FF00) >> 8);
+    ((unsigned char*) &result)[3] = (unsigned char) (host & 0xFF);
     return result;
 }
 
@@ -105,8 +109,8 @@ static inline uint16_t nexus_endian_htole16(const uint16_t host)
 {
     // Can be replaced by `return host` on a little endian host platform
     uint16_t result = 0;
-    ((unsigned char*) &result)[0] = host & 0xFF;
-    ((unsigned char*) &result)[1] = (host & 0x0000FF00) >> 8;
+    ((unsigned char*) &result)[0] = (unsigned char) (host & 0xFF);
+    ((unsigned char*) &result)[1] = (unsigned char) ((host & 0x0000FF00) >> 8);
     return result;
 }
 
@@ -114,10 +118,10 @@ static inline uint32_t nexus_endian_htole32(const uint32_t host)
 {
     // Can be replaced by `return host` on a little endian host platform
     uint32_t result = 0;
-    ((unsigned char*) &result)[0] = host & 0xFF;
-    ((unsigned char*) &result)[1] = (host & 0x0000FF00) >> 8;
-    ((unsigned char*) &result)[2] = (host & 0x00FF0000) >> 16;
-    ((unsigned char*) &result)[3] = host >> 24;
+    ((unsigned char*) &result)[0] = (unsigned char) (host & 0xFF);
+    ((unsigned char*) &result)[1] = (unsigned char) ((host & 0x0000FF00) >> 8);
+    ((unsigned char*) &result)[2] = (unsigned char) ((host & 0x00FF0000) >> 16);
+    ((unsigned char*) &result)[3] = (unsigned char) (host >> 24);
     return result;
 }
 
@@ -266,7 +270,6 @@ struct nexus_window
  * including center_index
  * \param flags_above flags to the 'right' of center_index, excluding
  * center_index
- * \return void
  */
 void nexus_util_window_init(
     struct nexus_window* window,
@@ -292,8 +295,8 @@ bool nexus_util_window_id_within_window(const struct nexus_window* window,
 /*! \brief Determine if an ID is already set inside an ID window.
  *
  * Searches the window for the ID, and if it is found as already received
- * and set within the window, returns true. Does not determine if the ID value
- * 'falls within' the window
+ * and set within the window, returns true. Does not determine if the ID
+ * value 'falls within' the window
  *
  * \param id id to check
  * \param window window to check against
@@ -320,6 +323,10 @@ bool nexus_util_window_set_id_flag(struct nexus_window* window,
 static inline void nexus_bitset_clear(struct nexus_bitset* const bitset)
 {
     memset(bitset->bytes, 0x00, bitset->bytes_count);
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

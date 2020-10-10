@@ -1,22 +1,103 @@
 # Environment variable shared in all steps
 env:
-    ARTIFACTS_DIR: 'buildkite-artifacts'
+    ARTIFACTS_DIR: 'buildkite_artifacts'
 
 # All commands are executed from repository root
 steps:
+    - name: ":docker: Build Docker 'test-environment' image"
+      agents:
+        docker: true
+      plugins:
+        - docker-login#v2.0.1:
+            username: jjmilburn
+            password-env: DOCKER_LOGIN_PASSWORD  # Dangerous stored in BK...
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            build: test-environment
+            image-repository: jjmilburn/gcc10conda
+            cache-from: test-environment:jjmilburn/gcc10conda:latest
+    - wait  # wait so that docker image is built and can be reused
+
     - name: ":guardsman: Style Linting"
       command: buildkite/clang-format-ci-wrapper.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
     - name: ":white_check_mark: Static Analysis: Cppcheck"
       command: buildkite/static-analysis-cppcheck.sh
-    - name: ":shrug: Static Analysis: Frama-C (Experimental)"
-      command: buildkite/static-analysis-frama-c.sh
-    - name: ":japanese_ogre: Ceedling Unit Tests (Ceedling)"
-      command: buildkite/unit-test-ci-wrapper.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
+    - name: ":japanese_ogre: Ceedling Unit Tests (Ceedling via GCC)"
+      command: buildkite/unit-test-ci-wrapper-gcc.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
+    - name: ":japanese_ogre: Ceedling Unit Tests (Ceedling via clang)"
+      command: buildkite/unit-test-ci-wrapper-clang.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
     - name: ":leaves: Build: GCC + clang scan-build 'stub' program"
       command: buildkite/static-analysis-scan-build.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
     - name: ":desktop_computer: Build: GCC + clang scan-build 'desktop example' program"
       command: buildkite/static-analysis-scan-build-example-desktop.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
+    - name: ":desktop_computer: Build: GCC + clang scan-build 'desktop example' program (C++)"
+      command: buildkite/static-analysis-scan-build-example-desktop-cpp.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
     - name: ":footprints: Thumb2 size analysis (with link time optimization)"
       command: buildkite/thumb2-size.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
     - name: ":sonarqube: SonarCloud Analysis"
       command: buildkite/sonarcloud.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
+    - name: ":scroll: Generate Documentation"
+      command: buildkite/gen-doxygen-docs.sh
+      artifact_paths: "buildkite/${ARTIFACTS_DIR}/**/*"
+      plugins:
+        - docker-compose#v2.5.1:
+            config: buildkite/docker-compose.yml
+            run: test-environment
+
+    - name: ":shrug: Static Analysis: Frama-C (Experimental)"
+      command: buildkite/static-analysis-frama-c.sh
+

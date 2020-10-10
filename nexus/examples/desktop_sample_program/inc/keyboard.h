@@ -23,6 +23,10 @@
 
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* @brief Used to clear out the input stream used for keycode input.
  *
  * This is used in the example program to clear the `stdin` buffer when
@@ -42,7 +46,7 @@ void keyboard_init();
  * to send the full keycode to the Nexus Keycode library.
  *
  * @param instream the input stream to receive keys from, e.g. `stdin`
-*/
+ */
 void keyboard_prompt_keycode(FILE* instream);
 
 /* @brief Prompt the user for new battery threshold for battery resource.
@@ -59,7 +63,11 @@ void keyboard_prompt_update_battery_threshold(FILE* instream);
  *
  * There is no return value, as the feedback for each key (and the entire
  * keycode) is returned separately via the feedback functions.
-*/
+ */
 void keyboard_process_keycode(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

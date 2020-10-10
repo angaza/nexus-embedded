@@ -70,7 +70,7 @@ struct expect_rep
 {
     oc_rep_value_type_t type;
     char* name;
-    union oc_rep_value value;
+    oc_rep_value value;
     bool received; // used to determine if we received all expected values
 };
 
@@ -81,8 +81,8 @@ oc_endpoint_t FAKE_ENDPOINT_A = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
          0xff,
@@ -102,7 +102,8 @@ oc_endpoint_t FAKE_ENDPOINT_A = {
          0xFB,
          0xFC},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -112,8 +113,8 @@ oc_endpoint_t FAKE_ENDPOINT_B = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
          0xff,
@@ -133,7 +134,8 @@ oc_endpoint_t FAKE_ENDPOINT_B = {
          0xA5,
          0x9B},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -154,6 +156,27 @@ TEST_FILE("oc/api/oc_server_api.c")
 TEST_FILE("oc/api/oc_client_api.c")
 TEST_FILE("oc/deps/tinycbor/cborencoder.c")
 TEST_FILE("oc/deps/tinycbor/cborparser.c")
+
+// Backing memory for parsing OC reps using `oc_parse_rep`
+// Variables here must be static to persist between invocations of this
+// function
+void _initialize_oc_rep_pool(void)
+{
+    // Prepare an space for representing OC rep
+    static char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
+    static oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
+    memset(rep_objects_alloc, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
+    memset(rep_objects_pool, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
+    static struct oc_memb rep_objects;
+
+    rep_objects.size = sizeof(oc_rep_t);
+    rep_objects.num = OC_MAX_NUM_REP_OBJECTS;
+    rep_objects.count = rep_objects_alloc;
+    rep_objects.mem = (void*) rep_objects_pool;
+    rep_objects.buffers_avail_cb = 0;
+
+    oc_rep_set_pool(&rep_objects);
+}
 
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
@@ -253,7 +276,6 @@ void test_payg_credit_init__is_an_accessory__initializes_with_no_credit(void)
     nexus_channel_res_link_hs_init();
     nexus_channel_link_manager_init();
 
-    enum nexus_channel_link_operating_mode result;
     struct nx_id linked_cont_id = {5921, 123458};
 
     struct nx_core_check_key link_key;
@@ -384,6 +406,7 @@ void test_payg_credit_get_response__default_with_baseline__cbor_data_model_corre
     TEST_ASSERT_EQUAL_UINT(CONTENT_2_05, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(100, response_packet.payload_len);
 
+    _initialize_oc_rep_pool();
     // ensure that the message is parseable
     int success = oc_parse_rep(response_packet.payload, // payload,
                                response_packet.payload_len,
@@ -463,6 +486,7 @@ void test_payg_credit_server_get_response__no_baseline_accessory_mode__shows_dep
     TEST_ASSERT_EQUAL_UINT(CONTENT_2_05, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(34, response_packet.payload_len);
 
+    _initialize_oc_rep_pool();
     // ensure that the message is parseable
     int success = oc_parse_rep(response_packet.payload, // payload,
                                response_packet.payload_len,
@@ -725,6 +749,7 @@ void test_payg_credit_server_post_from_linked_controller__accepted_credit_update
     TEST_ASSERT_EQUAL_UINT(CHANGED_2_04, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(21, response_packet.payload_len);
 
+    _initialize_oc_rep_pool();
     // ensure that the message is parseable
     int success = oc_parse_rep(response_packet.payload, // payload,
                                response_packet.payload_len,

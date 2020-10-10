@@ -15,19 +15,23 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-#include "src/nexus_keycode_mas.h"
-#include "src/nexus_nv.h"
-#include "src/nexus_util.h"
+    #include "src/nexus_keycode_mas.h"
+    #include "src/nexus_nv.h"
+    #include "src/nexus_util.h"
 
-#include <stdint.h>
+    #include <stdint.h>
 
-//
-// PROTOCOL SPECIFIC CONSTANTS
-//
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
-// Defined here to be exposed for static asserts. Common to both protocols.
-#define NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_BEFORE_PD 23
-#define NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_AFTER_PD 40
+    //
+    // PROTOCOL SPECIFIC CONSTANTS
+    //
+
+    // Defined here to be exposed for static asserts. Common to both protocols.
+    #define NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_BEFORE_PD 23
+    #define NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_AFTER_PD 40
 
 //
 // Common to both protocol variants
@@ -40,22 +44,27 @@ extern const uint8_t NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS;
 //
 extern const uint8_t NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_SMALL;
 extern const uint8_t NEXUS_KEYCODE_PRO_SMALL_MAX_TEST_FUNCTION_ID;
+
+// increment_ids with special meaning for small set_credit messages
+extern const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_CLEAR_CUSTOM_FLAG_RESTRICTED;
 extern const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_LOCK_INCREMENT_ID;
 extern const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_UNLOCK_INCREMENT_ID;
+
+// alphabet length
 extern const uint8_t NEXUS_KEYCODE_PRO_SMALL_ALPHABET_LENGTH;
 
 // preserved for backwards compatibility
 extern const uint16_t NEXUS_KEYCODE_PRO_SMALL_UNLOCK_INCREMENT;
 
-//
-// **Full** Protocol constants
-//
-#define NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_FULL 30
+    //
+    // **Full** Protocol constants
+    //
+    #define NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_FULL 30
 extern const uint8_t NEXUS_KEYCODE_PRO_FULL_ALPHABET_LENGTH;
 extern const uint32_t NEXUS_KEYCODE_PRO_FULL_UNLOCK_INCREMENT;
 extern const uint32_t NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS;
 
-#define NEXUS_KEYCODE_PRO_FULL_ACTIVATION_BODY_CHARACTER_COUNT 8
+    #define NEXUS_KEYCODE_PRO_FULL_ACTIVATION_BODY_CHARACTER_COUNT 8
 // 6 check/MAC chars (in both Factory and Activation messages)
 extern const uint8_t NEXUS_KEYCODE_PRO_FULL_CHECK_CHARACTER_COUNT;
 // 8 to 10 chars Device ID for NOMAC_DEVICE_ID_CONFIRMATION message
@@ -71,10 +80,13 @@ enum nexus_keycode_pro_response
     NEXUS_KEYCODE_PRO_RESPONSE_INVALID, // message does not authenticate
     NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE, // valid applicable message,
     // previously applied
-    NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED, // valid applicable message, newly
+    NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED, // valid applicable message,
+                                              // newly
     // applied
-    NEXUS_KEYCODE_PRO_RESPONSE_DISPLAY_DEVICE_ID, // display the units PAYG ID
-    NEXUS_KEYCODE_PRO_RESPONSE_NONE, // No feedback, used for passthrough msgs
+    NEXUS_KEYCODE_PRO_RESPONSE_DISPLAY_DEVICE_ID, // display the units PAYG
+                                                  // ID
+    NEXUS_KEYCODE_PRO_RESPONSE_NONE, // No feedback, used for passthrough
+                                     // msgs
 };
 
 // A function that takes a keycode frame, and returns a
@@ -145,7 +157,7 @@ enum nexus_keycode_pro_small_test_functions
 
 void nexus_keycode_pro_small_init(const char* alphabet);
 
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 bool nexus_keycode_pro_small_parse(
     const struct nexus_keycode_frame* frame,
     struct nexus_keycode_pro_small_message* parsed);
@@ -164,7 +176,7 @@ enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 uint16_t nexus_keycode_pro_small_compute_check(
     const struct nexus_keycode_pro_small_message* message,
     const struct nx_core_check_key* key);
-#endif
+    #endif
 
 enum nexus_keycode_pro_response nexus_keycode_pro_small_parse_and_apply(
     const struct nexus_keycode_frame* frame);
@@ -187,8 +199,8 @@ enum nexus_keycode_pro_full_wipe_state_target_codes
         0x01, // credit + message IDs
     NEXUS_KEYCODE_PRO_FULL_WIPE_STATE_TARGET_MASK_ONLY =
         0x02, // message IDS only
-    NEXUS_KEYCODE_PRO_FULL_WIPE_STATE_TARGET_UART_READLOCK =
-        0x03, // UART "Readlock"
+    NEXUS_KEYCODE_PRO_FULL_WIPE_CUSTOM_FLAG_RESTRICTED =
+        0x03, // Wipe custom 'restricted' flag
 };
 
 NEXUS_PACKED_STRUCT nexus_keycode_pro_full_activation_wipe_state
@@ -213,11 +225,10 @@ NEXUS_PACKED_STRUCT nexus_keycode_pro_full_factory_nomac_device_id
     uint32_t device_id;
 };
 
-// Note: Passthrough command messages don't have a parsed body, only a type ID
-// (0x08).
-// This is because once the type ID is identified as Passthrough Command, no
-// further processing of the message/keycode contents is performed in the
-// library, and the raw data is passed to the product code.
+// Note: Passthrough command messages don't have a parsed body, only a type
+// ID (0x08). This is because once the type ID is identified as Passthrough
+// Command, no further processing of the message/keycode contents is
+// performed in the library, and the raw data is passed to the product code.
 
 NEXUS_PACKED_UNION nexus_keycode_pro_full_message_body
 {
@@ -262,14 +273,14 @@ bool nexus_keycode_pro_full_parse(
 
 /* Get the value of the current "Pd Index" of the window.
  *
- * Defaults to 23 initially, and increases when any message is received which
- * has an ID larger than Pd.
+ * Defaults to 23 initially, and increases when any message is received
+ * which has an ID larger than Pd.
  *
  * \return integer value of 'Pd Index' of current keycode receipt window
  */
 uint32_t nexus_keycode_pro_get_current_pd_index(void);
 
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 uint32_t nexus_keycode_pro_full_check_field_from_frame(
     const struct nexus_keycode_frame* frame);
 bool nexus_keycode_pro_full_parse_activation(
@@ -292,7 +303,8 @@ uint32_t nexus_keycode_pro_full_compute_check(
     const struct nexus_keycode_pro_full_message* message,
     const struct nx_core_check_key* key);
 
-/* Determine if a given message ID value is within the current receipt window.
+/* Determine if a given message ID value is within the current receipt
+ * window.
  *
  * Returns true iff the following is true:
  *  pd_index - NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_BEFORE_PD <=
@@ -306,12 +318,13 @@ bool nexus_keycode_pro_is_message_id_within_window(
 
 /* Retrieve the window mask ID index for a given full message ID.
  *
- * If full_message_id is within the current valid receipt window, this function
- * will return 'true', and mask_id_index will be modified to the index within
- * the window which corresponds to
+ * If full_message_id is within the current valid receipt window, this
+ * function will return 'true', and mask_id_index will be modified to the
+ * index within the window which corresponds to
  *
- * This function does not modify the window or mask value in any way, it only
- * provides the mask index corresponding to full_message_id, if it exists.
+ * This function does not modify the window or mask value in any way, it
+ * only provides the mask index corresponding to full_message_id, if it
+ * exists.
  *
  * If this function returns 'false', the value of mask_id_index should be
  * considered invalid and ignored.
@@ -332,30 +345,31 @@ bool nexus_keycode_pro_mask_idx_from_message_id(const uint16_t full_message_id,
  * \param full_message_id full message ID to update PD to
  * \param mask_id_index pointer to location to store mask_id_index for
  *full_message_id
- * \return true if window shifted to the right (pd increased) false otherwise
+ * \return true if window shifted to the right (pd increased) false
+ *otherwise
  */
 bool nexus_keycode_pro_update_window_and_message_mask_id(
     const uint16_t full_message_id, uint8_t* mask_id_index);
 /* Checks if the unit can accept an QC code.
  *
- * Checks if the unit is unlocked, if the QC code is under 1h and the unit is
- * PAYG Disabled, and if the code count limits have been reached.
-*/
+ * Checks if the unit is unlocked, if the QC code is under 1h and the unit
+ * is PAYG Disabled, and if the code count limits have been reached.
+ */
 bool nexus_keycode_pro_can_unit_accept_qc_code(
     const uint32_t qc_credit_seconds);
-/* Returns the unit's current short (under 10min) QC code count. Limit is set
- * by a the constant 'NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX'.
+/* Returns the unit's current short (under 10min) QC code count. Limit is
+ * set by a the constant 'NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX'.
  *
  * Used within the preceding function to determine if the limit has been
  * reached.
  */
 uint8_t nexus_keycode_pro_get_short_qc_code_count(void);
-/* Returns the unit's current long (between 10min and 1h) QC code count. Limit
- * is set by the constant
+/* Returns the unit's current long (between 10min and 1h) QC code count.
+ * Limit is set by the constant
  * 'NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_LIFETIME_MAX'.
  *
- * Used within the 'can_unit_accept_qc_code' function to detemine if the limit
- * has been reached.
+ * Used within the 'can_unit_accept_qc_code' function to detemine if the
+ * limit has been reached.
  */
 uint8_t nexus_keycode_pro_get_long_qc_code_count(void);
 /* Increments the unit's QC short code count by one.
@@ -364,7 +378,7 @@ void nexus_keycode_pro_increment_short_qc_test_message_count(void);
 /* Increments the unit's QC long code count by one.
  */
 void nexus_keycode_pro_increment_long_qc_test_message_count(void);
-#endif
+    #endif
 
 /* Get the value of the receipt mask associated with a given message ID.
  *
@@ -394,12 +408,12 @@ bool nexus_keycode_pro_get_full_message_id_flag(const uint16_t full_message_id);
  * value of full_message_id), and then set the received flag value.
  *
  * The full_message_id passed to this function must be greater than or
- * equal to the lowest message ID contained within the current receipt window,
- * or this function will have no effect.
+ * equal to the lowest message ID contained within the current receipt
+ * window, or this function will have no effect.
  *
- * In other words, this function may, if required, shift the window 'upwards',
- * that is, 'to the right' (Pd increases).  This function will never shift
- * the window 'to the left' (Pd decreases).
+ * In other words, this function may, if required, shift the window
+ * 'upwards', that is, 'to the right' (Pd increases).  This function will
+ * never shift the window 'to the left' (Pd decreases).
  *
  * \warning if the full_message_id is below the current receipt window, this
  * will silently fail, and no modification will take place.
@@ -411,14 +425,15 @@ bool nexus_keycode_pro_get_full_message_id_flag(const uint16_t full_message_id);
  */
 void nexus_keycode_pro_set_full_message_id_flag(const uint16_t full_message_id);
 
-/* Reset the mask flag for a full message ID, if it is within current window.
+/* Reset the mask flag for a full message ID, if it is within current
+ * window.
  *
  * Given a full (uncompressed) keycode message ID, reset the 'received' mask
  * value for this message ID.
  *
- * This function will never modify the current Pd index, or shift the receipt
- * window in any way.  The full_message_id must be within the current valid
- * receipt window, or this function will have no effect.
+ * This function will never modify the current Pd index, or shift the
+ * receipt window in any way.  The full_message_id must be within the
+ * current valid receipt window, or this function will have no effect.
  *
  * \warning if the full_message_id is outside of the current receipt window,
  * this function will silently fail, and no modification will take place.
@@ -430,19 +445,20 @@ void nexus_keycode_pro_reset_full_message_id(const uint16_t full_message_id);
 
 /* Set the received mask flag for all message IDs below full_message_id.
  *
- * Given a full (uncompressed) keycode message ID, set all message flags below
- * this one to 'received'.  The flag associated with 'full_message_id' itself
- * is not set.
+ * Given a full (uncompressed) keycode message ID, set all message flags
+ * below this one to 'received'.  The flag associated with 'full_message_id'
+ * itself is not set.
  *
  * For example, calling this function with 'full_message_id' == 0 will never
  * have any effect on the received mask values.
  *
- * If full_message_id is greater than the current Pd index, the Pd index will
- * be updated, and  the window will shift 'to the right' to allow this
+ * If full_message_id is greater than the current Pd index, the Pd index
+ * will be updated, and  the window will shift 'to the right' to allow this
  * masking operation to occur.
  *
  * If full message ID is below the current window, no action is taken, as
- * a keycode ID outside the current window is already considered set/invalid.
+ * a keycode ID outside the current window is already considered
+ * set/invalid.
  *
  * \warning this function *will* shift the window 'to the right' (increasing
  * pd') if full_message_id is greater than the current Pd index.
@@ -457,8 +473,6 @@ void nexus_keycode_pro_mask_below_message_id(const uint16_t full_message_id);
  * When this function is called; "Pd" is reset to its default value,
  * effectively resetting the message receipt window position to "factory
  * default".
- *
- * \return void
  */
 void nexus_keycode_pro_reset_pd_index(void);
 
@@ -470,18 +484,20 @@ void nexus_keycode_pro_reset_pd_index(void);
  * keycode receipt state of the unit to 'factory default'.
  *
  * This function has no impact on the PAYG credit or PAYG state of the unit.
- *
- * \return void
  */
 void nexus_keycode_pro_wipe_message_ids_in_window(void);
 
 /* Used to 'forget' that any test codes were applied to this device.
  *
  * The total test code count is reset to zero.
- *
- * \return void
  */
 void nexus_keycode_pro_reset_test_code_count(void);
+
+/* Used to reset an internal 'custom_flag' stored by the keycode_pro module.
+ *
+ * \param flag `nx_keycode_custom_flag` to reset
+ */
+void nexus_keycode_pro_reset_custom_flag(enum nx_keycode_custom_flag flag);
 
 // always uint32_t full_message body
 NEXUS_STATIC_ASSERT(
@@ -489,5 +505,10 @@ NEXUS_STATIC_ASSERT(
     "expected nexus_keycode_pro_full_message *body* size incorrect");
 NEXUS_STATIC_ASSERT(sizeof(struct nexus_keycode_pro_full_message) == 13,
                     "expected nexus_keycode_pro_full_message size incorrect");
+
+    #ifdef __cplusplus
+}
+    #endif
+
 #endif /* if NEXUS_KEYCODE_ENABLED */
 #endif /* ifndef NEXUS__KEYCODE__SRC__KEYCODE_PRO_H__ */

@@ -19,6 +19,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Returns the 16-bit CRC CCITT value for an arbitrary
  * length of bytes.  Assumptions:
  *
@@ -31,5 +35,9 @@
  * Sample Output CRC: 0x29B1
  */
 uint16_t compute_crc_ccitt(void* bytes, uint8_t bytes_length);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

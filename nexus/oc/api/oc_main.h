@@ -21,11 +21,11 @@
 
 #include "oc_api.h"
 
-/*
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/*
 typedef struct oc_factory_presets_t
 {
   oc_factory_presets_cb_t cb;
@@ -41,9 +41,9 @@ typedef struct oc_random_pin_t
 } oc_random_pin_t;
 */
 bool oc_main_initialized(void);
-/*
+
 #ifdef __cplusplus
 }
 #endif
-*/
+
 #endif /* OC_MAIN_H */

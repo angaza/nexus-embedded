@@ -23,6 +23,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* @brief Initializes the internal state of the processing module.
  *
  * This function sets up the internal timer and other details allowing
@@ -50,5 +54,9 @@ void processing_execute(void);
 /* @brief Loop, calling `processing_execute` until `seconds` elapses.
  */
 void processing_idle_loop(uint32_t seconds);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

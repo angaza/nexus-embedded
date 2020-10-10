@@ -62,7 +62,11 @@ void processing_init(void)
     // Configure the signal fired when the timer expired
     _this.sev.sigev_notify = SIGEV_THREAD;
     _this.sev.sigev_value.sival_ptr = &_this.timerid;
+#ifdef __cplusplus
+    _this.sev.sigev_notify_function = (void (*)(sigval)) timer_thread;
+#else
     _this.sev.sigev_notify_function = timer_thread;
+#endif
     _this.sev.sigev_notify_attributes = NULL;
 
     // Create a timer for use by this module

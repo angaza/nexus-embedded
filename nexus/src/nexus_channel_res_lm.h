@@ -16,21 +16,25 @@
 // between link manager and handshake manager.
 #include "src/internal_channel_config.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-// Exposed only for unit tests to confirm resource model contents
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    #ifdef __cplusplus
+extern "C" {
+    #endif
+
+    // Exposed only for unit tests to confirm resource model contents
+    #ifdef NEXUS_DEFINED_DURING_TESTING
 extern const char* L_LINKED_DEVICE_ID_SHORT_PROP_NAME;
 extern const char* L_CHAL_MODE_SHORT_PROP_NAME;
 extern const char* L_LINK_SEC_MODE_SHORT_PROP_NAME;
 extern const char* L_TIME_SINCE_INIT_SHORT_PROP_NAME;
 extern const char* L_TIME_SINCE_ACTIVITY_SHORT_PROP_NAME;
 extern const char* L_TIMEOUT_CONFIGURED_SHORT_PROP_NAME;
-#endif
+    #endif
 
-#ifndef NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
-#error "NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS must be defined."
-#endif
+    #ifndef NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
+        #error "NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS must be defined."
+    #endif
 
 /* Security data for link mode 0.
  *
@@ -111,8 +115,8 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed);
  * This is typically called by Link Handshake manager to establish a new
  * link once the handshake has established security parameters for the link.
  *
- * If the operating mode is not supported, the security mode is not supported,
- * or the security data is invalid, the link will not be created.
+ * If the operating mode is not supported, the security mode is not
+ * supported, or the security data is invalid, the link will not be created.
  *
  * The link might also not be created if there are already
  * `NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS` established.
@@ -130,8 +134,6 @@ bool nexus_channel_link_manager_create_link(
  * Used to 'reset' the entire link state of a Nexus Channel device.
  * Does not reset origin command counter (controller) or link handshake
  * counter (accessory).
- *
- * \return void
  */
 void nexus_channel_link_manager_clear_all_links(void);
 
@@ -170,8 +172,8 @@ bool nexus_channel_link_manager_has_linked_accessory(void);
 /* Obtain a Nexus channel link from a Nexus ID.
  *
  * Will look for a link to the referenced Nexus ID, and if present, will
- * will copy the security data from that link into `security_data` and return
- * true.
+ * will copy the security data from that link into `security_data` and
+ * return true.
  *
  * If there is no link found to the specified Nexus ID, this function will
  * return false and `security_data` will be unmodified.
@@ -188,12 +190,12 @@ bool nexus_channel_link_manager_security_data_from_nxid(
 
 /* Set authentication nonce for a given Channel Link.
  *
- * Called when a link is used (typically when sending a request over the link)
- * to increase the counter or nonce used to secure the link.
- * Not expected to be used outside of Security Manager.
+ * Called when a link is used (typically when sending a request over the
+ * link) to increase the counter or nonce used to secure the link. Not
+ * expected to be used outside of Security Manager.
  *
- * WARNING: This method will always set the nonce to the requested value; the
- * caller is responsible for checking that the new value is valid!
+ * WARNING: This method will always set the nonce to the requested value;
+ * the caller is responsible for checking that the new value is valid!
  *
  * \param id Nexus ID of link to increment security data nonce for
  * \param new_nonce value to set nonce to
@@ -213,25 +215,29 @@ bool nexus_channel_link_manager_set_security_data_auth_nonce(
 bool nexus_channel_link_manager_reset_link_secs_since_active(
     const struct nx_id* id);
 
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 // Used internally, will retrieve an entire link entity given the NXID.
 bool _nexus_channel_link_manager_link_from_nxid(
     const struct nx_id* id, nexus_channel_link_t* retrieved_link);
 bool _nexus_channel_link_manager_index_to_nv_block(
     uint8_t index, struct nx_core_nv_block_meta** dest_block_meta_ptr);
-#endif // NEXUS_INTERNAL_IMPL_NON_STATIC
+    #endif // NEXUS_INTERNAL_IMPL_NON_STATIC
 
 void nexus_channel_res_lm_server_get(oc_request_t* request,
                                      oc_interface_mask_t if_mask,
                                      void* data);
 
-// Only defined for unit tests
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    // Only defined for unit tests
+    #ifdef NEXUS_DEFINED_DURING_TESTING
 // get `secs_since_active` for link of the given Nexus ID
 uint32_t
 _nexus_channel_link_manager_secs_since_link_active(const struct nx_id* id);
-#endif
+    #endif
 
-#endif // NEXUS_CHANNEL_ENABLED
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 #endif // NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_RES_LM__H

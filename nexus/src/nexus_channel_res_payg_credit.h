@@ -52,11 +52,16 @@ I AM LINKED AS    E |               |              |
 
 #include "src/internal_channel_config.h"
 
-#if NEXUS_CHANNEL_ENABLED
-#if NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-// Exposed only for unit tests to confirm resource model contents
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    #ifdef __cplusplus
+extern "C" {
+    #endif
+
+    #if NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+
+        // Exposed only for unit tests to confirm resource model contents
+        #ifdef NEXUS_DEFINED_DURING_TESTING
 extern const char* PAYG_CREDIT_REMAINING_SHORT_PROP_NAME;
 extern const char* PAYG_CREDIT_UNITS_SHORT_PROP_NAME;
 extern const char* PAYG_CREDIT_MODE_SHORT_PROP_NAME;
@@ -64,7 +69,7 @@ extern const char* PAYG_CREDIT_SUPPORTED_MODES_SHORT_PROP_NAME;
 
 // expose internal state for unit tests
 uint32_t _nexus_channel_payg_credit_remaining_credit(void);
-#endif
+        #endif
 
 enum nexus_channel_payg_credit_operating_mode
 {
@@ -77,12 +82,10 @@ enum nexus_channel_payg_credit_operating_mode
 /* Initialize the Nexus Channel PAYG Credit module.
  *
  * Called on startup by `nexus_channel_core_init()`.
- *
- * \return void
  */
 void nexus_channel_res_payg_credit_init(void);
 
-#ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+        #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 
 void nexus_channel_res_payg_credit_get_handler(oc_request_t* request,
                                                oc_interface_mask_t interfaces,
@@ -95,9 +98,13 @@ void nexus_channel_res_payg_credit_post_handler(oc_request_t* request,
 enum nexus_channel_payg_credit_operating_mode
 _nexus_channel_res_payg_credit_get_credit_operating_mode(void);
 
-#endif // NEXUS_INTERNAL_IMPL_NON_STATIC
+        #endif // NEXUS_INTERNAL_IMPL_NON_STATIC
 
-#endif // NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
-#endif // NEXUS_CHANNEL_ENABLED
+    #endif // NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
 
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 #endif // NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_RES_PAYG_CREDIT__H

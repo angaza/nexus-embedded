@@ -10,19 +10,21 @@
 
 #include "src/nexus_channel_sm.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-#include "oc/include/oc_api.h"
-#include "src/nexus_channel_res_lm.h"
-#include "src/nexus_security.h"
-#include "utils/oc_list.h"
+    #include "oc/include/nexus_channel_security.h" // functions used only by OC, implemented here
+    #include "oc/include/oc_api.h"
+    #include "src/nexus_channel_res_lm.h"
+    #include "src/nexus_oc_wrapper.h"
+    #include "src/nexus_security.h"
+    #include "utils/oc_list.h"
 
 // Create statically-allocated memory block to store resource method security
 // configs and list to manage them. Each resource may up to have 4 methods.
-// XXX: We might constrain this to 2 methods (GET and POST) in many cases
+// Note: Constrained to two methods (GET and POST)
 OC_MEMB(nexus_sec_res_methods_memb,
         nexus_secured_resource_method_t,
-        OC_MAX_APP_RESOURCES * 4);
+        OC_MAX_APP_RESOURCES * 2);
 OC_LIST(nexus_sec_res_methods);
 
 nexus_secured_resource_method_t*
@@ -30,7 +32,8 @@ nexus_channel_sm_nexus_resource_method_new(oc_resource_t* resource,
                                            oc_method_t method)
 {
     nexus_secured_resource_method_t* nexus_sec_res_method =
-        oc_memb_alloc(&nexus_sec_res_methods_memb);
+        (nexus_secured_resource_method_t*) oc_memb_alloc(
+            &nexus_sec_res_methods_memb);
     if (nexus_sec_res_method)
     {
         nexus_sec_res_method->resource = resource;
@@ -54,61 +57,6 @@ void nexus_channel_sm_init(void)
     oc_list_init(nexus_sec_res_methods);
     oc_memb_init(&nexus_sec_res_methods_memb);
     return;
-}
-
-bool nexus_channel_sm_set_request_handler(oc_resource_t* resource,
-                                          oc_method_t method,
-                                          oc_request_callback_t callback,
-                                          bool secured)
-{
-    const oc_request_handler_t* handler = NULL;
-    switch (method)
-    {
-        case OC_GET:
-            handler = &resource->get_handler;
-            break;
-        case OC_POST:
-            handler = &resource->post_handler;
-            break;
-        case OC_PUT:
-            handler = &resource->put_handler;
-            break;
-        case OC_DELETE:
-            handler = &resource->delete_handler;
-            break;
-        default:
-            break;
-    }
-
-    if (handler == NULL)
-    {
-        return false;
-    }
-    else if (handler->cb != NULL)
-    {
-        return false;
-    }
-
-    /* Only update the handler if it doesn't already exist. This protects
-     * against accidental resource handler registration collisions from
-     * new Nexus resources and future versions of existing resources.
-     */
-    oc_resource_set_request_handler(resource, method, callback, NULL);
-
-    // if secured, attempt to store the resource method security
-    // configuration
-    if (secured &&
-        nexus_channel_sm_nexus_resource_method_new(resource, method) == NULL)
-    {
-        // unset the resource request handler
-        OC_WRN("could not set the resource method security");
-        oc_resource_set_request_handler(resource, method, NULL, NULL);
-        return false;
-    }
-    else
-    {
-        return true;
-    }
 }
 
 bool nexus_channel_sm_resource_method_is_secured(
@@ -135,9 +83,9 @@ bool nexus_channel_sm_resource_method_is_secured(
     }
 
     /** It's possible that when we return false here, the resource or resource
-      * method simply does not exist; in this case, we will return an
-      * appropriate failure message later down in the message processing chain
-      */
+     * method simply does not exist; in this case, we will return an
+     * appropriate failure message later down in the message processing chain
+     */
     return false;
 }
 
@@ -155,9 +103,28 @@ void nexus_channel_sm_free_all_nexus_resource_methods(void)
     }
 }
 
+/** Parse a CoAP message and determine if the requested resource method
+ * is secured by Nexus Channel.
+ *
+ * \param pkt pointer to CoAP message to check if requesting a secured resource
+ * method
+ * \return true if the requested resource method is secured by Nexus Channel,
+ * false otherwise
+ */
+static bool _nexus_channel_sm_requested_method_is_secured(coap_packet_t* pkt)
+{
+    // determine if resource method is secured by Nexus Channel
+    const char* href;
+    const size_t href_len = coap_get_header_uri_path((void*) pkt, &href);
+    const oc_resource_t* const resource = oc_ri_get_app_resource_by_uri(
+        href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+    const oc_method_t method = (oc_method_t) pkt->code;
+    return nexus_channel_sm_resource_method_is_secured(resource, method);
+}
+
 struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
     const struct nexus_security_mode0_cose_mac0_t* const received_mac0,
-    const struct nexus_channel_link_security_mode0_data* security_data)
+    struct nexus_channel_link_security_mode0_data* const security_data)
 {
     NEXUS_ASSERT(security_data != NULL,
                  "Did not receive valid link security data");
@@ -201,7 +168,7 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
     final_computed_check = nexus_check_compute(
         &security_data->sym_key, final_input, FINAL_INPUT_ARRAY_SIZE);
 
-    nexus_secure_memclr(&security_data,
+    nexus_secure_memclr(security_data,
                         sizeof(struct nexus_channel_link_security_mode0_data),
                         sizeof(struct nexus_channel_link_security_mode0_data));
 
@@ -251,7 +218,7 @@ static bool _nexus_channel_sm_parse_cose_mac0_unprotected(const oc_rep_t* rep,
         return false;
     }
 
-    union oc_rep_value val = u_rep->value;
+    oc_rep_value val = u_rep->value;
     *kid = (uint32_t) val.integer;
     OC_DBG("key ID value is %d", (uint32_t) val.integer);
     u_rep = u_rep->next;
@@ -288,9 +255,10 @@ static bool _nexus_channel_sm_parse_cose_mac0_payload(
         return false;
     }
 
-    union oc_rep_value val = rep->value;
+    oc_rep_value val = rep->value;
     char* val_str = oc_string(val.string);
-    const uint8_t val_str_len = oc_string_len(val.string);
+    // Note: oc_string_len returns an unsigned integer
+    const uint8_t val_str_len = (uint8_t) oc_string_len(val.string);
     PRINT("payload bytes: ");
     for (uint8_t i = 0; i < val_str_len; i++)
     {
@@ -311,9 +279,10 @@ bool _nexus_channel_sm_parse_cose_mac0_mac(const oc_rep_t* rep,
     {
         return false;
     }
-    const union oc_rep_value val = rep->value;
+    const oc_rep_value val = rep->value;
     char* val_str = oc_string(val.string);
-    const uint8_t val_str_len = oc_string_len(val.string);
+    // Note: oc_string_len returns an unsigned integer
+    const uint8_t val_str_len = (uint8_t) oc_string_len(val.string);
     // in security mode 0, we expect the MAC to be
     // exactly 8 bytes
     if (val_str_len != sizeof(struct nexus_check_value))
@@ -416,7 +385,7 @@ NEXUS_IMPL_STATIC void _nexus_channel_sm_repack_no_cose_mac0(
         root, d, cose_mac0_parsed->payload, cose_mac0_parsed->payload_len);
 
     oc_rep_end_root_object();
-    int enc_size = oc_rep_get_encoded_payload_size();
+    size_t enc_size = (size_t) oc_rep_get_encoded_payload_size();
 
     // Repack message to remove Nexus Channel security header
     coap_set_payload(pkt, enc_data, enc_size);
@@ -426,12 +395,12 @@ NEXUS_IMPL_STATIC void _nexus_channel_sm_repack_no_cose_mac0(
 }
 
 /** Internal method used to extract COSE_MAC0 data from a CoAP packet.
-  *
-  * \param pkt pointer to CoAP packet to attempt to parse
-  * \param cose_mac0_parsed parsed COSE_MAC0 data from `pkt`
-  * \return true if the COSE_MAC0 could be parsed from the packet, false
-  * otherwise
-  */
+ *
+ * \param pkt pointer to CoAP packet to attempt to parse
+ * \param cose_mac0_parsed parsed COSE_MAC0 data from `pkt`
+ * \return true if the COSE_MAC0 could be parsed from the packet, false
+ * otherwise
+ */
 NEXUS_IMPL_STATIC bool _nexus_channel_sm_get_cose_mac0_data(
     coap_packet_t* const pkt,
     nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed)
@@ -439,7 +408,8 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_get_cose_mac0_data(
     // get the CBOR rep from the packet
     oc_rep_t* rep;
     const uint8_t* payload = NULL;
-    const uint8_t payload_len = coap_get_payload(pkt, &payload);
+    // Note: oc_string_len returns an unsigned integer
+    const uint8_t payload_len = (uint8_t) coap_get_payload(pkt, &payload);
 
     bool success = false;
 
@@ -459,20 +429,20 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_get_cose_mac0_data(
 }
 
 /** Internal method to authenticate message as per Nexus Channel mode 0.
-  *
-  * \param pkt pointer to `coap_packet_t` that holds the full CoAP packet. The
-  * packet may be modified but its pointer shall not. Specifically, if secured
-  * and authenticated, then the payload in the packet will be modified to
-  * remove all Nexus Channel security information
-  * \param cose_mac0_parsed *received* COSE_MAC0 data to use in authentication
-  * \param nexus_id pointer to `nx_id` struct used to look up security data
-  * used to authenticate the message
-  * \return true if `pkt` is authenticated, false otherwise
-  */
+ *
+ * \param pkt pointer to `coap_packet_t` that holds the full CoAP packet. The
+ * packet may be modified but its pointer shall not. Specifically, if secured
+ * and authenticated, then the payload in the packet will be modified to
+ * remove all Nexus Channel security information
+ * \param cose_mac0_parsed *received* COSE_MAC0 data to use in authentication
+ * \param link_sec_data pointer to security data struct to populate
+ * used to authenticate the message
+ * \return true if `pkt` is authenticated, false otherwise
+ */
 NEXUS_IMPL_STATIC bool _nexus_channel_sm_auth_packet_mode0(
     coap_packet_t* const pkt,
     const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed,
-    const struct nexus_channel_link_security_mode0_data* const link_sec_data)
+    struct nexus_channel_link_security_mode0_data* const link_sec_data)
 {
     NEXUS_ASSERT(cose_mac0_parsed->payload != NULL,
                  "if COSE_MAC0 parsed, payload pointer should not be null!");
@@ -494,25 +464,6 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_auth_packet_mode0(
         _nexus_channel_sm_repack_no_cose_mac0(pkt, cose_mac0_parsed);
     }
     return success;
-}
-
-/** Parse a CoAP message and determine if the requested resource method
-  * is secured by Nexus Channel.
-  *
-  * \param pkt pointer to CoAP message to check if requesting a secured resource
-  * method
-  * \return true if the requested resource method is secured by Nexus Channel,
-  * false otherwise
-  */
-static bool _nexus_channel_sm_requested_method_is_secured(coap_packet_t* pkt)
-{
-    // determine if resource method is secured by Nexus Channel
-    const char* href;
-    const size_t href_len = coap_get_header_uri_path((void*) pkt, &href);
-    const oc_resource_t* const resource = oc_ri_get_app_resource_by_uri(
-        href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
-    const oc_method_t method = pkt->code;
-    return nexus_channel_sm_resource_method_is_secured(resource, method);
 }
 
 NEXUS_IMPL_STATIC bool
@@ -546,25 +497,25 @@ nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
     if (message_header_secured)
     {
         // attempt to get encoded COSE_MAC0 data
-        nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
+        nexus_security_mode0_cose_mac0_t cose_mac0_parsed;
+        memset(
+            &cose_mac0_parsed, 0x00, sizeof(nexus_security_mode0_cose_mac0_t));
+
         if (!_nexus_channel_sm_get_cose_mac0_data(pkt, &cose_mac0_parsed))
         {
             // return 400 if unable to parse
             return BAD_REQUEST_4_00;
         }
 
-        // extract the IPV6 address from the endpoint
-        struct nx_ipv6_address nexus_addr = {0};
-        struct nx_id nexus_id = {0};
-        memcpy(&nexus_addr.address,
-               endpoint->addr.ipv6.address,
-               sizeof(((struct nx_ipv6_address*) 0)->address));
-
         // convert IPV6 to Nexus ID
-        nx_core_ipv6_address_to_nx_id(&nexus_addr, &nexus_id);
+        struct nx_id nexus_id;
+        nexus_oc_wrapper_oc_endpoint_to_nx_id(endpoint, &nexus_id);
 
         // get link security data
-        struct nexus_channel_link_security_mode0_data cur_mode0_sec_data = {0};
+        struct nexus_channel_link_security_mode0_data cur_mode0_sec_data;
+        memset(&cur_mode0_sec_data,
+               0x00,
+               sizeof(struct nexus_channel_link_security_mode0_data));
         if (!nexus_channel_link_manager_security_data_from_nxid(
                 &nexus_id, &cur_mode0_sec_data))
         {
@@ -619,11 +570,12 @@ nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
     return COAP_NO_ERROR;
 }
 
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    #ifdef NEXUS_DEFINED_DURING_TESTING
 uint8_t _nexus_channel_sm_secured_resource_methods_count(void)
 {
-    return oc_list_length(nexus_sec_res_methods);
+    // Note: oc_list_length returns an int
+    return (uint8_t) oc_list_length(nexus_sec_res_methods);
 }
-#endif
+    #endif
 
-#endif /* if NEXUS_CHANNEL_ENABLED */
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */

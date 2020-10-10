@@ -81,7 +81,7 @@ void test_mask_below_message_id__id_below_current_window__no_mask_changes(void)
         if (i != 301)
         {
             TEST_ASSERT_EQUAL_UINT(
-                nexus_keycode_pro_get_full_message_id_flag(i), 0);
+                nexus_keycode_pro_get_full_message_id_flag((uint16_t) i), 0);
         }
     }
 }

@@ -15,12 +15,14 @@ int main(void)
     // arbitrary 5 seconds
     nx_core_process(5);
 
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
     // simulate receiving an origin command
     nx_channel_handle_origin_command(
         NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS,
         "123456789",
         10
     );
+#endif
 
     // simulate receiving a keycode
     struct nx_keycode_complete_code dummy_keycode = {
@@ -38,11 +40,6 @@ int main(void)
 
     nx_core_shutdown();
     return 0;
-}
-
-bool port_nv_init(void)
-{
-    return true;
 }
 
 bool nxp_core_nv_write(const struct nx_core_nv_block_meta block_meta, void* write_buffer)
@@ -108,6 +105,12 @@ enum nxp_keycode_passthrough_error nxp_keycode_passthrough_keycode(
     return NXP_KEYCODE_PASSTHROUGH_ERROR_NONE;
 }
 
+void nxp_keycode_notify_custom_flag_changed(enum nx_keycode_custom_flag flag, bool value)
+{
+    (void) flag;
+    (void) value;
+}
+
 void nxp_core_random_init(void)
 {
     return;
@@ -138,14 +141,14 @@ struct nx_id nxp_channel_get_nexus_id(void)
 nx_channel_error
 nxp_channel_network_send(const void* const bytes_to_send,
                          uint32_t bytes_count,
-                         const struct nx_ipv6_address* const source_address,
-                         const struct nx_ipv6_address* const dest_address,
+                         const struct nx_id* const source,
+                         const struct nx_id* const dest,
                          bool is_multicast)
 {
     (void) bytes_to_send;
     (void) bytes_count;
-    (void) source_address;
-    (void) dest_address;
+    (void) source;
+    (void) dest;
     (void) is_multicast;
     return NX_CHANNEL_ERROR_NONE;
 }

@@ -5,12 +5,11 @@
 RETCODE=0
 
 # Version of CLANG_FORMAT to use
-# XXX update to 6.0 after updating the buildkite AMI!
-CLANG_FORMAT="clang-format-3.9"
+CLANG_FORMAT="clang-format"
 
 PROJECT_NAME="Nexus"
 SOURCE_ROOT="../nexus"
-SEARCH_PATH="$SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/utils/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/"
+SEARCH_PATH="$SOURCE_ROOT/oc/ $SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/utils/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/"
 
 TOOLPATH=`which $CLANG_FORMAT`
 

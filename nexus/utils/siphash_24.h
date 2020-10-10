@@ -19,6 +19,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Compute a Siphash 2-4 hash result over input bytes.
  *
  * Given a key and an input stream of bytes, compute the Siphash 2-4 64-bit
@@ -31,11 +35,14 @@
  * \param in pointer to input bytes to compute hash over
  * \param inlen length of input bytes to compute from `in`
  * \param key 128-bit (16 byte) secret key used to compute hash result
- * \return void
  */
 void siphash24_compute(uint8_t* out,
                        const uint8_t* in,
                        const uint32_t inlen,
                        const uint8_t* key);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

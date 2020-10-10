@@ -31,7 +31,7 @@ extern "C"
 {
 #endif
 
-#ifdef CONFIG_NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED
+#ifdef CONFIG_NEXUS_COMMON_OC_PRINT_LOG_ENABLED
 
 #define PRINT(...) printf(__VA_ARGS__)
 
@@ -95,9 +95,9 @@ extern "C"
   } while (0)
 #define PRINTbytes(bytes, length)                                              \
   do {                                                                         \
-    uint16_t i;                                                                \
-    for (i = 0; i < length; i++)                                               \
-      PRINT(" %02X", bytes[i]);                                                \
+    uint16_t za_unshadowed_i;                                                  \
+    for (za_unshadowed_i = 0; za_unshadowed_i < length; za_unshadowed_i++)     \
+      PRINT(" %02X", bytes[za_unshadowed_i]);                                  \
     PRINT("\n");                                                               \
   } while (0)
 #else
@@ -105,9 +105,9 @@ extern "C"
 #define PRINTipaddr(endpoint)
 #define PRINTipaddr_local(endpoint)
 #define PRINTbytes(bytes, length)
-#endif /* CONFIG_NEXUS_COMMON_CORE_OC_PRINT_LOG_ENABLED */
+#endif /* CONFIG_NEXUS_COMMON_OC_PRINT_LOG_ENABLED */
 
-#if defined(OC_DEBUG) || defined(CONFIG_NEXUS_COMMON_CORE_OC_DEBUG_LOG_ENABLED)	
+#if defined(OC_DEBUG) || defined(CONFIG_NEXUS_COMMON_OC_DEBUG_LOG_ENABLED)
 #define OC_LOG(level, ...)                                                     \
   do {                                                                         \
     PRINT("%s: %s <%s:%d>: ", level, __FILE__, __func__, __LINE__);            \
@@ -138,7 +138,7 @@ extern "C"
 #define OC_ERR(...)
 #define OC_LOGbytes(bytes, length)
 #define OC_LOGipaddr(endpoint)
-#endif /* defined(OC_DEBUG) || defined(CONFIG_NEXUS_COMMON_CORE_OC_DEBUG_LOG_ENABLED) */
+#endif /* defined(OC_DEBUG) || defined(CONFIG_NEXUS_COMMON_OC_DEBUG_LOG_ENABLED) */
 
 #ifdef __cplusplus
 }

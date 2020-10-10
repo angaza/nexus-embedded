@@ -13,7 +13,11 @@
 
 #include "src/internal_common_config.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
 /** Arbitrary, non-secret key used as seed in key derivation operations.
  *
@@ -53,6 +57,10 @@ void* nexus_secure_memclr(void* pointer,
                           size_t size_data,
                           size_t size_to_erase);
 
-#endif // NEXUS_CHANNEL_ENABLED
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 #endif /* ifndef NEXUS__SRC__NEXUS_SECURITY_H_ */

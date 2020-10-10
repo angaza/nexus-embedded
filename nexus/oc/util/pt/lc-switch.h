@@ -54,12 +54,11 @@
  */
 
 #ifndef LC_SWITCH_H_
-#define LC_SWITCH_H_
+    #define LC_SWITCH_H_
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
 /* WARNING! lc implementation using switch() does not work if an
    LC_SET() is done within another switch() statement! */
@@ -67,24 +66,25 @@ extern "C"
 /** \hideinitializer */
 typedef unsigned short lc_t;
 
-#define LC_INIT(s) s = 0;
+    #define LC_INIT(s) s = 0;
 
-#define LC_RESUME(s)                                                           \
-  switch (s) {                                                                 \
-  case 0:
+    #define LC_RESUME(s)                                                       \
+        switch (s)                                                             \
+        {                                                                      \
+            case 0:
 
-#define LC_SET(s)                                                              \
-  s = __LINE__;                                                                \
-  /* fall through */                                                           \
-  case __LINE__:
+    #define LC_SET(s)                                                          \
+        s = __LINE__;                                                          \
+        /* fall through */                                                     \
+        case __LINE__:
 
-#define LC_END(s) default:                                                     \
-  ;                                                                            \
+    #define LC_END(s)                                                          \
+        default:;                                                              \
+            }
+
+    #ifdef __cplusplus
 }
-
-#ifdef __cplusplus
-}
-#endif
+    #endif
 
 #endif /* LC_SWITCH_H_ */
 

@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static NEXUS_PACKED_STRUCT identity_struct _this;
+static struct identity_struct _this;
 
 uint32_t nxp_keycode_get_user_facing_id(void)
 {

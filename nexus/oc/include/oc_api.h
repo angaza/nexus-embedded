@@ -31,6 +31,9 @@
 #ifndef OC_API_H
 #define OC_API_H
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcomment"
+
 #include "messaging/coap/oc_coap.h"
 /*
 #include "oc_buffer_settings.h"
@@ -39,14 +42,13 @@
 #include "oc_rep.h"
 #include "oc_ri.h"
 #include "oc_signal_event_loop.h"
-/*
-#include "port/oc_storage.h"
+
+//#include "port/oc_storage.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-*/
 
 /**
  * Call back handlers that are invoked in response to oc_main_init()
@@ -1098,11 +1100,11 @@ void oc_send_separate_response(oc_separate_response_t *handle,
                                oc_status_t response_code);
 
 int oc_notify_observers(oc_resource_t *resource);
-
+*/
 #ifdef __cplusplus
 }
 #endif
-*/
+
 /** @} */ // end of doc_module_tag_server_side
 
 /**
@@ -1267,8 +1269,9 @@ void oc_remove_delayed_callback(void *cb_data, oc_trigger_t callback);
   void name##_interrupt_x_handler(void)
 */
 /** @} */ // end of doc_module_tag_common_operations
-//#ifdef __cplusplus
-//}
-//#endif
+#ifdef __cplusplus
+}
+#endif
 
+#pragma GCC diagnostic pop
 #endif /* OC_API_H */

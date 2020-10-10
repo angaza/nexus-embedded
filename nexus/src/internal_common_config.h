@@ -23,38 +23,41 @@
 
 // Macro to expose certain functions during unit tests
 #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
-#define NEXUS_IMPL_STATIC
+    #define NEXUS_IMPL_STATIC
 #else
-#define NEXUS_IMPL_STATIC static
+    #define NEXUS_IMPL_STATIC static
 #endif
 // use static asserts by default only under c11 and above
 // Do not use static asserts for the frama-c build
 #ifndef NEXUS_STATIC_ASSERT
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-#ifndef __FRAMAC__
-#define NEXUS_STATIC_ASSERT(b, m) _Static_assert(b, m)
-#else
-#define NEXUS_STATIC_ASSERT(b, m)
-#endif
-#else
-#define NEXUS_STATIC_ASSERT(b, m)
-#endif
+    #ifndef __FRAMAC__
+        #if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L))
+            #define NEXUS_STATIC_ASSERT(b, m) _Static_assert(b, m)
+        #elif (defined(__cplusplus) && (__cplusplus >= 201103L))
+            #include <assert.h>
+            #define NEXUS_STATIC_ASSERT(b, m) static_assert(b, m)
+        #else
+            #define NEXUS_STATIC_ASSERT(b, m)
+        #endif
+    #else
+        #define NEXUS_STATIC_ASSERT(b, m)
+    #endif
 #endif
 
 // do not use runtime asserts by default
 #ifndef NEXUS_ASSERT
-#if defined(DEBUG) && !defined(NDEBUG)
-#include <assert.h>
-#define NEXUS_ASSERT(b, m) assert(b)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m) assert(b)
-#elif defined(NEXUS_USE_DEFAULT_ASSERT)
-#include <assert.h>
-#define NEXUS_ASSERT(b, m) assert(b)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
-#else
-#define NEXUS_ASSERT(b, m)
-#define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
-#endif
+    #if defined(DEBUG) && !defined(NDEBUG)
+        #include <assert.h>
+        #define NEXUS_ASSERT(b, m) assert(b)
+        #define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m) assert(b)
+    #elif defined(NEXUS_USE_DEFAULT_ASSERT)
+        #include <assert.h>
+        #define NEXUS_ASSERT(b, m) assert(b)
+        #define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
+    #else
+        #define NEXUS_ASSERT(b, m)
+        #define NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(b, m)
+    #endif
 #endif
 
 // Intentional 'unused' macro

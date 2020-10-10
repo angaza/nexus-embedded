@@ -18,6 +18,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+
 /********************************************************
  * DEFINITIONS
  *******************************************************/
@@ -133,7 +136,7 @@ void test_handle_origin_command__invalid_ascii_type__returns_error(void)
     nx_channel_error result = nx_channel_handle_origin_command(
         NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS,
         (void*) &INVALID_ASCII_ORIGIN_COMMAND,
-        strlen(INVALID_ASCII_ORIGIN_COMMAND));
+        (uint32_t) strlen(INVALID_ASCII_ORIGIN_COMMAND));
 
     TEST_ASSERT_EQUAL_INT(NX_CHANNEL_ERROR_ACTION_REJECTED, result);
 }
@@ -147,7 +150,7 @@ void test_handle_origin_command__valid_message__returns_no_error(void)
         nx_channel_handle_origin_command(
             NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS,
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
-            strlen(
+            (uint32_t) strlen(
                 VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES)));
 }
 
@@ -197,7 +200,8 @@ void test_handle_ascii_origin_command__message_structure_unparseable__rejects_me
 {
     TEST_ASSERT_FALSE(_nexus_channel_om_handle_ascii_origin_command(
         VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3,
-        strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3) - 1));
+        (uint32_t) strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3) -
+            1));
 }
 
 void test_handle_ascii_origin_command__valid_message_not_already_used__handles_message(
@@ -207,7 +211,7 @@ void test_handle_ascii_origin_command__valid_message_not_already_used__handles_m
     nexus_channel_core_apply_origin_command_IgnoreAndReturn(true);
     TEST_ASSERT_TRUE(_nexus_channel_om_handle_ascii_origin_command(
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
-        strlen(
+        (uint32_t) strlen(
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES)));
 }
 
@@ -218,14 +222,14 @@ void test_handle_ascii_origin_command__valid_message_already_used__rejects_messa
     nexus_channel_core_apply_origin_command_IgnoreAndReturn(true);
     TEST_ASSERT_TRUE(_nexus_channel_om_handle_ascii_origin_command(
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
-        strlen(
+        (uint32_t) strlen(
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES)));
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(CONTROLLER_KEY);
     // No need for another 'core' mock here, we don't attempt to apply to core.
     TEST_ASSERT_FALSE(_nexus_channel_om_handle_ascii_origin_command(
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
-        strlen(
+        (uint32_t) strlen(
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES)));
 }
 
@@ -236,7 +240,7 @@ void test_ascii_parse_message__generic_controller_action_unlink_all_accessories_
     nexus_digits_init(
         &command_digits,
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
-        strlen(
+        (uint16_t) strlen(
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES));
 
     // parsed successfully?
@@ -259,7 +263,7 @@ void test_ascii_parse_message__generic_controller_action_unlock_all_accessories_
     nexus_digits_init(
         &command_digits,
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLOCK_ALL_ACCESSORIES,
-        strlen(
+        (uint16_t) strlen(
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLOCK_ALL_ACCESSORIES));
 
     // parsed successfully?
@@ -281,7 +285,8 @@ void test_ascii_parse_message__accessory_action_unlock__parsed_ok(void)
     nexus_digits_init(
         &command_digits,
         VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY,
-        strlen(VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY));
+        (uint16_t) strlen(
+            VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY));
 
     // parsed successfully?
     TEST_ASSERT_TRUE(
@@ -302,7 +307,8 @@ void test_ascii_parse_message__accessory_action_unlink__parsed_ok(void)
     nexus_digits_init(
         &command_digits,
         VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLINK_ACCESSORY,
-        strlen(VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLINK_ACCESSORY));
+        (uint16_t) strlen(
+            VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLINK_ACCESSORY));
 
     // parsed successfully?
     TEST_ASSERT_TRUE(
@@ -320,9 +326,10 @@ void test_ascii_parse_message__accessory_action_unlink__parsed_ok(void)
 void test_ascii_parse_message__create_link_accessory_mode_3__parsed_ok(void)
 {
     struct nexus_digits command_digits;
-    nexus_digits_init(&command_digits,
-                      VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3,
-                      strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3));
+    nexus_digits_init(
+        &command_digits,
+        VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3,
+        (uint16_t) strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3));
 
     // parsed successfully?
     TEST_ASSERT_TRUE(
@@ -341,10 +348,10 @@ void test_ascii_parse_message__create_link_accessory_mode_3_too_short_command__p
     void)
 {
     struct nexus_digits command_digits;
-    nexus_digits_init(&command_digits,
-                      VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3,
-                      strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3) -
-                          1);
+    nexus_digits_init(
+        &command_digits,
+        VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3,
+        (uint16_t) strlen(VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3) - 1);
 
     // parsed successfully?
     TEST_ASSERT_FALSE(
@@ -367,7 +374,8 @@ void test_ascii_parse_message__invalid_message_type__parsing_fails(void)
     // '5' not currently implemented
     char* invalid_msg = "5589373";
     struct nexus_digits command_digits;
-    nexus_digits_init(&command_digits, invalid_msg, strlen(invalid_msg));
+    nexus_digits_init(
+        &command_digits, invalid_msg, (uint16_t) strlen(invalid_msg));
     TEST_ASSERT_FALSE(
         _nexus_channel_om_ascii_parse_message(&command_digits, &message));
 }
@@ -383,12 +391,11 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__generic_controller__
     // parsed representation of
     // VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION,
-        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES,
-        906394,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION;
+    message.body.controller_action.action_type =
+        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES;
+    message.auth.six_int_digits = 906394;
+    message.computed_command_id = 0xFFFFFFFF;
 
     // give valid message with ID 15
     const bool valid = _nexus_channel_om_ascii_infer_fields_compute_auth(
@@ -413,12 +420,11 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__replay_command__not_
     // parsed representation of
     // VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION,
-        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES,
-        906394,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION;
+    message.body.controller_action.action_type =
+        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES;
+    message.auth.six_int_digits = 906394;
+    message.computed_command_id = 0xFFFFFFFF;
 
     // give valid message with ID 15
     const bool valid = _nexus_channel_om_ascii_infer_fields_compute_auth(
@@ -442,12 +448,11 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__invalid_type__not_va
 
     // valid body and MAC for a GENERIC_CONTROLLER_ACTION
     // type is wrong, though, so should be invalid
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_INVALID,
-        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES, // nonsense
-        906394,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_INVALID;
+    message.body.controller_action.action_type =
+        NEXUS_CHANNEL_ORIGIN_COMMAND_UNLOCK_ALL_LINKED_ACCESSORIES; // nonsense
+    message.auth.six_int_digits = 906394;
+    message.computed_command_id = 0xFFFFFFFF;
 
     // give valid message with ID 15
     const bool valid = _nexus_channel_om_ascii_infer_fields_compute_auth(
@@ -473,14 +478,14 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__unlock_specific_acce
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLOCK,
-        0,
-        244210,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLOCK;
     message.body.accessory_action.trunc_acc_id.digits_count = 1;
     message.body.accessory_action.trunc_acc_id.digits_int = 0;
+    message.auth.six_int_digits = 244210;
+    message.computed_command_id = 0xFFFFFFFF;
+    memset(&message.body.accessory_action.computed_accessory_id,
+           0,
+           sizeof(struct nx_id));
 
     // give valid message with ID 15
     const bool valid = _nexus_channel_om_ascii_infer_fields_compute_auth(
@@ -508,12 +513,13 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth_invalid_truncated_dig
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK,
-        0,
-        536545,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK;
+    message.auth.six_int_digits = 536545;
+    message.computed_command_id = 0xFFFFFFFF;
+    memset(&message.body.accessory_action,
+           0,
+           sizeof(struct nexus_channel_om_accessory_action_body));
+
     // accessory truncated ID = 10, unsupported (3 digits)
     message.body.accessory_action.trunc_acc_id.digits_count = 3;
     message.body.accessory_action.trunc_acc_id.digits_int = 102;
@@ -537,12 +543,13 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__unlink_specific_acce
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK,
-        0,
-        536545,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK;
+    message.auth.six_int_digits = 536545;
+    message.computed_command_id = 0xFFFFFFFF;
+    memset(&message.body.accessory_action,
+           0,
+           sizeof(struct nexus_channel_om_accessory_action_body));
+
     // accessory truncated ID = 0
     message.body.accessory_action.trunc_acc_id.digits_count = 1;
     message.body.accessory_action.trunc_acc_id.digits_int = 0;
@@ -573,12 +580,13 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__unlink_specific_acce
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK,
-        0,
-        536545,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK;
+    message.auth.six_int_digits = 536545;
+    message.computed_command_id = 0xFFFFFFFF;
+    memset(&message.body.accessory_action,
+           0,
+           sizeof(struct nexus_channel_om_accessory_action_body));
+
     // accessory truncated ID actually 0, 6 should not find a match
     message.body.accessory_action.trunc_acc_id.digits_count = 1;
     message.body.accessory_action.trunc_acc_id.digits_int = 6;
@@ -603,12 +611,11 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__unlink_specific_acce
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message = {
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK,
-        0,
-        536545,
-        0xFFFFFFFF,
-    };
+    message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK;
+    message.body.controller_action.action_type = 0;
+    message.auth.six_int_digits = 536545;
+    message.computed_command_id = 0xFFFFFFFF;
+
     // truncated ID is correct, but digits count is corrupt/invalid.
     message.body.accessory_action.trunc_acc_id.digits_count = 0;
     message.body.accessory_action.trunc_acc_id.digits_int = 0;
@@ -633,7 +640,6 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__link_command_mode_3_
     // parsed representation of
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
-    struct nexus_channel_om_command_message message;
     message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3;
     message.body.create_link.trunc_acc_id.digits_count = 1;
     message.body.create_link.trunc_acc_id.digits_int = 0;
@@ -698,7 +704,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
         {{
              // LinkCommandToken(9, '2382847', '173346',))
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {339665}, // auth
@@ -707,7 +714,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          4},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {632168}, // auth
@@ -716,7 +724,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          2},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {411721}, // auth
@@ -725,7 +734,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          1},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {470303}, // auth
@@ -734,7 +744,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          9},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {279227}, // auth
@@ -743,7 +754,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          22},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {245606}, // auth
@@ -752,7 +764,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          8},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {472745}, // auth
@@ -761,7 +774,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          30},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {502818}, // auth
@@ -770,7 +784,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
          29},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {382847}}},
              {26217}, // auth
@@ -878,7 +893,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
         {{
              // LinkCommandToken(9, '2382847', '173346',))
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {900378}, // auth
@@ -887,7 +903,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          39},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {290601}, // auth
@@ -896,7 +913,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          47},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {169248}, // auth
@@ -905,7 +923,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          55},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {466213}, // auth
@@ -914,7 +933,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          63},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {739934}, // auth
@@ -923,7 +943,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          71},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {40877}, // auth
@@ -932,7 +953,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          79},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {958743}, // auth
@@ -941,7 +963,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
          87},
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {724871}}},
              {960262}, // auth
@@ -952,7 +975,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
         // leading zeroes. (generated with accessory command count = 18)
         {{
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
-             // om_command_body (union)
+                                                                         // om_command_body
+                                                                         // (union)
              {.create_link = {.trunc_acc_id = {2, 1},
                               .accessory_challenge = {9616}}},
              {935755}, // auth
@@ -993,3 +1017,5 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
             _nexus_channel_om_ascii_apply_message(&scenario.input_msg));
     }
 }
+
+#pragma GCC diagnostic pop

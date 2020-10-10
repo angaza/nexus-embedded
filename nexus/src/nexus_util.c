@@ -49,7 +49,8 @@ struct nexus_check_value nexus_check_compute(
 {
     struct nexus_check_value value;
 
-    siphash24_compute(value.bytes, data, data_size, key->bytes);
+    siphash24_compute(
+        value.bytes, (const uint8_t*) data, data_size, key->bytes);
 
     return value;
 }
@@ -88,7 +89,7 @@ void nexus_bitstream_init(struct nexus_bitstream* stream,
 {
     NEXUS_ASSERT(capacity >= length, "stream length exceeds capacity");
 
-    stream->data = bytes;
+    stream->data = (uint8_t*) bytes;
     stream->capacity = capacity;
     stream->length = length;
     stream->position = 0;
@@ -503,68 +504,6 @@ bool nexus_util_window_set_id_flag(struct nexus_window* window,
     // and set its flag
     // (window center is always 'flags_below' from the bottom of window)
     nexus_bitset_add(&window->flags, window->flags_below);
-
-    return true;
-}
-
-bool nx_core_nx_id_to_ipv6_address(const struct nx_id* id,
-                                   struct nx_ipv6_address* dest_address)
-{
-    // 0, 1, 2 ... 5, 6, 7 are from Nexus ID
-    // 3, 4 are fixed in EUI-64 expansion
-    uint8_t ipv6_interface_addr[8] = {0, 0, 0, 0xFF, 0xFE, 0, 0, 0};
-
-    // big endian as conventional 'network order'
-    const uint16_t authority_id_big_endian =
-        nexus_endian_htobe16(id->authority_id);
-    const uint32_t device_id_big_endian = nexus_endian_htobe32(id->device_id);
-
-    NEXUS_STATIC_ASSERT(2 == sizeof(uint16_t), "Unexpected uint16_t size");
-    memcpy(&ipv6_interface_addr[0], &authority_id_big_endian, 2);
-
-    // invert bit at index 6 (bit 7) from the left in the first octet
-    // 0x02 = 0b00000010
-    ipv6_interface_addr[0] ^= 0x02;
-
-    // Byte order is in big endian format now (in memory), so copy in order.
-    ipv6_interface_addr[2] =
-        (uint8_t)(((const char*) &device_id_big_endian)[0]);
-    // bytes 3 and 4 are 0xFFFE (EUI-64)
-    ipv6_interface_addr[5] =
-        (uint8_t)(((const char*) &device_id_big_endian)[1]);
-    ipv6_interface_addr[6] =
-        (uint8_t)(((const char*) &device_id_big_endian)[2]);
-    ipv6_interface_addr[7] =
-        (uint8_t)(((const char*) &device_id_big_endian)[3]);
-
-    // clear address, also sets 'global_scope' to false
-    memset(dest_address, 0x00, sizeof(struct nx_ipv6_address));
-
-    // link local prefix
-    dest_address->address[0] = 0xFE;
-    dest_address->address[1] = 0x80;
-    // byte indices 2-7 remain 0, 8-15 are Nexus ID as EUI-64
-
-    NEXUS_STATIC_ASSERT(sizeof(((struct nx_ipv6_address*) 0)->address) == 16,
-                        "Cannot copy into dest_address, unexpected size.");
-    memcpy(&dest_address->address[8], ipv6_interface_addr, 8);
-
-    return true;
-}
-
-bool nx_core_ipv6_address_to_nx_id(const struct nx_ipv6_address* ipv6_addr,
-                                   struct nx_id* dest_id)
-{
-    // Incoming data is encoded as big endian inside the IPV6 address array.
-    // Least significant byte is in address ten, MSB is in address 15
-    dest_id->device_id = (uint32_t)(
-        (ipv6_addr->address[10] << 24) | (ipv6_addr->address[13] << 16) |
-        (ipv6_addr->address[14] << 8) | (ipv6_addr->address[15]));
-
-    // need to un-invert the 6th bit (0x02) which was inverted when creating
-    // an IPV6 address from Nexus ID.
-    dest_id->authority_id = (uint16_t)(((ipv6_addr->address[8] ^ 0x02) << 8) |
-                                       (ipv6_addr->address[9]));
 
     return true;
 }

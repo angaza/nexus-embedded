@@ -109,27 +109,27 @@ void siphash24_compute(uint8_t* out,
     {
         case 7:
             b |= ((u64) in[6]) << 48;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 6:
             b |= ((u64) in[5]) << 40;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 5:
             b |= ((u64) in[4]) << 32;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 4:
             b |= ((u64) in[3]) << 24;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 3:
             b |= ((u64) in[2]) << 16;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 2:
             b |= ((u64) in[1]) << 8;
-        // intentional fallthrough
+            // intentional fallthrough
 
         case 1:
             b |= ((u64) in[0]);

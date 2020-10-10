@@ -1,6 +1,9 @@
 // Modifications (c) 2020 Angaza, Inc.
 // based on https://github.com/iotivity/iotivity-lite/blob/master/port/linux/oc_config.h
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcomment"
+
 #ifndef OC_CONFIG_H
 #define OC_CONFIG_H
 
@@ -60,9 +63,11 @@ typedef uint64_t oc_clock_time_t;
    memory allocation
 */
 // Memory pool sizes
-#define OC_BYTES_POOL_SIZE (1800)
-#define OC_INTS_POOL_SIZE (100)
-#define OC_DOUBLES_POOL_SIZE (4)
+#define OC_BYTES_POOL_SIZE (512)
+#define OC_INTS_POOL_SIZE (50)
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
+    #define OC_DOUBLES_POOL_SIZE (4)
+#endif
 /*
 // Server-side parameters
 // Maximum number of server resources
@@ -78,14 +83,12 @@ typedef uint64_t oc_clock_time_t;
 #define OC_BLOCK_WISE_SET_MTU (700)
 */
 // Maximum size of request/response payloads
-// XXX can probably reduce this further
-#define OC_MAX_APP_DATA_SIZE (512)
+#define OC_MAX_APP_DATA_SIZE (128)
 
 // Maximum number of concurrent requests
 #define OC_MAX_NUM_CONCURRENT_REQUESTS (2)
 
 // Maximum number of nodes in a payload tree structure
-// XXX can probably reduce this
 #define OC_MAX_NUM_REP_OBJECTS (100)
 
 // Number of devices on the OCF platform
@@ -134,4 +137,5 @@ typedef uint64_t oc_clock_time_t;
 }
 #endif
 
+#pragma GCC diagnostic pop
 #endif /* OC_CONFIG_H */

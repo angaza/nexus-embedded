@@ -81,12 +81,12 @@ typedef struct oc_endpoint_t
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .addr.ipv4 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
-*/
+
 #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .addr.ipv6 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
-
+*/
 
 oc_endpoint_t *oc_new_endpoint(void);
 void oc_free_endpoint(oc_endpoint_t *endpoint);

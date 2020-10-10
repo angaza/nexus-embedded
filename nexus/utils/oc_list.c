@@ -113,7 +113,7 @@ oc_list_tail(oc_list_t list)
     return NULL;
   }
 
-  for (l = *list; l->next != NULL; l = l->next)
+  for (l = (struct list*) *list; l->next != NULL; l = l->next)
     ;
 
   return l;
@@ -137,12 +137,12 @@ oc_list_add(oc_list_t list, void *item)
 
   ((struct list *)item)->next = NULL;
 
-  l = oc_list_tail(list);
+  l = (struct list*) oc_list_tail(list);
 
   if (l == NULL) {
     *list = item;
   } else {
-    l->next = item;
+    l->next = (struct list*) item;
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -155,7 +155,7 @@ oc_list_push(oc_list_t list, void *item)
   /* Make sure not to add the same element twice */
   oc_list_remove(list, item);
 
-  ((struct list *)item)->next = *list;
+  ((struct list *)item)->next = (struct list*) *list;
   *list = item;
 }
 /*---------------------------------------------------------------------------*/
@@ -177,12 +177,12 @@ oc_list_chop(oc_list_t list)
     return NULL;
   }
   if (((struct list *)*list)->next == NULL) {
-    l = *list;
+    l = (struct list*) *list;
     *list = NULL;
     return l;
   }
 
-  for (l = *list; l->next->next != NULL; l = l->next)
+  for (l = (struct list*) *list; l->next->next != NULL; l = l->next)
     ;
 
   r = l->next;
@@ -205,7 +205,7 @@ void *
 oc_list_pop(oc_list_t list)
 {
   struct list *l;
-  l = *list;
+  l = (struct list*) *list;
   if (*list != NULL) {
     *list = ((struct list *)*list)->next;
   }
@@ -251,7 +251,7 @@ oc_list_length(oc_list_t list)
   struct list *l;
   int n = 0;
 
-  for (l = *list; l != NULL; l = l->next) {
+  for (l = (struct list*) *list; l != NULL; l = l->next) {
     ++n;
   }
 
@@ -281,7 +281,7 @@ oc_list_insert(oc_list_t list, void *previtem, void *newitem)
   } else {
 
     ((struct list *)newitem)->next = ((struct list *)previtem)->next;
-    ((struct list *)previtem)->next = newitem;
+    ((struct list *)previtem)->next = (struct list*) newitem;
   }
 }
 /*---------------------------------------------------------------------------*/

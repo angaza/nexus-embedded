@@ -477,10 +477,10 @@ void test_nexus_keycode_pro_small_apply__set_credit_valid__credit_applied(void)
         {{
              23, // message id
              NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_SET_CREDIT_TYPE,
-             {{253}}, // increment id
-             0x0771, // check
+             {{239}}, // increment id
+             0x0125, // check
          },
-         1184}};
+         960}};
 
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
     {
@@ -505,6 +505,95 @@ void test_nexus_keycode_pro_small_apply__set_credit_valid__credit_applied(void)
             TEST_ASSERT_EQUAL_UINT(
                 nexus_keycode_pro_get_full_message_id_flag(j), 1);
         }
+    }
+}
+
+void test_nexus_keycode_pro_small_process__custom_command_reset_restricted_flag__flag_is_reset_feedback_ok(
+    void)
+{
+    struct test_scenario
+    {
+        const char* frame_body;
+        enum nxp_keycode_feedback_type fb_type;
+        bool set_restricted_flag; // manually set flag before accepting keycode
+        bool flag_state_before_keycode;
+        bool flag_state_after_keycode;
+    };
+
+    // interleaved, 'customer facing' small protocol keycodes
+    // mirrors similar test for full protocol, tests product feedback call
+    const struct test_scenario scenarios[] = {
+        {"03033330201032", // mid = 30
+         NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED,
+         false,
+         false,
+         false},
+        {"03033330201032", // mid = 30
+         NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_VALID,
+         true,
+         true,
+         true},
+        {"11001021103212", // mid = 31
+         NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED,
+         false,
+         true,
+         false},
+        {"33020121210023", // WIPE_IDS_ALL
+         NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED,
+         true,
+         true,
+         true},
+        {"03033330201032", // mid = 30
+         NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED,
+         false,
+         true,
+         false}};
+
+    TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 23);
+    // confirm that initially, the flag is set to 0
+    TEST_ASSERT_FALSE(
+        nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED));
+    // Not testing credit interaction in this test
+    nxp_core_payg_state_get_current_IgnoreAndReturn(
+        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_keycode_payg_credit_set_IgnoreAndReturn(true);
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        const struct test_scenario scenario = scenarios[i];
+        const struct nexus_keycode_frame frame =
+            nexus_keycode_frame_filled(scenario.frame_body);
+
+        if (scenario.set_restricted_flag)
+        {
+            nxp_keycode_notify_custom_flag_changed_Expect(
+                NX_KEYCODE_CUSTOM_FLAG_RESTRICTED, true);
+            nx_keycode_set_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED);
+        }
+
+        TEST_ASSERT_EQUAL_UINT(
+            nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED),
+            scenario.flag_state_before_keycode);
+
+        // Enqueue will request processing
+        nxp_core_request_processing_Expect();
+        nexus_keycode_pro_enqueue(&frame);
+
+        // manually skip checking the scenario where we apply a wipe
+        // state/target flags 0 code
+        if (scenario.fb_type == NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED &&
+            i != 3)
+        {
+            nxp_keycode_notify_custom_flag_changed_Expect(
+                NX_KEYCODE_CUSTOM_FLAG_RESTRICTED, false);
+        }
+
+        nxp_keycode_feedback_start_ExpectAndReturn(scenario.fb_type, true);
+        nexus_keycode_pro_process();
+
+        TEST_ASSERT_EQUAL_UINT(
+            nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED),
+            scenario.flag_state_after_keycode);
     }
 }
 
@@ -1143,8 +1232,7 @@ void test_nexus_keycode_pro_small_apply__test_message__short_test(void)
         NXP_CORE_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(
         NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS, true);
-    enum nexus_keycode_pro_response response =
-        nexus_keycode_pro_small_apply(&message);
+    nexus_keycode_pro_small_apply(&message);
 
     // 'short test' doesn't set a message ID
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(0), 0);

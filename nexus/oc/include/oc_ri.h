@@ -163,7 +163,7 @@ struct oc_resource_s
   size_t device;
   oc_string_t name;
   oc_string_t uri;
-  oc_string_array_t types;
+  oc_string_array_t types; // optional
   oc_interface_mask_t interfaces;
   oc_interface_mask_t default_interface;
   oc_resource_properties_t properties;
@@ -174,6 +174,8 @@ struct oc_resource_s
   oc_properties_cb_t get_properties;
   oc_properties_cb_t set_properties;
   uint8_t num_observers;
+  // Nexus Channel Core "Resource type Registry" value
+  uint16_t rtr;
 #ifdef OC_COLLECTIONS
   uint8_t num_links;
 #endif // OC_COLLECTIONS

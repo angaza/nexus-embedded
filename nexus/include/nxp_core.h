@@ -23,6 +23,10 @@
 
 #include "include/nx_core.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //
 // CORE PROCESSING FUNCTIONALITY
 //
@@ -43,7 +47,6 @@
  * (like writing to NV, or performing cryptographic operations)
  * until `nx_core_process` is called.
  *
- * \return void
  */
 void nxp_core_request_processing(void);
 
@@ -54,32 +57,34 @@ void nxp_core_request_processing(void);
 /** Non-volatile memory interface.
  *
  * Some Nexus system features require persistence of data in order to
- * work properly. The declarations below define the interface to read and write
- * these data to non-volatile storage on the device.
+ * work properly. The declarations below define the interface to read and
+ * write these data to non-volatile storage on the device.
  */
 
 /** Writes new versions of Nexus systemdata to non-volatile (NV) memory.
  *
  * A note on flash endurance:
- * This interface must allocate enough flash writes to last the entire product
- * lifecycle. Dedicating two flash pages to storage of these data can ensure
- * that this requirement can be met as well as add reliability. Specifically,
- * for typical flash storage — on which an entire page must be erased at once —
- * using two pages can prevent data corruption due to power loss while a page
- * is being erased.
+ * This interface must allocate enough flash writes to last the entire
+ * product lifecycle. Dedicating two flash pages to storage of these data
+ * can ensure that this requirement can be met as well as add reliability.
+ * Specifically, for typical flash storage — on which an entire page must be
+ * erased at once — using two pages can prevent data corruption due to power
+ * loss while a page is being erased.
  *
- * To preserve flash writes, it is recommended to perform a check to determine
- * if the write is necessary. Before attempting to write a data block, first
- * check the block ID (`block_id` in the `nx_keycode_nv_block_meta` struct).
- * Then check if a block with this ID is already stored in NV memory. If it is,
- * compare the contents of the new block with those of the most recent block
- * with the same ID. If they  are identical, do not write the contents to NV. If
- * they are different, proceed to write the block to NV.
+ * To preserve flash writes, it is recommended to perform a check to
+ * determine if the write is necessary. Before attempting to write a data
+ * block, first check the block ID (`block_id` in the
+ * `nx_keycode_nv_block_meta` struct). Then check if a block with this ID is
+ * already stored in NV memory. If it is, compare the contents of the new
+ * block with those of the most recent block with the same ID. If they  are
+ * identical, do not write the contents to NV. If they are different,
+ * proceed to write the block to NV.
  *
  * \par Example Scenario:
- * (For reference only.  Actual implementation will differ based on platform)
- * -# In this implementation of `nxp_core_nv_write`, platform firmware uses its
- *    internal NV write function (`nonvol_update_block`)
+ * (For reference only.  Actual implementation will differ based on
+ * platform)
+ * -# In this implementation of `nxp_core_nv_write`, platform firmware uses
+ * its internal NV write function (`nonvol_update_block`)
  *    - @code
  *      bool nxp_core_nv_write(
  *          struct nx_nv_block_meta block_meta,
@@ -96,7 +101,8 @@ void nxp_core_request_processing(void);
  *          }
  *          else
  *          {
- *              return nonvol_update_block(block_meta.block_id, write_buffer);
+ *              return nonvol_update_block(block_meta.block_id,
+ * write_buffer);
  *          }
  *      }
  *      @endcode
@@ -158,8 +164,8 @@ enum nxp_core_payg_state
 
     /** Unit functionality should be unrestricted.
      *
-     * The unit has not yet been fully paid off, so eventually it will return
-     * to NXP_CORE_PAYG_STATE_DISABLED state.
+     * The unit has not yet been fully paid off, so eventually it will
+     * return to NXP_CORE_PAYG_STATE_DISABLED state.
      */
     NXP_CORE_PAYG_STATE_ENABLED,
 
@@ -181,8 +187,8 @@ enum nxp_core_payg_state nxp_core_payg_state_get_current(void);
 
 /* Retrieve the current remaining PAYG credit of this device.
  *
- * Used to display the remaining credit of this device to other Nexus Channel
- * devices. Currently only used in Nexus Channel devices.
+ * Used to display the remaining credit of this device to other Nexus
+ * Channel devices. Currently only used in Nexus Channel devices.
  *
  * \return value of credit remaining
  */
@@ -204,5 +210,9 @@ void nxp_core_random_init(void);
  * \return A pseudo-random number.
  */
 uint32_t nxp_core_random_value(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard: _NEXUS__INC__NXP_CORE_H_ */

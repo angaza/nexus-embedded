@@ -1,0 +1,19 @@
+version: '3.2'
+services:
+  test-environment:
+        build: 
+          context: ../  # one level above buildkite
+          dockerfile: buildkite/test-environment/Dockerfile
+        cap_add:
+          # Required for tracing used by sanitizers in GCC build
+          - SYS_PTRACE
+        environment:
+          # From Buildkite. Used by SonarCloud.
+          - BUILDKITE_BRANCH
+          - BUILDKITE_COMMIT
+          - MASTER_BRANCH
+          - BUILDKITE_PULL_REQUEST
+          - SONAR_TOKEN
+        volumes:
+            - "./buildkite_artifacts://buildkite_artifacts"
+            - "../:/base"  # directory alongside buildkite directory

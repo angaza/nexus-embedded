@@ -2,25 +2,30 @@
 cleanfirst: clean all
 
 # Default build has minimal dependencies (just requires GCC)
-#default skips scan-build, run `make all BUILD=sa` to enable static analysis
-#
+# default skips scan-build, run `make all BUILD=sa` to enable static analysis
 BUILD := default
 # Use gnu11 instead of c99 for timer_t. We link in the RT library as well.
 C_STANDARD = gnu11
+# Use g++20 to add support for designated initializers
+CPP_STANDARD = gnu++20
 
 # define compilation flags (includes, optimization, debug, warnings) here
 INCLUDES = -Iinc -Isrc -I../.. -I../../include -I../../utils -I../../oc/ -I../../oc/api -I../../oc/include -I../../oc/messaging/coap -I../../oc/port -I../../oc/util
 # Wno-comment and Wno-sign-compare for IoTivity files
 WARNINGS.default := -Wall -Wextra -Wpedantic -Wno-type-limits -Wno-comment \
-	-Wno-sign-compare -Wno-unused-variable
+	-Wno-sign-compare -Wno-unused-variable -Wno-unknown-pragmas
+WARNINGS.cpp := -Wall -Wextra -Wpedantic -Wno-type-limits -Wno-comment \
+	-Wno-sign-compare -Wno-unused-variable -Wno-unknown-pragmas -Wno-pragmas
 WARNINGS.sa := $(WARNINGS.default) -Werror -Wno-unused-parameter -Wundef \
     -Wuninitialized -Winit-self -Wswitch-default -Wunreachable-code \
-    -Wlogical-op -Winline -Wsuggest-attribute=const -Wno-sign-compare
+    -Wlogical-op -Winline -Wsuggest-attribute=const -Wno-sign-compare \
+	-Wno-unknown-pragmas
 
 CFLAGS = $(INCLUDES) -O0 -g ${WARNINGS.${BUILD}} -std=$(C_STANDARD)
+CPPFLAGS = $(INCLUDES) -O0 -g ${WARNINGS.${BUILD}} -std=$(CPP_STANDARD)
 
-SCANBUILD_FLAGS = --status-bugs\
-                  -enable-checker core\
+# Add '--status-bugs' flag to exit on first error
+SCANBUILD_FLAGS = -enable-checker core\
                   -enable-checker deadcode\
                   -enable-checker alpha.core.BoolAssignment\
                   -enable-checker alpha.core.CallAndMessageUnInitRefArg\
@@ -40,8 +45,9 @@ SCANBUILD_FLAGS = --status-bugs\
                   -maxloop 40\
                   -o scanbuild-reports/
 
-CC.sa := scan-build-6.0 $(SCANBUILD_FLAGS) gcc-9 $(CFLAGS)
+CC.sa := scan-build $(SCANBUILD_FLAGS) gcc $(CFLAGS)
 CC.default := gcc $(CFLAGS)
+CC.cpp := g++-10 $(CPPFLAGS)
 CC = ${CC.${BUILD}}
 
 # Include math and RT libraries for `floor` and `timer_t` functions
@@ -49,7 +55,7 @@ LDFLAGS = -lm -lrt
 
 # this rule defines how to get .o files from .c files
 %.o : %.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $< -o $@
 
 SOURCE_FILES := $(shell find src -name '*.c')
 
@@ -80,6 +86,7 @@ install-dependencies:
 	sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 	sudo apt-get update -y
 	sudo apt-get install gcc-9 -y
+	sudo apt-get install g++-10 -y
 	sudo apt-get install clang-6.0 -y
 	sudo apt-get install clang-tools-6.0 -y
 	sudo apt-get install clang-tidy-6.0 -y

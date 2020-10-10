@@ -16,6 +16,11 @@
 // Modifications (c) 2020 Angaza, Inc.
 */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcomment"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -146,7 +151,7 @@ set_mpro_status_codes(void)
 oc_resource_t *
 oc_ri_get_app_resources(void)
 {
-  return oc_list_head(app_resources);
+  return (oc_resource_t *) oc_list_head(app_resources);
 }
 #endif
 
@@ -167,7 +172,7 @@ oc_ri_get_query_nth_key_value(const char *query, size_t query_len, char **key,
   current = start;
 
   while (i < (n - 1) && current != NULL) {
-    current = memchr(start, '&', end - start);
+    current = (char*) memchr(start, '&', end - start);
     if (current == NULL) {
       return -1;
     }
@@ -175,12 +180,12 @@ oc_ri_get_query_nth_key_value(const char *query, size_t query_len, char **key,
     start = current + 1;
   }
 
-  current = memchr(start, '=', end - start);
+  current = (char*) memchr(start, '=', end - start);
   if (current != NULL) {
     *key_len = (current - start);
     *key = start;
     *value = current + 1;
-    current = memchr(*value, '&', end - *value);
+    current = (char*) memchr(*value, '&', end - *value);
     if (current == NULL) {
       *value_len = (end - *value);
     } else {
@@ -330,7 +335,7 @@ oc_ri_init(void)
 oc_resource_t *
 oc_ri_alloc_resource(void)
 {
-  return oc_memb_alloc(&app_resources_s);
+  return (oc_resource_t*) oc_memb_alloc(&app_resources_s);
 }
 
 bool
@@ -439,7 +444,7 @@ poll_event_callback_timers(oc_list_t list, struct oc_memb *cb_pool)
       if (event_cb->callback(event_cb->data) == OC_EVENT_DONE) {
         oc_list_remove(list, event_cb);
         oc_memb_free(cb_pool, event_cb);
-        event_cb = oc_list_head(list);
+        event_cb = (oc_event_callback_t*) oc_list_head(list);
         continue;
       } else {
         OC_PROCESS_CONTEXT_BEGIN(&timed_callback_events);
@@ -569,14 +574,14 @@ free_all_event_timers(void)
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(timed_callbacks, event_cb);
     oc_memb_free(&event_callbacks_s, event_cb);
-    event_cb = oc_list_pop(timed_callbacks);
+    event_cb = (oc_event_callback_t*) oc_list_pop(timed_callbacks);
   }
 }
 
 oc_interface_mask_t
 oc_ri_get_interface_mask(char *iface, size_t if_len)
 {
-  oc_interface_mask_t iface_mask = 0;
+  int iface_mask = 0;
   if (15 == if_len && strncmp(iface, "oic.if.baseline", if_len) == 0)
     iface_mask |= OC_IF_BASELINE;
   if (9 == if_len && strncmp(iface, "oic.if.ll", if_len) == 0)
@@ -593,7 +598,7 @@ oc_ri_get_interface_mask(char *iface, size_t if_len)
     iface_mask |= OC_IF_S;
   if (13 == if_len && strncmp(iface, "oic.if.create", if_len) == 0)
     iface_mask |= OC_IF_CREATE;
-  return iface_mask;
+  return (oc_interface_mask_t) iface_mask;
 }
 
 static bool
@@ -676,7 +681,7 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   /* This function is a server-side entry point solely for requests.
    *  Hence, "code" contains the CoAP method code.
    */
-  oc_method_t method = packet->code;
+  oc_method_t method = (oc_method_t) packet->code;
   // Initialize request/response objects to be sent up to the app layer.
   oc_request_t request_obj;
   oc_response_buffer_t response_buffer;
@@ -708,7 +713,7 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   request_obj.origin = endpoint;
 
   // Initialize OCF interface selector.
-  oc_interface_mask_t iface_mask = 0;
+  oc_interface_mask_t iface_mask = (oc_interface_mask_t) 0;
   // Obtain request uri from the CoAP packet.
   const char *uri_path;
   size_t uri_path_len = coap_get_header_uri_path(request, &uri_path);
@@ -725,7 +730,7 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
     int if_len =
       oc_ri_get_query_value(uri_query, (int)uri_query_len, "if", &iface);
     if (if_len != -1) {
-      iface_mask |= oc_ri_get_interface_mask(iface, (size_t)if_len);
+      iface_mask = (oc_interface_mask_t) (iface_mask | oc_ri_get_interface_mask(iface, (size_t)if_len));
       OC_WRN("iface query value after? %d", iface_mask);
     }
   }
@@ -1214,7 +1219,7 @@ free_client_cb(oc_client_cb_t *cb)
 oc_event_callback_retval_t
 oc_ri_remove_client_cb(void *data)
 {
-  free_client_cb(data);
+  free_client_cb((oc_client_cb_t*) data);
   return OC_EVENT_DONE;
 }
 
@@ -1275,7 +1280,7 @@ oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t *endpoint)
 oc_client_cb_t *
 oc_ri_find_client_cb_by_mid(uint16_t mid)
 {
-  oc_client_cb_t *cb = oc_list_head(client_cbs);
+  oc_client_cb_t *cb = (oc_client_cb_t*) oc_list_head(client_cbs);
   while (cb) {
     if (cb->mid == mid)
       break;
@@ -1287,7 +1292,7 @@ oc_ri_find_client_cb_by_mid(uint16_t mid)
 oc_client_cb_t *
 oc_ri_find_client_cb_by_token(uint8_t *token, uint8_t token_len)
 {
-  oc_client_cb_t *cb = oc_list_head(client_cbs);
+  oc_client_cb_t *cb = (oc_client_cb_t*) oc_list_head(client_cbs);
   while (cb != NULL) {
     if (cb->token_len == token_len && memcmp(cb->token, token, token_len) == 0)
       break;
@@ -1299,7 +1304,7 @@ oc_ri_find_client_cb_by_token(uint8_t *token, uint8_t token_len)
 bool
 oc_ri_is_client_cb_valid(oc_client_cb_t *client_cb)
 {
-  oc_client_cb_t *cb = oc_list_head(client_cbs);
+  oc_client_cb_t *cb = (oc_client_cb_t*) oc_list_head(client_cbs);
   while (cb != NULL) {
     if (cb == client_cb) {
       return true;
@@ -1347,7 +1352,7 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
   client_response.user_data = cb->user_data;
   for (i = 0; i < __NUM_OC_STATUS_CODES__; i++) {
     if (oc_coap_status_codes[i] == pkt->code) {
-      client_response.code = i;
+      client_response.code = (oc_status_t) i;
       break;
     }
   }
@@ -1510,10 +1515,10 @@ oc_ri_get_client_cb(const char *uri, oc_endpoint_t *endpoint,
 static void
 free_all_client_cbs(void)
 {
-  oc_client_cb_t *cb = oc_list_pop(client_cbs);
+  oc_client_cb_t *cb = (oc_client_cb_t*) oc_list_pop(client_cbs);
   while (cb != NULL) {
     free_client_cb(cb);
-    cb = oc_list_pop(client_cbs);
+    cb = (oc_client_cb_t*) oc_list_pop(client_cbs);
   }
 }
 
@@ -1523,7 +1528,7 @@ oc_ri_alloc_client_cb(const char *uri, oc_endpoint_t *endpoint,
                       oc_client_handler_t handler, oc_qos_t qos,
                       void *user_data)
 {
-  oc_client_cb_t *cb = oc_memb_alloc(&client_cbs_s);
+  oc_client_cb_t *cb = (oc_client_cb_t*) oc_memb_alloc(&client_cbs_s);
   if (!cb) {
     OC_WRN("insufficient memory to add client callback");
     return cb;
@@ -1610,3 +1615,5 @@ OC_PROCESS_THREAD(timed_callback_events, ev, data)
   }
   OC_PROCESS_END();
 }
+
+#pragma GCC diagnostic pop

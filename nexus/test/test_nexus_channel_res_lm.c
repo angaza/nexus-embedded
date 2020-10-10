@@ -65,7 +65,7 @@ struct expect_rep
 {
     oc_rep_value_type_t type;
     char* name;
-    union oc_rep_value value;
+    oc_rep_value value;
     bool received; // used to determine if we received all expected values
 };
 
@@ -88,6 +88,27 @@ TEST_FILE("oc/api/oc_server_api.c")
 TEST_FILE("oc/api/oc_client_api.c")
 TEST_FILE("oc/deps/tinycbor/cborencoder.c")
 TEST_FILE("oc/deps/tinycbor/cborparser.c")
+
+// Backing memory for parsing OC reps using `oc_parse_rep`
+// Variables here must be static to persist between invocations of this
+// function
+void _initialize_oc_rep_pool(void)
+{
+    // Prepare an space for representing OC rep
+    static char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
+    static oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
+    memset(rep_objects_alloc, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
+    memset(rep_objects_pool, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
+    static struct oc_memb rep_objects;
+
+    rep_objects.size = sizeof(oc_rep_t);
+    rep_objects.num = OC_MAX_NUM_REP_OBJECTS;
+    rep_objects.count = rep_objects_alloc;
+    rep_objects.mem = (void*) rep_objects_pool;
+    rep_objects.buffers_avail_cb = 0;
+
+    oc_rep_set_pool(&rep_objects);
+}
 
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
@@ -347,8 +368,6 @@ void test_link_manager_create_link_no_process_call__second_create_link_fails(
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
 
-    nexus_channel_link_t result_link = {0};
-
     nxp_core_request_processing_Expect();
     bool result = nexus_channel_link_manager_create_link(
         &linked_id,
@@ -384,8 +403,6 @@ void test_link_manager_create_identical_link__create_link_fails(void)
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     nxp_core_request_processing_Expect();
     bool result = nexus_channel_link_manager_create_link(
@@ -480,8 +497,6 @@ void test_link_manager__security_data_from_nxid__no_data_present__returns_false(
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
 
-    nexus_channel_link_t result_link = {0};
-
     struct nexus_channel_link_security_mode0_data link_mode0_data;
     memset(&link_mode0_data,
            0xDE,
@@ -514,8 +529,6 @@ void test_link_manager__security_data_from_nxid__data_present__returns_correct_d
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     nxp_core_request_processing_Expect();
     nexus_channel_link_manager_create_link(
@@ -555,8 +568,6 @@ void test_link_manager__increment_security_data_mode0__nonce_updated(void)
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     // create a link
     nxp_core_request_processing_Expect();
@@ -636,6 +647,7 @@ void test_res_link_hs_server_get_response__no_link_exists__cbor_data_model_corre
     }
     PRINT("\n");
 
+    _initialize_oc_rep_pool();
     int result = oc_parse_rep(response_packet.payload, // payload,
                               response_packet.payload_len,
                               &G_OC_REP);
@@ -662,8 +674,6 @@ void test_res_link_hs_server_get_response__one_link_exists__cbor_correct_oc_pars
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     nxp_core_request_processing_Expect();
     bool link_created = nexus_channel_link_manager_create_link(
@@ -723,6 +733,7 @@ void test_res_link_hs_server_get_response__one_link_exists__cbor_correct_oc_pars
 
     PRINT("\n");
 
+    _initialize_oc_rep_pool();
     int result = oc_parse_rep(response_packet.payload, // payload,
                               response_packet.payload_len,
                               &G_OC_REP);
@@ -770,8 +781,6 @@ void test_res_link_hs_server_get_response_baseline_query__one_link_exists__cbor_
     sec_data.mode0.nonce = 5;
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
-
-    nexus_channel_link_t result_link = {0};
 
     nxp_core_request_processing_Expect();
     bool link_created = nexus_channel_link_manager_create_link(
@@ -839,6 +848,7 @@ void test_res_link_hs_server_get_response_baseline_query__one_link_exists__cbor_
 
     PRINT("\n");
 
+    _initialize_oc_rep_pool();
     int result = oc_parse_rep(response_packet.payload, // payload,
                               response_packet.payload_len,
                               &G_OC_REP);

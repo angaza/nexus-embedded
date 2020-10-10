@@ -18,7 +18,7 @@
 #  :use_assembly: TRUE
 
 :release_build:
-  :output: analyzed_keycode_nexus.out
+  :output: analyzed_nexus.out
   :use_assembly: FALSE
 
 :environment:
@@ -69,10 +69,7 @@
 
 # See https://github.com/ThrowTheSwitch/Ceedling/tree/master/plugins/gcov
 :gcov:
-  # update abort_on_uncovered list once new Gem lands
-  # https://github.com/ThrowTheSwitch/Ceedling/issues/460
-  # XXX
-  :abort_on_uncovered: true
+  :abort_on_uncovered: false
   :delete: false
   :reports:   # new reports style
     - HtmlDetailed
@@ -82,8 +79,7 @@
   :html_report_type: detailed
   :gcovr:
     :gcov_exclude: '^.stub.*'
-    :html_artifact_filename: nexus_keycode_coverage.html
-    :sonarqube_artifact_filename: nexus_keycode_coverage_sonar.xml
+    :html_artifact_filename: nexus_coverage.html
 
 :tools:
   :gcov_fixture:
@@ -99,8 +95,8 @@
   # "Release" is used to run static analysis on the source code without
   # hitting false positives that may exist in test framework tools.
   :release_compiler:
-      :executable: scan-build-3.9
-      :name: 'vanilla gcc wrapped with clang scan-build 3.9'
+      :executable: scan-build
+      :name: 'vanilla gcc wrapped with clang scan-build'
       :arguments:
           - --status-bugs
           - -enable-checker core.UndefinedBinaryOperatorResult
@@ -113,25 +109,28 @@
           - -enable-checker alpha.core.PointerSub
           - -enable-checker security.FloatLoopCounter
           - -maxloop 40
-          - gcc  # XXX update to gcc-9 or gcc-10 once updating buildkite AMI
+          - gcc
           - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
           - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
           - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
           - -DDEBUG  # enables NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY
+          - -DFORTIFY_SOURCE=2
+          - -O1
           - -Werror
           - -Wall
           - -Wextra
           - -Wundef
+          - -fstack-protector-strong
           # - -Wconversion
           - -Wlogical-op
+          - -Wno-sign-compare
           # - -Wformat-overflow
           # - -Wstringop-overflow
           # - -Wstringop-truncation
-          - -Wno-comment # for OC files
-          - -Winline
+          - -Wno-comment # TODO remove this when OC source files cleaned up
           - -Wswitch-default
-          - -Wsuggest-attribute=const
-          - -std=c99
+          - -Wno-unknown-pragmas
+          - -std=c99  # c11 to gain access to static asserts
           - -c ${1} # source code input file
           - -o ${2}
 

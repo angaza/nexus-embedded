@@ -63,265 +63,296 @@
 #include "port/oc_random.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 #ifndef MAX
-#define MAX(n, m) (((n) < (m)) ? (m) : (n))
+    #define MAX(n, m) (((n) < (m)) ? (m) : (n))
 #endif
 
 #ifndef MIN
-#define MIN(n, m) (((n) < (m)) ? (n) : (m))
+    #define MIN(n, m) (((n) < (m)) ? (n) : (m))
 #endif
 
 #ifndef ABS
-#define ABS(n) (((n) < 0) ? -(n) : (n))
+    #define ABS(n) (((n) < 0) ? -(n) : (n))
 #endif
 
 /* bitmap for set options */
 enum
 {
-  OPTION_MAP_SIZE = sizeof(uint8_t) * 8
+    OPTION_MAP_SIZE = sizeof(uint8_t) * 8
 };
 
 #define SET_OPTION(packet, opt)                                                \
-  ((packet)->options[opt / OPTION_MAP_SIZE] |= 1 << (opt % OPTION_MAP_SIZE))
+    ((packet)->options[opt / OPTION_MAP_SIZE] |= 1 << (opt % OPTION_MAP_SIZE))
 #define IS_OPTION(packet, opt)                                                 \
-  ((packet)->options[opt / OPTION_MAP_SIZE] & (1 << (opt % OPTION_MAP_SIZE)))
+    ((packet)->options[opt / OPTION_MAP_SIZE] & (1 << (opt % OPTION_MAP_SIZE)))
 
 /* enum value for coap transport type  */
-typedef enum {
-  COAP_TRANSPORT_UDP,
-  COAP_TRANSPORT_TCP
+typedef enum
+{
+    COAP_TRANSPORT_UDP,
+    COAP_TRANSPORT_TCP
 } coap_transport_type_t;
 
 /* parsed message struct */
 typedef struct
 {
-  uint8_t *buffer; /* pointer to CoAP header / incoming packet buffer / memory
-                      to serialize packet */
-  coap_transport_type_t transport_type;
-  uint8_t version;
-  coap_message_type_t type;
-  uint8_t code;
-  uint16_t mid;
+    uint8_t* buffer; /* pointer to CoAP header / incoming packet buffer / memory
+                        to serialize packet */
+    coap_transport_type_t transport_type;
+    uint8_t version;
+    coap_message_type_t type;
+    uint8_t code;
+    uint16_t mid;
 
-  uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN];
+    uint8_t token_len;
+    uint8_t token[COAP_TOKEN_LEN];
 
-  uint8_t options[COAP_OPTION_SIZE1 / OPTION_MAP_SIZE +
-                  1]; /* bitmap to check if option is set */
+    uint8_t options[COAP_OPTION_SIZE1 / OPTION_MAP_SIZE +
+                    1]; /* bitmap to check if option is set */
 
-  uint16_t content_format; /* parse options once and store; allows setting
-                              options in random order  */
-  uint32_t max_age;
-  uint8_t etag_len;
-  uint8_t etag[COAP_ETAG_LEN];
-  size_t proxy_uri_len;
-  const char *proxy_uri;
-  size_t proxy_scheme_len;
-  const char *proxy_scheme;
-  size_t uri_host_len;
-  const char *uri_host;
-  size_t location_path_len;
-  const char *location_path;
-  uint16_t uri_port;
-  size_t location_query_len;
-  const char *location_query;
-  size_t uri_path_len;
-  const char *uri_path;
-  int32_t observe;
-  uint16_t accept;
-  uint8_t if_match_len;
-  uint8_t if_match[COAP_ETAG_LEN];
-  uint32_t block2_num;
-  uint8_t block2_more;
-  uint16_t block2_size;
-  uint32_t block2_offset;
-  uint32_t block1_num;
-  uint8_t block1_more;
-  uint16_t block1_size;
-  uint32_t block1_offset;
-  uint32_t size2;
-  uint32_t size1;
-  size_t uri_query_len;
-  const char *uri_query;
-  uint8_t if_none_match;
+    uint16_t content_format; /* parse options once and store; allows setting
+                                options in random order  */
+    uint32_t max_age;
+    uint8_t etag_len;
+    uint8_t etag[COAP_ETAG_LEN];
+    size_t proxy_uri_len;
+    const char* proxy_uri;
+    size_t proxy_scheme_len;
+    const char* proxy_scheme;
+    size_t uri_host_len;
+    const char* uri_host;
+    size_t location_path_len;
+    const char* location_path;
+    uint16_t uri_port;
+    size_t location_query_len;
+    const char* location_query;
+    size_t uri_path_len;
+    const char* uri_path;
+    int32_t observe;
+    uint16_t accept;
+    uint8_t if_match_len;
+    uint8_t if_match[COAP_ETAG_LEN];
+    uint32_t block2_num;
+    uint8_t block2_more;
+    uint16_t block2_size;
+    uint32_t block2_offset;
+    uint32_t block1_num;
+    uint8_t block1_more;
+    uint16_t block1_size;
+    uint32_t block1_offset;
+    uint32_t size2;
+    uint32_t size1;
+    size_t uri_query_len;
+    const char* uri_query;
+    uint8_t if_none_match;
 
-/*
-#ifdef OC_TCP
-  // Signal option values
-  uint32_t max_msg_size;
-  uint8_t blockwise_transfer;
-  uint8_t custody;
-  const char *alt_addr;
-  size_t alt_addr_len;
-  uint32_t hold_off;
-  uint16_t bad_csm_opt;
-#endif // OC_TCP
-*/
+    /*
+    #ifdef OC_TCP
+      // Signal option values
+      uint32_t max_msg_size;
+      uint8_t blockwise_transfer;
+      uint8_t custody;
+      const char *alt_addr;
+      size_t alt_addr_len;
+      uint32_t hold_off;
+      uint16_t bad_csm_opt;
+    #endif // OC_TCP
+    */
 
-  uint32_t payload_len;
-  uint8_t *payload;
+    uint32_t payload_len;
+    uint8_t* payload;
 } coap_packet_t;
 
 /* option format serialization */
 #define COAP_SERIALIZE_INT_OPTION(number, field, text)                         \
-  if (IS_OPTION(coap_pkt, number)) {                                           \
-    option_length += coap_serialize_int_option(number, current_number, option, \
-                                               coap_pkt->field);               \
-    if (option) {                                                              \
-      option = option_array + option_length;                                   \
-    }                                                                          \
-    current_number = number;                                                   \
-  }
+    if (IS_OPTION(coap_pkt, number))                                           \
+    {                                                                          \
+        option_length += coap_serialize_int_option(                            \
+            number, current_number, option, coap_pkt->field);                  \
+        if (option)                                                            \
+        {                                                                      \
+            option = option_array + option_length;                             \
+        }                                                                      \
+        current_number = number;                                               \
+    }
 #define COAP_SERIALIZE_BYTE_OPTION(number, field, text)                        \
-  if (IS_OPTION(coap_pkt, number)) {                                           \
-    option_length += coap_serialize_array_option(number, current_number,       \
-                                                 option, coap_pkt->field,      \
-                                                 coap_pkt->field##_len, '\0'); \
-    if (option) {                                                              \
-      option = option_array + option_length;                                   \
-    }                                                                          \
-    current_number = number;                                                   \
-  }
+    if (IS_OPTION(coap_pkt, number))                                           \
+    {                                                                          \
+        option_length += coap_serialize_array_option(number,                   \
+                                                     current_number,           \
+                                                     option,                   \
+                                                     coap_pkt->field,          \
+                                                     coap_pkt->field##_len,    \
+                                                     '\0');                    \
+        if (option)                                                            \
+        {                                                                      \
+            option = option_array + option_length;                             \
+        }                                                                      \
+        current_number = number;                                               \
+    }
 #define COAP_SERIALIZE_STRING_OPTION(number, field, splitter, text)            \
-  if (IS_OPTION(coap_pkt, number)) {                                           \
-    option_length += coap_serialize_array_option(                              \
-      number, current_number, option, (uint8_t *)coap_pkt->field,              \
-      coap_pkt->field##_len, splitter);                                        \
-    if (option) {                                                              \
-      option = option_array + option_length;                                   \
-    }                                                                          \
-    current_number = number;                                                   \
-  }
+    if (IS_OPTION(coap_pkt, number))                                           \
+    {                                                                          \
+        option_length +=                                                       \
+            coap_serialize_array_option(number,                                \
+                                        current_number,                        \
+                                        option,                                \
+                                        (uint8_t*) coap_pkt->field,            \
+                                        coap_pkt->field##_len,                 \
+                                        splitter);                             \
+        if (option)                                                            \
+        {                                                                      \
+            option = option_array + option_length;                             \
+        }                                                                      \
+        current_number = number;                                               \
+    }
 #define COAP_SERIALIZE_BLOCK_OPTION(number, field, text)                       \
-  if (IS_OPTION(coap_pkt, number)) {                                           \
-    uint32_t block = coap_pkt->field##_num << 4;                               \
-    if (coap_pkt->field##_more) {                                              \
-      block |= 0x8;                                                            \
-    }                                                                          \
-    block |= 0xF & coap_log_2(coap_pkt->field##_size / 16);                    \
-    option_length +=                                                           \
-      coap_serialize_int_option(number, current_number, option, block);        \
-    if (option) {                                                              \
-      option = option_array + option_length;                                   \
-    }                                                                          \
-    current_number = number;                                                   \
-  }
+    if (IS_OPTION(coap_pkt, number))                                           \
+    {                                                                          \
+        uint32_t block = coap_pkt->field##_num << 4;                           \
+        if (coap_pkt->field##_more)                                            \
+        {                                                                      \
+            block |= 0x8;                                                      \
+        }                                                                      \
+        block |= 0xF & coap_log_2(coap_pkt->field##_size / 16);                \
+        option_length +=                                                       \
+            coap_serialize_int_option(number, current_number, option, block);  \
+        if (option)                                                            \
+        {                                                                      \
+            option = option_array + option_length;                             \
+        }                                                                      \
+        current_number = number;                                               \
+    }
 
 /* to store error code and human-readable payload */
 extern coap_status_t coap_status_code;
-extern char *coap_error_message;
+extern char* coap_error_message;
 
 void coap_init_connection(void);
 uint16_t coap_get_mid(void);
 
-void coap_udp_init_message(void *packet, coap_message_type_t type, uint8_t code,
-                       uint16_t mid);
-size_t coap_serialize_message(void *packet, uint8_t *buffer);
-void coap_send_message(oc_message_t *message);
-coap_status_t coap_udp_parse_message(void *request, uint8_t *data,
-                                 uint16_t data_len);
+void coap_udp_init_message(void* packet,
+                           coap_message_type_t type,
+                           uint8_t code,
+                           uint16_t mid);
+size_t coap_serialize_message(void* packet, uint8_t* buffer);
+void coap_send_message(oc_message_t* message);
+coap_status_t
+coap_udp_parse_message(void* request, uint8_t* data, uint16_t data_len);
 
-int coap_get_query_variable(void *packet, const char *name,
-                            const char **output);
-int coap_get_post_variable(void *packet, const char *name, const char **output);
+int coap_get_query_variable(void* packet,
+                            const char* name,
+                            const char** output);
+int coap_get_post_variable(void* packet, const char* name, const char** output);
 
 /*---------------------------------------------------------------------------*/
 
-int coap_set_status_code(void *packet, unsigned int code);
+int coap_set_status_code(void* packet, unsigned int code);
 
-int coap_set_token(void *packet, const uint8_t *token, size_t token_len);
+int coap_set_token(void* packet, const uint8_t* token, size_t token_len);
 
-int coap_get_header_content_format(void *packet, unsigned int *format);
-int coap_set_header_content_format(void *packet, unsigned int format);
+int coap_get_header_content_format(void* packet, unsigned int* format);
+int coap_set_header_content_format(void* packet, unsigned int format);
 
-int coap_get_header_accept(void *packet, unsigned int *accept);
-int coap_set_header_accept(void *packet, unsigned int accept);
+int coap_get_header_accept(void* packet, unsigned int* accept);
+int coap_set_header_accept(void* packet, unsigned int accept);
 
-int coap_get_header_max_age(void *packet, uint32_t *age);
-int coap_set_header_max_age(void *packet, uint32_t age);
+int coap_get_header_max_age(void* packet, uint32_t* age);
+int coap_set_header_max_age(void* packet, uint32_t age);
 
-int coap_get_header_etag(void *packet, const uint8_t **etag);
-int coap_set_header_etag(void *packet, const uint8_t *etag, size_t etag_len);
+int coap_get_header_etag(void* packet, const uint8_t** etag);
+int coap_set_header_etag(void* packet, const uint8_t* etag, size_t etag_len);
 
-int coap_get_header_if_match(void *packet, const uint8_t **etag);
-int coap_set_header_if_match(void *packet, const uint8_t *etag,
+int coap_get_header_if_match(void* packet, const uint8_t** etag);
+int coap_set_header_if_match(void* packet,
+                             const uint8_t* etag,
                              size_t etag_len);
 
-int coap_get_header_if_none_match(void *packet);
-int coap_set_header_if_none_match(void *packet);
+int coap_get_header_if_none_match(void* packet);
+int coap_set_header_if_none_match(void* packet);
 
 int coap_get_header_proxy_uri(
-  void *packet,
-  const char **uri); /* in-place string might not be 0-terminated. */
-int coap_set_header_proxy_uri(void *packet, const char *uri);
+    void* packet,
+    const char** uri); /* in-place string might not be 0-terminated. */
+int coap_set_header_proxy_uri(void* packet, const char* uri);
 
 int coap_get_header_proxy_scheme(
-  void *packet,
-  const char **scheme); /* in-place string might not be 0-terminated. */
-int coap_set_header_proxy_scheme(void *packet, const char *scheme);
+    void* packet,
+    const char** scheme); /* in-place string might not be 0-terminated. */
+int coap_set_header_proxy_scheme(void* packet, const char* scheme);
 
 int coap_get_header_uri_host(
-  void *packet,
-  const char **host); /* in-place string might not be 0-terminated. */
-int coap_set_header_uri_host(void *packet, const char *host);
+    void* packet,
+    const char** host); /* in-place string might not be 0-terminated. */
+int coap_set_header_uri_host(void* packet, const char* host);
 
 size_t coap_get_header_uri_path(
-  void *packet,
-  const char **path); /* in-place string might not be 0-terminated. */
-size_t coap_set_header_uri_path(void *packet, const char *path, size_t path_len);
+    void* packet,
+    const char** path); /* in-place string might not be 0-terminated. */
+size_t
+coap_set_header_uri_path(void* packet, const char* path, size_t path_len);
 
 size_t coap_get_header_uri_query(
-  void *packet,
-  const char **query); /* in-place string might not be 0-terminated. */
-size_t coap_set_header_uri_query(void *packet, const char *query);
+    void* packet,
+    const char** query); /* in-place string might not be 0-terminated. */
+size_t coap_set_header_uri_query(void* packet, const char* query);
 
 int coap_get_header_location_path(
-  void *packet,
-  const char **path); /* in-place string might not be 0-terminated. */
-int coap_set_header_location_path(void *packet,
-                                  const char *path); /* also splits optional
+    void* packet,
+    const char** path); /* in-place string might not be 0-terminated. */
+int coap_set_header_location_path(void* packet,
+                                  const char* path); /* also splits optional
                                                         query into
                                                         Location-Query option.
                                                         */
 
 int coap_get_header_location_query(
-  void *packet,
-  const char **query); /* in-place string might not be 0-terminated. */
-size_t coap_set_header_location_query(void *packet, const char *query);
+    void* packet,
+    const char** query); /* in-place string might not be 0-terminated. */
+size_t coap_set_header_location_query(void* packet, const char* query);
 
-int coap_get_header_observe(void *packet, uint32_t *observe);
-int coap_set_header_observe(void *packet, uint32_t observe);
+int coap_get_header_observe(void* packet, uint32_t* observe);
+int coap_set_header_observe(void* packet, uint32_t observe);
 
-int coap_get_header_block2(void *packet, uint32_t *num, uint8_t *more,
-                           uint16_t *size, uint32_t *offset);
-int coap_set_header_block2(void *packet, uint32_t num, uint8_t more,
+int coap_get_header_block2(void* packet,
+                           uint32_t* num,
+                           uint8_t* more,
+                           uint16_t* size,
+                           uint32_t* offset);
+int coap_set_header_block2(void* packet,
+                           uint32_t num,
+                           uint8_t more,
                            uint16_t size);
 
-int coap_get_header_block1(void *packet, uint32_t *num, uint8_t *more,
-                           uint16_t *size, uint32_t *offset);
-int coap_set_header_block1(void *packet, uint32_t num, uint8_t more,
+int coap_get_header_block1(void* packet,
+                           uint32_t* num,
+                           uint8_t* more,
+                           uint16_t* size,
+                           uint32_t* offset);
+int coap_set_header_block1(void* packet,
+                           uint32_t num,
+                           uint8_t more,
                            uint16_t size);
 
-int coap_get_header_size2(void *packet, uint32_t *size);
-int coap_set_header_size2(void *packet, uint32_t size);
+int coap_get_header_size2(void* packet, uint32_t* size);
+int coap_set_header_size2(void* packet, uint32_t size);
 
-int coap_get_header_size1(void *packet, uint32_t *size);
-int coap_set_header_size1(void *packet, uint32_t size);
+int coap_get_header_size1(void* packet, uint32_t* size);
+int coap_set_header_size1(void* packet, uint32_t size);
 
-int coap_get_payload(void *packet, const uint8_t **payload);
-int coap_set_payload(void *packet, const void *payload, size_t length);
+int coap_get_payload(void* packet, const uint8_t** payload);
+int coap_set_payload(void* packet, const void* payload, size_t length);
 
 #ifdef OC_TCP
-void coap_tcp_init_message(void *packet, uint8_t code);
+void coap_tcp_init_message(void* packet, uint8_t code);
 
-size_t coap_tcp_get_packet_size(const uint8_t *data);
+size_t coap_tcp_get_packet_size(const uint8_t* data);
 
-coap_status_t coap_tcp_parse_message(void *packet, uint8_t *data,
-                                     uint32_t data_len);
+coap_status_t
+coap_tcp_parse_message(void* packet, uint8_t* data, uint32_t data_len);
 #endif /* OC_TCP */
 
 #ifdef __cplusplus

@@ -11,6 +11,12 @@ this project as a guide to help them build platform-appropriate solutions.
 This project will build with the default GCC toolchain in Ubuntu 18.04, and
 presumably any other recent Linux distribution.
 
+**Note**: This example program relies on the default
+`nexus/include/user_config.h` settings present when this repository was cloned
+to your local machine. If there are any changes to `nexus_include/user_config.h`
+(which occurs as a result of running `python conf_nexus.py`), please revert
+those changes before continuing.
+
 Build
 ```sh
 $ make clean all

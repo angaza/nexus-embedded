@@ -523,7 +523,8 @@ void test_keycode_mas_bookend_push__various_key_sequences_timeout__times_out(
     };
 
     struct test_scenario scenarios[] = {
-        {"*51#", "", NEXUS_KEYCODE_PROTOCOL_NO_STOP_LENGTH}, {"*123", "", 3},
+        {"*51#", "", NEXUS_KEYCODE_PROTOCOL_NO_STOP_LENGTH},
+        {"*123", "", 3},
     };
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
     {
@@ -531,7 +532,7 @@ void test_keycode_mas_bookend_push__various_key_sequences_timeout__times_out(
         const struct test_scenario scenario = scenarios[i];
         _bookend_test_init(scenario.stop_length);
 
-        uint32_t fake_system_uptime = 0;
+        uint32_t fake_system_uptime;
         for (uint16_t j = 0; scenario.input_chars[j] != '\0'; ++j)
         {
             nxp_core_request_processing_Ignore();
@@ -553,9 +554,9 @@ void test_keycode_mas_bookend_push__various_key_sequences_timeout__times_out(
             nx_core_process(nexus_core_uptime() + 0);
 
             // simulate enough time elapsing between calls to exceed timeout
-            const uint32_t fake_system_uptime =
-                nexus_core_uptime() +
-                NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS + 1;
+            fake_system_uptime = nexus_core_uptime() +
+                                 NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS +
+                                 1;
             nx_core_process(fake_system_uptime);
 
             // Called after timeout elapses, next requested call to the

@@ -12,10 +12,10 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-#include "include/nxp_core.h"
-#include "include/nxp_keycode.h"
-#include "src/nexus_keycode_core.h"
-#include "src/nexus_nv.h"
+    #include "include/nxp_core.h"
+    #include "include/nxp_keycode.h"
+    #include "src/nexus_keycode_core.h"
+    #include "src/nexus_nv.h"
 
 /** Internal struct of data persisted to NV.
  */
@@ -42,12 +42,12 @@ NEXUS_STATIC_ASSERT(
          NEXUS_NV_BLOCK_CRC_WIDTH),
     "nexus_keycode_mas: _this_core.stored invalid size for NV block.");
 
-//
-// FORWARD DECLARATIONS
-//
-#ifndef NEXUS_INTERNAL_IMPL_NON_STATIC
+    //
+    // FORWARD DECLARATIONS
+    //
+    #ifndef NEXUS_INTERNAL_IMPL_NON_STATIC
 NEXUS_IMPL_STATIC uint32_t nexus_keycode_mas_bookend_process(void);
-#endif
+    #endif
 
 //
 // UTILITY ROUTINES
@@ -91,10 +91,10 @@ bool nx_keycode_is_rate_limited(void)
         // Rate limiting is disabled.
         return false;
     }
-#if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
+    #if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
     return (_this_core.rl_bucket <
             NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT);
-#endif
+    #endif
     NEXUS_ASSERT(0, "Should never reach here");
 }
 
@@ -102,7 +102,7 @@ uint32_t nexus_keycode_rate_limit_attempts_remaining(void)
 {
     uint32_t attempts_remaining = 0;
 
-#if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
+    #if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
     uint32_t seconds_remaining = _this_core.rl_bucket;
     while (seconds_remaining >=
            NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT)
@@ -111,13 +111,13 @@ uint32_t nexus_keycode_rate_limit_attempts_remaining(void)
             NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT;
         attempts_remaining++;
     }
-#endif
+    #endif
     return attempts_remaining;
 }
 
 NEXUS_IMPL_STATIC void nexus_keycode_rate_limit_deduct_msg(void)
 {
-#if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
+    #if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
     // Deduct one message from rate limiting bucket
     if (_this_core.rl_bucket >=
         NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT)
@@ -126,7 +126,7 @@ NEXUS_IMPL_STATIC void nexus_keycode_rate_limit_deduct_msg(void)
         _this_core.rl_bucket -=
             NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_REFILL_SECONDS_PER_ATTEMPT;
     }
-#endif
+    #endif
 }
 
 // ACSL for Frama-C analysis (https://frama-c.com/acsl.html)
@@ -154,7 +154,7 @@ NEXUS_IMPL_STATIC void nexus_keycode_rate_limit_deduct_msg(void)
 NEXUS_IMPL_STATIC uint8_t nexus_keycode_mas_remaining_graceperiod_keycodes(
     const uint32_t cur_rl_bucket_seconds)
 {
-#if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
+    #if (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_MAX > 0)
     // Do not perform the divide operation unless necessary
     if (cur_rl_bucket_seconds >=
         (NEXUS_KEYCODE_PROTOCOL_RATE_LIMIT_BUCKET_INITIAL_COUNT *
@@ -166,10 +166,10 @@ NEXUS_IMPL_STATIC uint8_t nexus_keycode_mas_remaining_graceperiod_keycodes(
     {
         return (uint8_t) nexus_keycode_rate_limit_attempts_remaining();
     }
-#else
+    #else
     (void) cur_rl_bucket_seconds;
     return 0;
-#endif
+    #endif
 }
 
 /*@
@@ -449,13 +449,13 @@ bool nx_keycode_handle_complete_keycode(
         _this_bookend.start_seen = true;
         nexus_keycode_mas_reset();
 
-// Small protocol does not have an 'end' character, length based
-#if NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_SMALL
+    // Small protocol does not have an 'end' character, length based
+    #if NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_SMALL
         uint8_t last_keycode_char = keycode->length; // include last char
-#else
+    #else
         uint8_t last_keycode_char =
             (uint8_t)(keycode->length - 1); // omit last char
-#endif
+    #endif
 
         // Start from one after the 'starting' character
         for (uint8_t i = 1; i < last_keycode_char; i++)

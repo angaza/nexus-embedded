@@ -66,7 +66,7 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request,
  *******************************************************/
 // Used for buffering responses
 static uint8_t RESP_BUFFER[2048];
-static const oc_interface_mask_t oc_if_arr[] = {OC_IF_BASELINE, OC_IF_RW};
+static const oc_interface_mask_t if_mask_arr[] = {OC_IF_BASELINE, OC_IF_RW};
 static coap_packet_t response_packet = {0};
 oc_endpoint_t FAKE_ENDPOINT = {0};
 
@@ -132,28 +132,38 @@ void test_channel_core_init__add_device__limit_reached_fails(void)
 
 void test_channel_core_register_resource_and_handler__ok(void)
 {
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 }
 
 void test_channel_core_register_resource_and_multiple_handlers__ok(void)
 {
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 
@@ -167,37 +177,35 @@ void test_channel_core_register_resource_and_multiple_handlers__ok(void)
     reg_result = nx_channel_register_resource_handler(
         "/c", OC_PUT, nexus_channel_res_payg_credit_get_handler, false);
 
-    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_METHOD_UNSUPPORTED, reg_result);
 
     reg_result = nx_channel_register_resource_handler(
         "/c", OC_DELETE, nexus_channel_res_payg_credit_get_handler, false);
 
-    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_METHOD_UNSUPPORTED, reg_result);
 }
 
 // Attempt to register a duplicate resource
 void test_channel_core_register_resource__uri_exists_fails(void)
 {
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 
     // duplicate resource registration attempt should fail
-    reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED, reg_result);
 }
@@ -205,21 +213,68 @@ void test_channel_core_register_resource__uri_exists_fails(void)
 // Attempt to register a duplicate resource handler
 void test_channel_core_register_resource_handler__handler_exists_fails(void)
 {
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 
     nx_channel_error handler_reg_result = nx_channel_register_resource_handler(
         "/c", OC_GET, nexus_channel_res_payg_credit_get_handler, false);
 
-    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED, handler_reg_result);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_ACTION_REJECTED, handler_reg_result);
+}
+
+// Attempt to register secured resources when security manager is unable
+// to register a new resource method
+void test_channel_core_register_resource_handler__too_many_secured_methods__fails(
+    void)
+{
+    // register resource
+    struct nx_channel_resource_props res_props = {
+        //
+        .uri = "", // will be overwritten
+        .resource_type = "", // will be overwritten
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // handlers are dummy... not actually called in this test
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = true,
+        .post_handler = nexus_channel_res_payg_credit_post_handler,
+        .post_secured = true};
+
+    // fill the `nexus_sec_res_methods` member so we can't register new
+    // resources
+    char uri[10] = "/";
+    char res_type[100] = "x.com.dummy.resource";
+    char dummy_char;
+
+    for (int i = 0; i < OC_MAX_APP_RESOURCES - 1; i++)
+    {
+        // arbitrary 1-digit URI
+        dummy_char = (char) (0x30 + i);
+        uri[1] = dummy_char;
+        res_type[0] = dummy_char;
+        res_props.uri = uri;
+        res_props.resource_type = res_type;
+        res_props.rtr++;
+        nx_channel_error reg_result = nx_channel_register_resource(&res_props);
+        TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    }
+
+    nx_channel_error reg_result = nx_channel_register_resource(&res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED, reg_result);
 }
 
 // Attempt to register a handler to a resource that doesn't exist
@@ -236,15 +291,19 @@ void test_channel_core_input_coap_message_passed_to_registered_handler__ok(void)
     // register platform and device
     nexus_channel_core_init();
 
-    // register resources
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
 
     TEST_ASSERT_EQUAL(reg_result, 0);
     coap_packet_t request_packet;
@@ -273,24 +332,30 @@ void test_channel_core_input_coap_message_passed_to_registered_handler__ok(void)
 
 void test_channel_core_input_coap_message__unregistered_resource_fails(void)
 {
-    // register resources
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
 
-    /* WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
-     * will get segfaults because the address of the packet pointer will be in a
-     * different address space (CMock?) than the pointers of internal packet
-     * struct members, for example, `uint8_t* buffer`; so instantiate the entire
-     * object here to allow `memset` operations later.
-     */
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
+    // will get segfaults because the address of the packet pointer will be in a
+    // different address space (CMock?) than the pointers of internal packet
+    // struct members, for example, `uint8_t* buffer`; so instantiate the entire
+    // object here to allow `memset` operations later.
+
     coap_packet_t request_packet;
-    coap_packet_t response_packet;
+    memset((void*) &response_packet, 0x00, sizeof(coap_packet_t));
     // initialize packet: confirmable message (GET) with arbitrary message ID
     coap_udp_init_message(&request_packet, COAP_TYPE_CON, 1, 456);
     // set the request URI path
@@ -315,22 +380,28 @@ void test_channel_core_input_coap_message__unregistered_resource_fails(void)
 void test_channel_core_input_coap_message__unregistered_resource_handler_fails(
     void)
 {
-    // register resources
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
 
-    /* WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
-     * will get segfaults because the address of the packet pointer will be in a
-     * different address space (CMock?) than the pointers of internal packet
-     * struct members, for example, `uint8_t* buffer`; so instantiate the entire
-     * object here to allow `memset` operations later.
-     */
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
+    // will get segfaults because the address of the packet pointer will be in a
+    // different address space (CMock?) than the pointers of internal packet
+    // struct members, for example, `uint8_t* buffer`; so instantiate the entire
+    // object here to allow `memset` operations later.
+
     coap_packet_t request_packet;
     // initialize packet: confirmable message (DELETE) with arbitrary message ID
     // DELETE handler has not been registered!
@@ -357,22 +428,28 @@ void test_channel_core_input_coap_message__unregistered_resource_handler_fails(
 
 void test_channel_core_network_layer__receive_event_ok(void)
 {
-    // register resources
-    nx_channel_error reg_result =
-        nx_channel_register_resource("/c",
-                                     "angaza.io.nexus.payg_credit",
-                                     2,
-                                     oc_if_arr,
-                                     OC_GET,
-                                     nexus_channel_res_payg_credit_get_handler,
-                                     false);
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/c",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
 
-    /* WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
-     * will get segfaults because the address of the packet pointer will be in a
-     * different address space (CMock?) than the pointers of internal packet
-     * struct members, for example, `uint8_t* buffer`; so instantiate the entire
-     * object here to allow `memset` operations later.
-     */
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // WARNING: if we instantiate a *pointer* to a `coap_packet_t` here, then we
+    // will get segfaults because the address of the packet pointer will be in a
+    // different address space (CMock?) than the pointers of internal packet
+    // struct members, for example, `uint8_t* buffer`; so instantiate the entire
+    // object here to allow `memset` operations later.
+
     coap_packet_t request_packet;
     // initialize packet: confirmable message (GET) with arbitrary message ID
     coap_udp_init_message(&request_packet, COAP_TYPE_CON, 1, 123);

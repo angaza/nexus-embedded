@@ -18,39 +18,55 @@
 #include "oc/include/oc_client_state.h"
 
 // Compile-time parameter checks
-#ifndef NEXUS_CHANNEL_ENABLED
-#error "NEXUS_CHANNEL_ENABLED must be defined"
+#ifndef NEXUS_CHANNEL_CORE_ENABLED
+    #error "NEXUS_CHANNEL_CORE_ENABLED must be defined"
 #endif
 
+#ifndef NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    #error "NEXUS_CHANNEL_LINK_SECURITY_ENABLED must be defined"
+#endif
+
+// Not externally exposed, configures maximum bytes for any message sent
+// between Nexus Channel devices (excluding any link-layer overhead, just
+// Nexus application layer message size). Required for 'Core' and full
+// Nexus Channel.
+#define NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES 120
+
 // Set up further configuration parameters
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-// Identifies the Nexus channel protocol public 'release version'.
-#define NEXUS_CHANNEL_PROTOCOL_RELEASE_VERSION_COUNT 1
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
-// Not externally exposed, configures number of link handshakes a controller
-// can simultaneously have.
-#define NEXUS_CHANNEL_SIMULTANEOUS_LINK_HANDSHAKES 4
+    // Identifies the Nexus channel protocol public 'release version'.
+    #define NEXUS_CHANNEL_PROTOCOL_RELEASE_VERSION_COUNT 1
 
-// maximum number of simultaneous Nexus Channel links that can be established
-// Once reaching this limit, devices must be unlinked to link more devices.
-// Increasing increases RAM and NV use.
-#define NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS                                   \
-    CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
+    // Not externally exposed, configures number of link handshakes a controller
+    // can simultaneously have.
+    #define NEXUS_CHANNEL_SIMULTANEOUS_LINK_HANDSHAKES 4
 
-// Seconds that an established link must be idle before being deleted
-// from this system. 7776000 = 3 months
-#define NEXUS_CHANNEL_LINK_TIMEOUT_SECONDS 7776000
+    // maximum number of simultaneous Nexus Channel links that can be
+    // established Once reaching this limit, devices must be unlinked to link
+    // more devices. Increasing increases RAM and NV use.
+    #define NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS                               \
+        CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
+
+    // Seconds that an established link must be idle before being deleted
+    // from this system. 7776000 = 3 months
+    #define NEXUS_CHANNEL_LINK_TIMEOUT_SECONDS 7776000
 
 /*
  * Possible ways to secure communication on a Nexus Channel Link.
  *
  * Used by Link Handshake manager and Link manager to set up a new link
- * and manage encryption and authentication on an existing link, respectively.
+ * and manage encryption and authentication on an existing link,
+ * respectively.
  */
 enum nexus_channel_link_security_mode
 {
-    // No encryption, 128-bit symmetric key, COSE MAC0 computed w/ Siphash 2-4
+    // No encryption, 128-bit symmetric key, COSE MAC0 computed w/ Siphash
+    // 2-4
     NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24 = 0,
     // 1-3 reserved
 };
@@ -73,7 +89,7 @@ enum nexus_channel_link_operating_mode
     CHANNEL_LINK_OPERATING_MODE_DUAL_MODE_IDLE = 3,
 };
 
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 // Shared origin-manager enums and structs (shared by `nexus_channel_om` and
 // `nexus_channel_core`
 
@@ -111,7 +127,8 @@ enum nexus_channel_om_generic_controller_action_type
  *
  * \brief Possible authentication field types
  */
-union nexus_channel_om_auth_field {
+union nexus_channel_om_auth_field
+{
     uint32_t six_int_digits;
 };
 
@@ -121,7 +138,8 @@ struct nexus_channel_om_controller_action_body
     // `nexus_channel_om_generic_controller_action_type`
 };
 
-/* Contains 1 or more ID digits partially identifying a Nexus accessory device
+/* Contains 1 or more ID digits partially identifying a Nexus accessory
+ * device
  *
  * For example, if 'id_digits_count' = 3, truncated_id is guaranteed to be
  * between 100 and 999 (inclusive).
@@ -154,7 +172,8 @@ struct nexus_channel_om_create_link_body
  *
  * See also: `nexus_channel_om_command_message`
  */
-union nexus_channel_om_command_body {
+union nexus_channel_om_command_body
+{
     struct nexus_channel_om_controller_action_body controller_action;
     struct nexus_channel_om_accessory_action_body accessory_action;
     struct nexus_channel_om_create_link_body create_link;
@@ -164,9 +183,10 @@ union nexus_channel_om_command_body {
  *
  * \brief Interface between Channel Origin Messaging and Channel Core.
  *
- * This does not represent the actual transmitted contents, but also includes
- * data (possibly in the body, and always in the computed_command_id) which
- * is inferred while parsing and validating the message.
+ * This does not represent the actual transmitted contents, but also
+ * includes data (possibly in the body, and always in the
+ * computed_command_id) which is inferred while parsing and validating the
+ * message.
  */
 struct nexus_channel_om_command_message
 {
@@ -175,7 +195,11 @@ struct nexus_channel_om_command_message
     union nexus_channel_om_auth_field auth;
     uint32_t computed_command_id; // inferred field, not transmitted in message
 };
-#endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
-#endif /* NEXUS_CHANNEL_ENABLED */
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 #endif /* ifndef NEXUS__CHANNEL__SRC__INTERNAL_CHANNEL_CONFIG_H_ */

@@ -33,6 +33,12 @@
  * Modifications (c) 2020 Angaza, Inc.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#ifdef __cplusplus
+#pragma GCC diagnostic ignored "-Wregister"
+#endif
+
 #include "oc_process.h"
 #include "oc_buffer.h"
 #include <stdio.h>
@@ -408,3 +414,4 @@ oc_process_is_running(struct oc_process *p)
   return p->state != OC_PROCESS_STATE_NONE;
 }
 /*---------------------------------------------------------------------------*/
+#pragma GCC diagnostic pop

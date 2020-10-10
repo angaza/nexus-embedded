@@ -110,17 +110,47 @@ performed against unit test builds).
 The unit tests themselves are found within the `nexus/test` folder. The
 configuration of `ceedling` is contained within the `nexus/project.yml` file.
 
-### Installing Ceedling
+### Installing Tools for Unit Tests
 
-The system must have a version of Ruby newer than 1.8.6. Then, the following
-steps will allow for unit tests to be run.
+First, install [Conda](https://docs.conda.io/en/latest/), which is used to
+manage the packages for building and testing the `nexus-embedded` repository.
 
-1. `gem install ceedling`
-2. `apt-get install gcovr`
-3. `apt-get install gcc-9` (may need to `add-apt-repository ppa:ubuntu-toolchain-r/test` and then `apt update` first)
-4. `apt-get install clang-3.9`
+Conda ensures that these tools are installed and managed in an independent
+environment that does not modify your host/system environment, and ensures
+that `nexus-embedded` unit tests and static analysis can be run consistently
+on almost any development system.
+
+To install Conda on Linux:
+
+1. `wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+2. `bash Miniconda3-latest-Linux-x86_64.sh`
+3. Respond 'yes' to defaults during the installation process
+4. Close and reopen your terminal or shell after installing
+5. Reload your terminal or shell, and run `conda --version` to confirm conda installed successfully.
+
+Next, set up a Conda environment with nexus-embedded specific tools:
+
+6. `conda env create -f support/condaenv.yml` (from same directory as this README)
+
+Now, the prerequisite tools are installed into a conda environment named
+`nexusemb`. You can enter this environment (and gain access to the tools
+used by the `nexus-embedded` project by typing):
+
+* `conda activate nexusemb`.
+
+7. If the `support/condaenv.yml` file changes (for example, due to new tools
+being added in the future) run `conda env update -f=support/condaenv.yml` to
+pick up the new changes.
+
+8. Finally, check that GCC is installed with `gcc --version`. To run unit
+tests and static analysis (e.g. `ceedling clobber test:all`), GCC-10 is
+required. Check that GCC-10 is installed with `gcc-10 --version`.
 
 ### Using Ceedling (Running Tests)
+
+After installing the Conda package as described above,
+type `conda activate nexusemb`. Now, from the `nexus` folder, type the
+following commands:
 
 * `ceedling clobber` - destroy all generated test files
 * `ceedling test:all` - compile and execute all unit tests
@@ -132,4 +162,5 @@ To regenerate the code documentation locally, execute:
 
 `doxygen ./Doxyfile`
 
-from the repository root directory.
+from the repository root directory.  The documentation will be placed in a
+`docs` folder, open `html/index.html` to view it.

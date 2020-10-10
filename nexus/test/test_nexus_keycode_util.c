@@ -241,10 +241,18 @@ void test_nexus_check_compute__fixed_inputs__outputs_are_expected(void)
           0xfe}},
     };
     const void* input_data_pointers[] = {
-        "", "", "qwerty", "qwerty", "qwerty",
+        "",
+        "",
+        "qwerty",
+        "qwerty",
+        "qwerty",
     };
     const uint16_t input_data_sizes[] = {
-        0, 0, 6, 6, 6,
+        0,
+        0,
+        6,
+        6,
+        6,
     };
     const uint64_t expected_values[] = {
         0x1e924b9d737700d7,
@@ -259,7 +267,13 @@ void test_nexus_check_compute__fixed_inputs__outputs_are_expected(void)
         const struct nexus_check_value value = nexus_check_compute(
             &input_keys[i], input_data_pointers[i], input_data_sizes[i]);
 
-        TEST_ASSERT_EQUAL_UINT(*(uint64_t*) value.bytes, expected_values[i]);
+        // Perform this step to avoid ubsan error:
+        // `load of misaligned address 0x7fff48ab658e for type 'uint64_t', which
+        // requires 8 byte alignment` which will occur if trying to access
+        // *(uint64_t*) value.bytes directly.
+        uint64_t aligned_value;
+        memcpy(&aligned_value, value.bytes, sizeof(uint64_t));
+        TEST_ASSERT_EQUAL_UINT(aligned_value, expected_values[i]);
     }
 }
 
@@ -762,178 +776,5 @@ void test_endianness_htobe32__various_scenarios__result_matches_htonl(void)
         const struct test_scenario scenario = scenarios[i];
         const uint32_t output = nexus_endian_htobe32(scenario.input);
         TEST_ASSERT_EQUAL_UINT(htonl(scenario.input), output);
-    }
-}
-
-void test_nx_core_nx_id_to_ipv6_address__various_scenarios__output_expected(
-    void)
-{
-    struct test_scenario
-    {
-        const struct nx_id input;
-        const struct nx_ipv6_address expected;
-    };
-
-    const struct test_scenario scenarios[] = {
-        {
-            {0x0000, 0x12345678}, // authority ID, device ID
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0x02,
-              0,
-              0x12,
-              0xFF,
-              0xFE,
-              0x34,
-              0x56,
-              0x78},
-             0}, // ipv6 address, global scope bool
-        },
-        {
-            {0x1020, 0xAB}, // authority ID, device ID
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0x12,
-              0x20,
-              0x00,
-              0xFF,
-              0xFE,
-              0,
-              0,
-              0xAB},
-             0}, // ipv6 address, global scope bool
-        },
-        {
-            {0xD2AC, 0xFCFB0122}, // authority ID, device ID
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0xD0,
-              0xAC,
-              0xFC,
-              0xFF,
-              0xFE,
-              0xFB,
-              0x01,
-              0x22},
-             0}, // ipv6 address, global scope bool
-        },
-
-    };
-
-    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
-    {
-        // not a great test because we're stuck with our host byte order
-        const struct test_scenario scenario = scenarios[i];
-        struct nx_ipv6_address output;
-        bool success = nx_core_nx_id_to_ipv6_address(&scenario.input, &output);
-        TEST_ASSERT_TRUE(success);
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(
-            scenario.expected.address, output.address, 16);
-        TEST_ASSERT_EQUAL_UINT(scenario.expected.global_scope,
-                               output.global_scope);
-    }
-}
-
-void test_nx_core_ipv6_address_to_nx_id__various_scenarios__output_expected(
-    void)
-{
-    struct test_scenario
-    {
-        const struct nx_ipv6_address input;
-        const struct nx_id expected;
-    };
-
-    const struct test_scenario scenarios[] = {
-        {
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0x02,
-              0,
-              0x12,
-              0xFF,
-              0xFE,
-              0x34,
-              0x56,
-              0x78},
-             0}, // ipv6 address, global scope bool
-            {0x0000, 0x12345678}, // authority ID, device ID
-        },
-        {
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0x22,
-              0x10,
-              0xAB,
-              0xFF,
-              0xFE,
-              0,
-              0,
-              0},
-             0}, // ipv6 address, global scope bool
-            {0x2010, 0xAB000000}, // authority ID, device ID
-        },
-        {
-            {{0xFE,
-              0x80,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0xAE,
-              0xD2,
-              0x22,
-              0xFF,
-              0xFE,
-              0x01,
-              0xFB,
-              0xFC},
-             0}, // ipv6 address, global scope bool
-            {0xACD2, 0x2201FBFC}, // authority ID, device ID
-        },
-
-    };
-
-    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
-    {
-        // not a great test because we're stuck with our host byte order
-        const struct test_scenario scenario = scenarios[i];
-        struct nx_id output;
-        bool success = nx_core_ipv6_address_to_nx_id(&scenario.input, &output);
-        TEST_ASSERT_TRUE(success);
-        TEST_ASSERT_EQUAL_UINT(scenario.expected.authority_id,
-                               output.authority_id);
-        TEST_ASSERT_EQUAL_UINT(scenario.expected.device_id, output.device_id);
     }
 }

@@ -14,6 +14,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NEXUS_NV_BLOCK_ID_WIDTH 2
 #define NEXUS_NV_BLOCK_CRC_WIDTH 2
 #define NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES 4
@@ -34,8 +38,8 @@ extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
 
 /** (Internal) Update a Nexus NV block.
  *
- * Nexus modules needing to store data to NV use this function to request that
- * the data is stored, without being concerned about the CRC.
+ * Nexus modules needing to store data to NV use this function to request
+ * that the data is stored, without being concerned about the CRC.
  *
  * The block that is subsequently written via the `port` NV functions has
  * a block ID and CRC, but the data provided by the Nexus modules via
@@ -48,9 +52,9 @@ extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
  * block ID and CRC are not included.
  *
  * \param block_meta metadata of block to update
- * \param data pointer to the first byte of data *contained in* the block.
- * `block_meta.length - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES` will be copied from
- * inner data into the eventual block to be written.
+ * \param inner_data pointer to the first byte of data *contained in* the block.
+ * `block_meta.length - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES` will be copied
+ * from inner data into the eventual block to be written.
  * \return true if the data are up to date in NV, false if the update failed
  */
 bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
@@ -63,7 +67,7 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
  * This function abstracts away those elements.
  *
  * \param block_meta metadata of block to read
- * \param data pointer to where the data should be copied. No more than
+ * \param inner_data pointer to where the data should be copied. No more than
  * `block_meta.length - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES` bytes will be
  * copied to `data` (if there are data available; if there are no data,
  * then zero bytes will be copied to `data`)
@@ -71,5 +75,9 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
  */
 bool nexus_nv_read(const struct nx_core_nv_block_meta block_meta,
                    uint8_t* inner_data);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ifndef NEXUS__SRC__NEXUS_NV_INTERNAL_H_ */

@@ -39,7 +39,7 @@ void sigint_handler(/*int sig*/)
 int main(void)
 {
     // Catch program exit, so we can handle wrap-up operations if needed.
-    signal(SIGINT, sigint_handler);
+    signal(SIGINT, (__sighandler_t) sigint_handler);
 
     printf("Initializing product interfaces...\n");
     clock_init();

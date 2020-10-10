@@ -8,12 +8,12 @@
  * or substantial portions of the Software.
  */
 
+#include "nonvol.h"
 #include "identity.h"
 #include "nx_keycode.h"
 #include "nxp_core.h"
 #include "payg_state.h"
 #include <assert.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -197,7 +197,7 @@ bool nv_read(char block_sentinel,
         }
 
         // Note that `malloc` is not an option on many embedded platforms.
-        uint8_t* block = malloc(cur_block_length * sizeof(uint8_t));
+        uint8_t* block = (uint8_t*) malloc(cur_block_length * sizeof(uint8_t));
         if (block == NULL)
         {
             break;
@@ -244,7 +244,7 @@ bool nv_read(char block_sentinel,
 bool nxp_core_nv_read(const struct nx_core_nv_block_meta block_meta,
                       void* read_buffer)
 {
-    uint8_t intermediate_read_buffer[block_meta.length * sizeof(uint8_t)];
+    uint8_t intermediate_read_buffer[NX_CORE_NV_MAX_BLOCK_LENGTH];
 
     if (nv_read(BLOCK_SENTINEL_NX,
                 block_meta.block_id,

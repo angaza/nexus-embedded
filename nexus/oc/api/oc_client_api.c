@@ -16,6 +16,10 @@
 // Modifications (c) 2020 Angaza, Inc.
 */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 #include "messaging/coap/coap.h"
 #include "messaging/coap/transactions.h"
 #include "src/nexus_channel_sm.h"
@@ -87,7 +91,8 @@ dispatch_coap_request(void)
       cose_mac0.protected_header = (uint8_t) client_cb->method;
       cose_mac0.kid = 0;
       cose_mac0.nonce = sec_data.nonce;
-      cose_mac0.payload_len = payload_size;
+      // Note: payload size is an integer
+      cose_mac0.payload_len = (uint8_t) payload_size;
       // the encoded payload has been written here by `prepare_coap_request`
       cose_mac0.payload = transaction_data_ptr;
 
@@ -234,7 +239,7 @@ static bool prepare_coap_request(oc_client_cb_t *cb)
 #endif // OC_TCP
 */
   {
-    coap_udp_init_message(request, type, cb->method, cb->mid);
+    coap_udp_init_message(request, type, (uint8_t) cb->method, cb->mid);
   }
 
 #ifdef OC_SPEC_VER_OIC
@@ -505,7 +510,7 @@ oc_do_ipv4_multicast(const char *uri, const char *query,
   return NULL;
 }
 #endif // OC_IPV4
-*/
+
 void
 oc_stop_multicast(oc_client_response_t *response)
 {
@@ -580,12 +585,11 @@ oc_do_ip_multicast(const char *uri, const char *query,
   oc_client_cb_t *cb4 = NULL;
 #ifdef OC_IPV4
   cb4 = oc_do_ipv4_multicast(uri, query, handler, user_data);
-#endif /* OC_IPV4 */
+#endif // OC_IPV4
 
   return multi_scope_ipv6_multicast(cb4, 0x02, uri, query, handler, user_data);
 }
 
-/*
 static bool
 dispatch_ip_discovery(oc_client_cb_t *cb4, const char *query,
                       oc_client_handler_t handler, oc_endpoint_t *endpoint,
@@ -878,3 +882,4 @@ oc_assert_all_roles(oc_endpoint_t *endpoint, oc_response_handler_t handler,
 */
 
 //#endif // OC_CLIENT
+#pragma GCC diagnostic pop

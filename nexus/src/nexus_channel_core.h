@@ -13,12 +13,16 @@
 
 #include "src/internal_channel_config.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_CORE_ENABLED
 
-#define NEXUS_CHANNEL_MAX_RTS_PER_RES 1
-#define NEXUS_CHANNEL_NEXUS_DEVICE_ID 0
+    #define NEXUS_CHANNEL_MAX_RTS_PER_RES 1
+    #define NEXUS_CHANNEL_NEXUS_DEVICE_ID 0
 
-#include <stdbool.h>
+    #include <stdbool.h>
+
+    #ifdef __cplusplus
+extern "C" {
+    #endif
 
 /** Initialize the Nexus Channel module.
  *
@@ -34,15 +38,16 @@ bool nexus_channel_core_init(void);
 void nexus_channel_core_shutdown(void);
 
 /**Process any pending activity from Nexus channel submodules.
-*
-* Called inside `nx_core_process()`.
-*
-* \param seconds_elapsed seconds since this function was previously called
-* \return seconds until this function must be called again
-*/
+ *
+ * Called inside `nx_core_process()`.
+ *
+ * \param seconds_elapsed seconds since this function was previously called
+ * \return seconds until this function must be called again
+ */
 uint32_t nexus_channel_core_process(uint32_t seconds_elapsed);
 
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 
 /*! \brief Apply a parsed, valid origin command.
  *
@@ -56,7 +61,12 @@ uint32_t nexus_channel_core_process(uint32_t seconds_elapsed);
  */
 bool nexus_channel_core_apply_origin_command(
     const struct nexus_channel_om_command_message* om_message);
-#endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+        #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #endif /* NEXUS_CHANNEL_LINK_SECUURITY_ENABLED */
 
-#endif /* NEXUS_CHANNEL_ENABLED */
+    #ifdef __cplusplus
+}
+    #endif
+
+#endif /* NEXUS_CHANNEL_CORE_ENABLED */
 #endif // NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_CORE_H_

@@ -12,17 +12,17 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-#include "include/nxp_core.h"
-#include "include/nxp_keycode.h"
-#include "src/nexus_keycode_core.h"
-#include "src/nexus_util.h"
+    #include "include/nxp_core.h"
+    #include "include/nxp_keycode.h"
+    #include "src/nexus_keycode_core.h"
+    #include "src/nexus_util.h"
 
-//
-// NON-ADJUSTABLE PROTOCOL CONSTANTS
-//
+    //
+    // NON-ADJUSTABLE PROTOCOL CONSTANTS
+    //
 
-// Internal identifier used in mapping message ID flags
-#define NEXUS_KEYCODE_PRO_MAX_MESSAGE_ID_BYTE 3
+    // Internal identifier used in mapping message ID flags
+    #define NEXUS_KEYCODE_PRO_MAX_MESSAGE_ID_BYTE 3
 
 //
 // Common to both protocol variants
@@ -31,28 +31,29 @@ const uint32_t NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS = 3600; // 1 hour
 
 const uint8_t NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS = 127;
 
-// there is no stop character defined for 'small' protocol, but all valid
-// messages are 14 digits in length (after the start character)
-#define NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_SMALL 14
+    // there is no stop character defined for 'small' protocol, but all valid
+    // messages are 14 digits in length (after the start character)
+    #define NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_SMALL 14
 
 // 60 sec/min, 60 min/hr, 24 hr/day
 const uint32_t NEXUS_KEYCODE_PRO_SECONDS_IN_HOUR = 60 * 60;
 const uint32_t NEXUS_KEYCODE_PRO_SECONDS_IN_DAY = 60 * 60 * 24;
 
-#if NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_SMALL
+    #if NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_SMALL
 const uint8_t NEXUS_KEYCODE_PRO_STOP_LENGTH =
     NEXUS_KEYCODE_MESSAGE_LENGTH_MAX_DIGITS_SMALL;
-#elif NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_FULL
+    #elif NEXUS_KEYCODE_PROTOCOL == NEXUS_KEYCODE_PROTOCOL_FULL
 const uint8_t NEXUS_KEYCODE_PRO_STOP_LENGTH =
     NEXUS_KEYCODE_PROTOCOL_NO_STOP_LENGTH;
-#else
-#error "Invalid NEXUS_KEYCODE_PROTOCOL defined."
-#endif
+    #else
+        #error "Invalid NEXUS_KEYCODE_PROTOCOL defined."
+    #endif
 
 //
 // Small Protocol
 //
 const uint8_t NEXUS_KEYCODE_PRO_SMALL_MAX_TEST_FUNCTION_ID = 127;
+const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_CLEAR_CUSTOM_FLAG_RESTRICTED = 253;
 const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_LOCK_INCREMENT_ID = 254;
 const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_UNLOCK_INCREMENT_ID = 255;
 const uint16_t NEXUS_KEYCODE_PRO_SMALL_UNLOCK_INCREMENT = UINT16_MAX;
@@ -71,8 +72,8 @@ const uint8_t NEXUS_KEYCODE_PRO_FULL_CHECK_CHARACTER_COUNT = 6;
 const uint8_t NEXUS_KEYCODE_PRO_FULL_DEVICE_ID_MIN_CHARACTER_COUNT = 8;
 const uint8_t NEXUS_KEYCODE_PRO_FULL_DEVICE_ID_MAX_CHARACTER_COUNT = 10;
 
-// activation messages are fixed at 14 digits in 'full' protocol
-#define NEXUS_KEYCODE_MESSAGE_LENGTH_ACTIVATION_MESSAGE_FULL 14
+    // activation messages are fixed at 14 digits in 'full' protocol
+    #define NEXUS_KEYCODE_MESSAGE_LENGTH_ACTIVATION_MESSAGE_FULL 14
 
 //
 // CORE
@@ -96,7 +97,7 @@ _this_protocol;
 
 // Received Message ID Masks - Structure Dependent on Keycode Protocol Used
 // flags must be persisted to flash.
-static NEXUS_PACKED_STRUCT message_ids
+static NEXUS_PACKED_STRUCT keycode_pro_stored
 {
     // data that is persisted to flash
     NEXUS_PACKED_STRUCT
@@ -112,9 +113,14 @@ static NEXUS_PACKED_STRUCT message_ids
     code_counts;
     NEXUS_PACKED_STRUCT
     {
-        uint8_t pad[2];
+        uint8_t bitmask;
     }
-    padding;
+    custom_flags; // not used for credit keycode parsing
+    NEXUS_PACKED_STRUCT
+    {
+        uint8_t pad;
+    }
+    padding; // pad to 12 bytes total
 }
 _nexus_keycode_stored;
 
@@ -131,7 +137,7 @@ NEXUS_STATIC_ASSERT(
 
 static void _update_keycode_pro_nv_blocks(void);
 
-#ifndef NEXUS_INTERAL_IMPL_NON_STATIC
+    #ifndef NEXUS_INTERAL_IMPL_NON_STATIC
 NEXUS_IMPL_STATIC bool
 nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
                               struct nexus_keycode_pro_small_message* parsed);
@@ -188,7 +194,7 @@ nexus_keycode_pro_increment_short_qc_test_message_count(void);
 
 NEXUS_IMPL_STATIC void
 nexus_keycode_pro_increment_long_qc_test_message_count(void);
-#endif
+    #endif
 
 // INTERNAL declaration
 static uint16_t
@@ -216,7 +222,8 @@ void nexus_keycode_pro_init(nexus_keycode_pro_parse_and_apply parse_and_apply,
     // default value == 23
     nexus_keycode_pro_reset_pd_index();
 
-    // Force a read of the _nexus_keycode_stored nv data
+    // Force a read of the _nexus_keycode_stored nv data, will also
+    // overwrite _nexus_keycode_stored.custom_flags
     (void) nexus_keycode_pro_get_full_message_id_flag(0);
 }
 
@@ -293,14 +300,14 @@ uint32_t nexus_keycode_pro_process(void)
 
 void nexus_keycode_pro_small_init(const char* alphabet)
 {
-// assert that the alphabet size is valid for the keycode protocol type
-// Note: this will be compiled out, we don't use strlen in production
-// code.
-#ifdef NEXUS_USE_DEFAULT_ASSERT
+    // assert that the alphabet size is valid for the keycode protocol type
+    // Note: this will be compiled out, we don't use strlen in production
+    // code.
+    #ifdef NEXUS_USE_DEFAULT_ASSERT
     const uint32_t alphabet_len = (uint32_t) strlen(alphabet);
     NEXUS_ASSERT(alphabet_len == NEXUS_KEYCODE_PRO_SMALL_ALPHABET_LENGTH,
                  "unsupported keycode alphabet size");
-#endif
+    #endif
     _this_protocol.alphabet = alphabet;
 }
 
@@ -426,12 +433,12 @@ nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
         }
     }
 
-#ifdef NEXUS_USE_DEFAULT_ASSERT
+    #ifdef NEXUS_USE_DEFAULT_ASSERT
     const uint32_t message_bits_length =
         nexus_bitstream_length_in_bits(&message_bitstream);
     NEXUS_ASSERT(message_bits_length == 28,
                  "failed to obtain the expected message length");
-#endif
+    #endif
 
     // pull the check field from the bitstream, first, so that we can
     // deinterleave
@@ -553,11 +560,20 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
                 // disable unit
                 nxp_keycode_payg_credit_set(0);
             }
+            else if (message->body.activation.increment_id ==
+                     NEXUS_KEYCODE_PRO_SMALL_SET_CLEAR_CUSTOM_FLAG_RESTRICTED)
+            {
+                nexus_keycode_pro_reset_custom_flag(
+                    NX_KEYCODE_CUSTOM_FLAG_RESTRICTED);
+            }
             else
             {
                 const uint16_t increment_days =
                     nexus_keycode_pro_small_get_set_credit_increment_days(
                         message->body.activation.increment_id);
+                // 960 related to max increment ID valid for credit (239)
+                NEXUS_ASSERT(increment_days <= 960,
+                             "Unexpected max days exceeded");
                 nxp_keycode_payg_credit_set(increment_days *
                                             NEXUS_KEYCODE_PRO_SECONDS_IN_DAY);
             }
@@ -611,7 +627,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
                 nexus_keycode_pro_reset_pd_index();
                 nexus_keycode_pro_reset_test_code_count();
                 nexus_keycode_pro_wipe_message_ids_in_window();
-            // intentional fallthrough
+                // intentional fallthrough
 
             case NEXUS_KEYCODE_PRO_SMALL_WIPE_STATE_TARGET_CREDIT:
                 // wipe all state data
@@ -654,7 +670,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 
             // 1-hour QC code is "additive"
             case NEXUS_KEYCODE_PRO_SMALL_ENABLE_QC_TEST:
-#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
+    #if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
                 if (nexus_keycode_pro_get_long_qc_code_count() <
                         NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX &&
                     nxp_core_payg_state_get_current() !=
@@ -664,7 +680,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
                     test_credit_secs =
                         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS;
                 }
-#endif
+    #endif
                 break;
 
             default: // unsupported function command
@@ -695,7 +711,8 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 enum nexus_keycode_pro_response
 nexus_keycode_pro_small_parse_and_apply(const struct nexus_keycode_frame* frame)
 {
-    struct nexus_keycode_pro_small_message pro_message = {0};
+    struct nexus_keycode_pro_small_message pro_message;
+    memset(&pro_message, 0x00, sizeof(struct nexus_keycode_pro_small_message));
     const bool parsed = nexus_keycode_pro_small_parse(frame, &pro_message);
 
     if (parsed)
@@ -757,7 +774,12 @@ nexus_keycode_pro_small_get_set_credit_increment_days(uint8_t increment_id)
     {
         return (uint16_t)((increment_id - 179) * 8 + 360); // 368-720 days
     }
-    return (uint16_t)((increment_id - 224) * 16 + 720); // 736-1216 days
+    else if (increment_id < 240)
+    {
+        return (uint16_t)((increment_id - 224) * 16 + 720); // 721-960 days
+    }
+    NEXUS_ASSERT(0, "Unreachable code reached...");
+    return 0;
 }
 
 /** Mathematical mod 10.
@@ -774,12 +796,12 @@ static uint8_t _mathmod10(int x)
 
 void nexus_keycode_pro_full_init(const char* alphabet)
 {
-#ifdef NEXUS_USE_DEFAULT_ASSERT
+    #ifdef NEXUS_USE_DEFAULT_ASSERT
     // assert that the alphabet size is valid for the keycode protocol type
     const uint32_t alphabet_len = (uint32_t) strlen(alphabet);
     NEXUS_ASSERT(alphabet_len == NEXUS_KEYCODE_PRO_FULL_ALPHABET_LENGTH,
                  "unsupported keycode alphabet size");
-#endif
+    #endif
     _this_protocol.alphabet = alphabet;
 }
 
@@ -1082,7 +1104,11 @@ NEXUS_IMPL_STATIC bool nexus_keycode_pro_full_parse_factory_and_passthrough(
                 digits.position == 1,
                 "More than one digit pulled from Passthrough Command message.");
             // Pass the body digits, skipping the type_code digit
-            struct nx_keycode_complete_code passthrough_code = {0};
+            struct nx_keycode_complete_code passthrough_code;
+            memset(&passthrough_code,
+                   0x00,
+                   sizeof(struct nx_keycode_complete_code));
+
             passthrough_code.keys =
                 (nx_keycode_key*) &digits.chars[digits.position];
             passthrough_code.length =
@@ -1102,9 +1128,8 @@ NEXUS_IMPL_STATIC bool nexus_keycode_pro_full_parse_factory_and_passthrough(
     }
 
     // we should now have consumed exactly every digit
-    return !underrun &&
-           nexus_digits_length_in_digits(&digits) ==
-               nexus_digits_position(&digits);
+    return !underrun && nexus_digits_length_in_digits(&digits) ==
+                            nexus_digits_position(&digits);
 }
 
 NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_full_apply(
@@ -1148,15 +1173,15 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response
 nexus_keycode_pro_full_apply_activation(
     const struct nexus_keycode_pro_full_message* message)
 {
-// certain version of clang misinterpret this section
-#ifndef __clang_analyzer__
+    // certain version of clang misinterpret this section
+    #ifndef __clang_analyzer__
     // reject any activation message if its already been applied.
     if (nexus_keycode_pro_get_full_message_id_flag(
             (uint16_t) message->full_message_id))
     {
         return NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE;
     }
-#endif
+    #endif
 
     /* Ignored by WIPE_STATE; but reduce number of comparisons by not
      * explicitly handling that state here.
@@ -1194,10 +1219,10 @@ nexus_keycode_pro_full_apply_activation(
                 // The body of the demo code overrides 'hours' to convey
                 // 'minutes', so we only need to multiply by 60 here to get
                 // the conveyed amount.
-                const uint32_t credit_increment_seconds =
+                const uint32_t credit_increment_seconds_demo =
                     message->body.add_set_credit.hours * 60;
 
-                nxp_keycode_payg_credit_add(credit_increment_seconds);
+                nxp_keycode_payg_credit_add(credit_increment_seconds_demo);
             }
             break;
 
@@ -1229,7 +1254,7 @@ nexus_keycode_pro_full_apply_activation(
                     nexus_keycode_pro_reset_pd_index();
                     nexus_keycode_pro_reset_test_code_count();
                     nexus_keycode_pro_wipe_message_ids_in_window();
-                // intentional fallthrough
+                    // intentional fallthrough
 
                 case NEXUS_KEYCODE_PRO_FULL_WIPE_STATE_TARGET_CREDIT:
                     // wipe all state data
@@ -1242,6 +1267,12 @@ nexus_keycode_pro_full_apply_activation(
                     nexus_keycode_pro_reset_pd_index();
                     nexus_keycode_pro_reset_test_code_count();
                     nexus_keycode_pro_wipe_message_ids_in_window();
+                    break;
+
+                case NEXUS_KEYCODE_PRO_FULL_WIPE_CUSTOM_FLAG_RESTRICTED:
+                    // does not modify credit or message IDs
+                    nexus_keycode_pro_reset_custom_flag(
+                        NX_KEYCODE_CUSTOM_FLAG_RESTRICTED);
                     break;
 
                 default:
@@ -1322,9 +1353,9 @@ nexus_keycode_pro_full_apply_factory(
             break;
 
         case NEXUS_KEYCODE_PRO_FULL_PASSTHROUGH_COMMAND:
-        // Should not reach here, as passthrough commands are handled
-        // at the parsing layer (before reaching this 'apply' code)
-        // intentional fallthrough
+            // Should not reach here, as passthrough commands are handled
+            // at the parsing layer (before reaching this 'apply' code)
+            // intentional fallthrough
 
         default:
             NEXUS_ASSERT(false, "should not be reached");
@@ -1563,7 +1594,6 @@ static void _update_keycode_pro_nv_blocks(void)
 
 /**
  * \param full_message_id integer value of message id to set
- * \return void
  */
 void nexus_keycode_pro_set_full_message_id_flag(const uint16_t full_message_id)
 {
@@ -1592,7 +1622,6 @@ void nexus_keycode_pro_set_full_message_id_flag(const uint16_t full_message_id)
 
 /**
  * \param full_message_id id below which all received flags will be set.
- * \return void
  */
 void nexus_keycode_pro_mask_below_message_id(const uint16_t full_message_id)
 {
@@ -1667,13 +1696,13 @@ void nexus_keycode_pro_reset_test_code_count(void)
 NEXUS_IMPL_STATIC bool
 nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
 {
-#if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
+    #if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
     const uint8_t short_code_count =
         nexus_keycode_pro_get_short_qc_code_count();
-#endif
-#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
+    #endif
+    #if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
     const uint8_t long_code_count = nexus_keycode_pro_get_long_qc_code_count();
-#endif
+    #endif
     const bool is_short_code =
         qc_credit_seconds <= NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS;
 
@@ -1693,21 +1722,21 @@ nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
     }
     if (is_short_code)
     {
-#if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
+    #if (NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX > 0)
         if (short_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX)
         {
             return true;
         }
-#endif
+    #endif
     }
     if (!is_short_code)
     {
-#if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
+    #if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
         if (long_code_count < NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX)
         {
             return true;
         }
-#endif
+    #endif
     }
     return false;
 }
@@ -1718,8 +1747,8 @@ nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
 NEXUS_IMPL_STATIC uint8_t nexus_keycode_pro_get_long_qc_code_count(void)
 {
     // Long code occupies up 4-MSB (0b11110000)
-    uint8_t long_qc_code_count =
-        (_nexus_keycode_stored.code_counts.qc_test_codes_received & 0xF0) >> 4;
+    uint8_t long_qc_code_count = (uint8_t)(
+        (_nexus_keycode_stored.code_counts.qc_test_codes_received & 0xF0) >> 4);
     return long_qc_code_count;
 }
 
@@ -1765,6 +1794,28 @@ nexus_keycode_pro_increment_short_qc_test_message_count(void)
     _nexus_keycode_stored.code_counts.qc_test_codes_received |=
         (new_short_code_count);
     _update_keycode_pro_nv_blocks();
+}
+
+void nx_keycode_set_custom_flag(enum nx_keycode_custom_flag flag)
+{
+    _nexus_keycode_stored.custom_flags.bitmask =
+        (_nexus_keycode_stored.custom_flags.bitmask | ((uint8_t) flag));
+    _update_keycode_pro_nv_blocks();
+    nxp_keycode_notify_custom_flag_changed(flag, true);
+}
+
+void nexus_keycode_pro_reset_custom_flag(enum nx_keycode_custom_flag flag)
+{
+    _nexus_keycode_stored.custom_flags.bitmask = (uint8_t)(
+        _nexus_keycode_stored.custom_flags.bitmask & (~(uint8_t) flag));
+    _update_keycode_pro_nv_blocks();
+    nxp_keycode_notify_custom_flag_changed(flag, false);
+}
+
+bool nx_keycode_get_custom_flag(enum nx_keycode_custom_flag flag)
+{
+    return (bool) (_nexus_keycode_stored.custom_flags.bitmask &
+                   ((uint8_t) flag));
 }
 
 #endif /* if NEXUS_KEYCODE_ENABLED */

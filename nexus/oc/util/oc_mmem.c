@@ -33,6 +33,10 @@
  * Modifications (c) 2020 Angaza, Inc.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include "oc_mmem.h"
 #include "oc_config.h"
 #include "utils/oc_list.h"
@@ -51,14 +55,19 @@
 #error "Please define byte, int, double pool sizes in oc_config.h"
 #endif // ...POOL_SIZE
 */
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
 static double doubles[OC_DOUBLES_POOL_SIZE];
+static unsigned int avail_doubles;
+#endif
 static int64_t ints[OC_INTS_POOL_SIZE];
 static unsigned char bytes[OC_BYTES_POOL_SIZE];
-static unsigned int avail_bytes, avail_ints, avail_doubles;
+static unsigned int avail_bytes, avail_ints;
 
 OC_LIST(bytes_list);
 OC_LIST(ints_list);
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
 OC_LIST(doubles_list);
+#endif
 //#else // !OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
 //#endif // OC_DYNAMIC_ALLOCATION
@@ -117,6 +126,7 @@ _oc_mmem_alloc(
     avail_ints -= size;
 #endif /* !OC_DYNAMIC_ALLOCATION */
     break;
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   case DOUBLE_POOL:
     //OC_WRN("allocating %ul to double pool!", size);
     bytes_allocated += size * sizeof(double);
@@ -134,6 +144,7 @@ _oc_mmem_alloc(
     avail_doubles -= size;
 #endif /* !OC_DYNAMIC_ALLOCATION */
     break;
+#endif
   default:
     break;
   }
@@ -163,9 +174,11 @@ _oc_mmem_free(
   case INT_POOL:
     bytes_freed *= sizeof(int64_t);
     break;
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   case DOUBLE_POOL:
     bytes_freed *= sizeof(double);
     break;
+#endif
   default:
     break;
   }
@@ -186,14 +199,19 @@ _oc_mmem_free(
       memmove(m->ptr, m->next->ptr,
               &ints[OC_INTS_POOL_SIZE - avail_ints] - (int64_t *)m->next->ptr);
       break;
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
     case DOUBLE_POOL:
       memmove(m->ptr, m->next->ptr,
               &doubles[OC_DOUBLES_POOL_SIZE - avail_doubles] -
                 (double *)m->next->ptr);
       break;
+#endif
     default:
       return;
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code-break"
       break;
+#pragma GCC diagnostic pop
     }
     for (n = m->next; n != NULL; n = n->next) {
       n->ptr = (void *)((char *)n->ptr - m->size);
@@ -209,10 +227,12 @@ _oc_mmem_free(
     avail_ints += m->size;
     oc_list_remove(ints_list, m);
     break;
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   case DOUBLE_POOL:
     avail_doubles += m->size;
     oc_list_remove(doubles_list, m);
     break;
+#endif
   default:
     // TODO: should not reach here, indicate error
     break;
@@ -234,13 +254,19 @@ oc_mmem_init(void)
   }
   oc_list_init(bytes_list);
   oc_list_init(ints_list);
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   oc_list_init(doubles_list);
+#endif
   avail_bytes = OC_BYTES_POOL_SIZE;
   avail_ints = OC_INTS_POOL_SIZE;
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   avail_doubles = OC_DOUBLES_POOL_SIZE;
+#endif
   inited = 1;
 #endif // OC_DYNAMIC_ALLOCATION
 }
+
+#pragma GCC diagnostic pop
 
 #ifdef NEXUS_DEFINED_DURING_TESTING
 // used internally in Nexus tests
@@ -256,7 +282,9 @@ oc_nexus_testing_reinit_mmem_lists(void)
   // would result in a memory leak.
   oc_list_init(bytes_list);
   oc_list_init(ints_list);
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
   oc_list_init(doubles_list);
+#endif
 }
 #endif
 /*---------------------------------------------------------------------------*/

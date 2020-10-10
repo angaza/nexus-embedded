@@ -1,0 +1,52 @@
+# Release Notes
+
+Version can be found in `include/MODULE_VERSION.h`.
+
+`MODULE_VERSION.h` indicates the version of embedded code, and refers to
+changes that do not necessarily impact any functionality outside of the
+embedded repository.
+
+`NEXUS_VERSION` is a systemwide version number, which indicates compatibility
+with other repositories (primarily with the [`nexus-python`](https://github.com/angaza/nexus-python)
+repository, which is the 'server-side' code coordinating with the embedded code
+in this repository).
+
+Both version fields are semantic version numbers, e.g.:
+
+<MAJOR>.<MINOR>.<PATCH>
+
+Where any code from the same major version should be backwards-compatible
+with other code of the same major version, but is *not* compatible with
+different major version codes.
+
+## Embedded Module Version 1.0.0
+
+Compatible with NEXUS_VERSION >= 2.1
+
+* Rename public interfaces in `include/` to avoid using `core` for names of
+common/baseline code used by all Nexus implementations. This is done to avoid
+confusing these functions and definitions with "Nexus Channel Core", which is unrelated.
+
+* Add support for "Nexus Channel Core" only `Kconfig` compilation option
+(More on Nexus Channel Core [here](https://angaza.github.io/nexus-channel-models/))
+
+* Apply code style formatting to all source in the `oc/` folder/subfolders
+
+## Embedded Module Version 0.8.0
+
+Compatible with NEXUS_VERSION >= 2.1
+
+* Add support for keycode 'restricted' flag, which is set by product
+code (via interfaces in `nx_keycode`) and is reset via a special keycode
+available in both small and full keycode protocols
+(see https://github.com/angaza/nexus-python/pull/8 for keycode generation)
+
+* Code is more C++ friendly (header files updated with `extern "C"`),
+modifications made to pass stricter C++ compilation checks (no need for
+implementing project to use `fpermissive`, tested with G++-10)
+
+* More strict static analysis, use multiple compilers for CI test and analysis
+builds (GCC-10 with address sanitization and Clang 10)
+
+* Fixed unit tests that had memory / address sanitizer errors (flagged by
+Valgrind and/or GCC address sanitizer tools)

@@ -20,16 +20,20 @@
 
 #include "include/nx_channel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Return device-specific unique 16-byte authentication key.
  *
  * Return a copy of the device-unique secret key to use for channel origin
- * command authentication. The secret key must not change over the lifecycle of
- * the device.
+ * command authentication. The secret key must not change over the lifecycle
+ * of the device.
  *
- * It is recommended that this is a different key from the 'keycode' symmetric
- * key, but if NV storage is limited, it is possible to generate a different
- * (but consistent) key 'on the fly' by passing the secret keycode key
- * through a symmetric one-way hashing function.
+ * It is recommended that this is a different key from the 'keycode'
+ * symmetric key, but if NV storage is limited, it is possible to generate a
+ * different (but consistent) key 'on the fly' by passing the secret keycode
+ * key through a symmetric one-way hashing function.
  *
  * \return copy of permanent, 16-byte device-specific secret key
  */
@@ -63,11 +67,10 @@ enum nxp_channel_event_type
  *
  * This function is called by Nexus Channel to indicate that an event
  * has occurred which the implementing product may wish to act upon.
- * Often, this information might be used to update a UI display (for example,
- * if a link handshake has completed successfully).
+ * Often, this information might be used to update a UI display (for
+ * example, if a link handshake has completed successfully).
  *
  * \param event enum indicating the event which occurred
- * \return void
  */
 void nxp_channel_notify_event(enum nxp_channel_event_type event);
 
@@ -76,29 +79,30 @@ void nxp_channel_notify_event(enum nxp_channel_event_type event);
  * Send data from the Nexus Channel system running on this device to the
  * network hardware (dependent on the implementing product).
  *
- * This function provides an `is_multicast` flag, indicating whether the
- * message should be transmitted to *all* connected devices, or *one*
- * connected device on the local network.
+ * The `source` is fixed, and is the Nexus ID address of *this*
+ * device. `dest` is the Nexus ID of the device to
+ * receive the payload.
  *
- * The `source_address` is fixed, and is the Nexus IPV6 address of *this*
- * device. The `dest_address` is the Nexus IPV6 address of the device to
- * receive this application payload. In the case of multicast devices, this
- * is an address registered with IANA for "All OCF Devices"
+ * This function provides an `is_multicast` convenience flag, indicating
+ * whether the message should be transmitted to *all* connected devices, or
+ * *one*
+ * connected device on the local network. If `is_multicast` is true, the
+ * `dest` nx_id will be: {authority_id = 0xFF00, device_id = 158}. 158 is
+ * selected to map to the "All OCF Nodes" IANA IPV6 address here:
  * (https://www.iana.org/assignments/ipv6-multicast-addresses/ipv6-multicast-addresses.xhtml)
  *
  * \param bytes_to_send pointer to application data to send
  * \param bytes_count number of valid bytes at `bytes_to_send`
- * \param source_address Nexus IPV6 address of the sending device (this device)
- * \param dest_address Nexus IPV6 address which should receive this message
- * \param is_multicast True if message should be sent to *all* connected devices
+ * \param source Nexus ID of the sending device (this device)
+ * \param dest Nexus ID of the destination device (other device)
+ * \param is_multicast if true, send message to all devices
  * \return `nx_channel_error` indicating success or failure (and cause)
  */
-nx_channel_error
-nxp_channel_network_send(const void* const bytes_to_send,
-                         uint32_t bytes_count,
-                         const struct nx_ipv6_address* const source_address,
-                         const struct nx_ipv6_address* const dest_address,
-                         bool is_multicast);
+nx_channel_error nxp_channel_network_send(const void* const bytes_to_send,
+                                          uint32_t bytes_count,
+                                          const struct nx_id* const source,
+                                          const struct nx_id* const dest,
+                                          bool is_multicast);
 
 /* Retrieve the value of the Nexus ID of this device.
  *
@@ -122,9 +126,9 @@ struct nx_id nxp_channel_get_nexus_id(void);
  * PAYG credit mode, and another (authorized) Nexus Channel device updates
  * the credit on this device.
  *
- * If '0', the device should be functionally disabled. If any value other than
- * 0, the remaining amount of PAYG credit on the device should be updated to
- * that value.
+ * If '0', the device should be functionally disabled. If any value other
+ * than 0, the remaining amount of PAYG credit on the device should be
+ * updated to that value.
  *
  * Units are determined at compile-time, but are assumed to be 'seconds' if
  * not otherwise specified.
@@ -139,8 +143,8 @@ nx_channel_error nxp_channel_payg_credit_set(uint32_t remaining);
 /* Remove PAYG restrictions from this device.
  *
  * This function is called when this device is operating in a 'dependent'
- * PAYG credit mode, and another (authorized) Nexus Channel device permanently
- * unlocks this PAYG device.
+ * PAYG credit mode, and another (authorized) Nexus Channel device
+ * permanently unlocks this PAYG device.
  *
  * After receiving this command, the device should be able to be used
  * indefinitely, until a subsequent `payg_credit_update` command is received
@@ -152,5 +156,9 @@ nx_channel_error nxp_channel_payg_credit_set(uint32_t remaining);
 nx_channel_error nxp_channel_payg_credit_unlock(void);
 
 #endif // #ifdef CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard: NEXUS__INC__NXP_CHANNEL_H_ */

@@ -8,9 +8,14 @@
  * secret keys for the Nexus Keycode library.
  */
 
-#include "nxp_keycode.h"
 #ifndef IDENTITY_H
 #define IDENTITY_H
+
+#include "nxp_keycode.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 NEXUS_PACKED_STRUCT identity_struct
 {
@@ -25,5 +30,9 @@ NEXUS_PACKED_STRUCT identity_struct
  * This will prompt for a serial ID and a secret key.
  */
 void identity_init(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

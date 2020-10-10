@@ -16,6 +16,9 @@
 // Modifications (c) 2020 Angaza, Inc.
 */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+
 #include "messaging/coap/engine.h"
 #include "oc_signal_event_loop.h"
 //#include "port/oc_network_events_mutex.h"
@@ -220,7 +223,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 #endif // OC_SECURITY*/
       {
 // avoid static analysis errors when OC_DBG is a no-op (identical branches).
-#ifdef CONFIG_NEXUS_COMMON_CORE_OC_DEBUG_LOG_ENABLED
+#ifdef CONFIG_NEXUS_COMMON_OC_DEBUG_LOG_ENABLED
         if (message->endpoint.flags & MULTICAST)
         {
           // Indicative only for now
@@ -250,3 +253,5 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
   }
   OC_PROCESS_END();
 }
+
+#pragma GCC diagnostic pop

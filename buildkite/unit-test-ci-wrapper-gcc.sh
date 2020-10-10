@@ -6,19 +6,23 @@ source buildkite/common.sh
 
 za-init
 
-echo "--- Executing Ceedling unit tests"
+
+RESULTS_DIR=$ARTIFACTS_DIR/"ceedling-gcc"
+mkdir -p ${RESULTS_DIR}
+
+echo "--- Executing Ceedling unit tests with GCC"
 
 # `ceedling test:all` will return nonzero if any tests fail
-cd nexus && ceedling test:all
+cd nexus && ceedling verbosity[4] test:all
 TESTS_EXIT_STATUS=$?
 
-buildkite-agent artifact upload "build/artifacts/test/report.xml"
+cp build/artifacts/test/report.xml ${RESULTS_DIR}/
 
 echo "--- Preparing unit test coverage report"
 
 # Generate full coverage report and upload it
 ceedling gcov:all utils:gcov
 
-buildkite-agent artifact upload "build/artifacts/gcov/**/*"
+cp -r build/artifacts/gcov ${RESULTS_DIR}/
 
 exit $TESTS_EXIT_STATUS

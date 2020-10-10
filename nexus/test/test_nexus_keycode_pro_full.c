@@ -178,7 +178,7 @@ void test_nexus_keycode_pro_full_parse_activation__various_frames__parsed_messag
     message_c.type_code = NEXUS_KEYCODE_PRO_FULL_ACTIVATION_WIPE_STATE;
     message_c.full_message_id = 45;
     message_c.body.wipe_state.target =
-        NEXUS_KEYCODE_PRO_FULL_WIPE_STATE_TARGET_UART_READLOCK;
+        NEXUS_KEYCODE_PRO_FULL_WIPE_CUSTOM_FLAG_RESTRICTED;
     message_c.check = 802585;
 
     // prepare associated test scenarios
@@ -242,6 +242,108 @@ void test_nexus_keycode_pro_full_parse_activation__various_frames__parsed_messag
                 break;
         }
     }
+}
+
+void test_nexus_keycode_pro_full_apply__custom_command_reset_restricted_flag__flag_is_reset_feedback_ok(
+    void)
+{
+    // Test scenarios for each
+    struct test_scenario
+    {
+        const char* interleaved;
+        enum nexus_keycode_pro_response expected_response;
+        bool set_restricted_flag; // manually set flag before accepting keycode
+        bool flag_state_before_keycode;
+        bool flag_state_after_keycode;
+    };
+
+    // keycodes generated against '00' integrity key with message ID 30.
+    const struct test_scenario scenarios[] = {
+        // accept keycode (MID=30), confirm flag remains reset
+        {"22023260278852",
+         NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
+         false,
+         false,
+         false},
+        // manually set flag, apply duplicate keycode, flag remains set
+        {"22023260278852",
+         NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE,
+         true,
+         true,
+         true},
+        // accept keycode (new MID 31), confirm flag is reset
+        {"30017672361669",
+         NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
+         false,
+         true,
+         false},
+        //  (clear all message IDs, wipe TARGET_FLAGS_1, MID 32), flag remains
+        //  set
+        {"93906354634621",
+         NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
+         true,
+         true,
+         true},
+        // manually set flag, accept keycode with MID 30, confirm flag is reset
+        {"22023260278852",
+         NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
+         false,
+         true,
+         false}};
+
+    _full_fixture_reinit(
+        '*', '#', "0123456789", NEXUS_INTEGRITY_CHECK_FIXED_00_KEY);
+
+    TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 23);
+
+    // confirm that initially, the flag is set to 0
+    TEST_ASSERT_FALSE(
+        nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED));
+    nxp_keycode_payg_credit_set_IgnoreAndReturn(true);
+
+    // run through each scenario
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // construct the scenario inputs
+        const struct test_scenario scenario = scenarios[i];
+        if (scenario.set_restricted_flag)
+        {
+            nxp_keycode_notify_custom_flag_changed_Expect(
+                NX_KEYCODE_CUSTOM_FLAG_RESTRICTED, true);
+            nx_keycode_set_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED);
+        }
+
+        TEST_ASSERT_EQUAL_UINT(
+            nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED),
+            scenario.flag_state_before_keycode);
+
+        struct nexus_keycode_frame frame =
+            nexus_keycode_frame_filled(scenario.interleaved);
+        struct nexus_keycode_pro_full_message message = {0};
+
+        const bool parsed = nexus_keycode_pro_full_parse(&frame, &message);
+        TEST_ASSERT(parsed);
+
+        // manually skip checking the scenario where we apply a wipe
+        // state/target flags 0 code
+        if (scenario.expected_response ==
+                NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED &&
+            i != 3)
+        {
+            nxp_keycode_notify_custom_flag_changed_Expect(
+                NX_KEYCODE_CUSTOM_FLAG_RESTRICTED, false);
+        }
+
+        // apply the message and verify its response
+        const enum nexus_keycode_pro_response response =
+            nexus_keycode_pro_full_apply(&message);
+
+        TEST_ASSERT_EQUAL_UINT(response, scenario.expected_response);
+        TEST_ASSERT_EQUAL_UINT(
+            nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED),
+            scenario.flag_state_after_keycode);
+    }
+    TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 30);
 }
 
 void test_nexus_keycode_pro_full_apply__various_invalid_inputs__invalid_returned(
@@ -1211,10 +1313,6 @@ void test_nexus_keycode_pro_full_parse_and_apply__passthrough_command_wrong_leng
     struct nexus_keycode_frame frame_2 =
         nexus_keycode_frame_filled("841234567890281");
 
-    struct nx_keycode_complete_code pass_keycode;
-    pass_keycode.keys = &frame_2.keys[1];
-    pass_keycode.length = frame_2.length - 1;
-
     // comparison of struct in CMock may be flaky
     nxp_keycode_passthrough_keycode_IgnoreAndReturn(
         NXP_KEYCODE_PASSTHROUGH_ERROR_NONE);
@@ -1308,13 +1406,13 @@ void test_nexus_keycode_pro_full_apply_activation__demo_code_accepted__demo_beha
         '*', '#', "0123456789", NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY);
 
     /* Scenario input 10 minutes of demo time:
-    * protocol.ActivationMessage.demo_code(15, 10, '\xff' * 16)
-    * Out[26]: nexus.protocols.keycodev1.ActivationMessage('315',
-    * '00010',
-    * '\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff',
-    * is_factory=False))
-    * 56022601917455
-    */
+     * protocol.ActivationMessage.demo_code(15, 10, '\xff' * 16)
+     * Out[26]: nexus.protocols.keycodev1.ActivationMessage('315',
+     * '00010',
+     * '\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff',
+     * is_factory=False))
+     * 56022601917455
+     */
     struct nexus_keycode_frame frame =
         nexus_keycode_frame_filled("56022601917455");
     struct nexus_keycode_pro_full_message message;
@@ -1336,7 +1434,6 @@ void test_nexus_keycode_pro_full_apply_activation__demo_code_accepted__demo_beha
      * 15, 30, '\xff' * 16).to_keycode()
      * Out[28]: '06944198907301'
      */
-    uint32_t hwid = 0x12345678;
     frame = nexus_keycode_frame_filled("06944198907301");
 
     nexus_keycode_pro_full_parse(&frame, &message);
@@ -1412,9 +1509,9 @@ void test_nexus_keycode_pro_full_deinterleave__various_inputs__outputs_correct(
 
         TEST_ASSERT_EQUAL_UINT(expected.length, output.length);
 
-        for (uint8_t i = 0; i < output.length; i++)
+        for (uint8_t j = 0; j < output.length; j++)
         {
-            TEST_ASSERT_EQUAL_UINT(expected.keys[i], output.keys[i]);
+            TEST_ASSERT_EQUAL_UINT(expected.keys[j], output.keys[j]);
         }
     }
 }

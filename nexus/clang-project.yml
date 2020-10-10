@@ -1,0 +1,236 @@
+---
+
+# "Release build" is only used to execute static analysis.
+:project:
+  :use_exceptions: FALSE
+  :use_test_preprocessor: TRUE
+  :use_auxiliary_dependencies: TRUE
+  :build_root: build
+  :release_build: TRUE
+  :test_file_prefix: test_
+  :which_ceedling: gem
+  :default_tasks:
+    - test:all
+
+#:test_build:
+#  :use_assembly: TRUE
+
+:release_build:
+  :output: analyzed_nexus.out
+  :use_assembly: FALSE
+
+:environment:
+  # These are normally set by Conda, but control them via this project file
+  - :CFLAGS: ""
+  - :DEBUG_CFLAGS: ""
+  - :CPPFLAGS: ""
+  - :DEBUG_CPPFLAGS: ""
+  - :LDFLAGS: ""
+
+:extension:
+  :executable: .out
+
+:paths:
+  :test:
+    - +:test/**
+  :source:
+    - "#{PROJECT_ROOT}/"
+    - "#{PROJECT_ROOT}/include/**"
+    - "#{PROJECT_ROOT}/oc/**"
+    - "#{PROJECT_ROOT}/src/**"
+    - "#{PROJECT_ROOT}/utils/**"
+    - "#{PROJECT_ROOT}/stub/**"  # only used for 'release' build
+
+:defines:
+  # in order to add common defines:
+  #  1) remove the trailing [] from the :common: section
+  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
+  :common: &common_defines []
+  :test:
+    - *common_defines
+    - NEXUS_DEFINED_DURING_TESTING
+    - NEXUS_USE_DEFAULT_ASSERT  # enable runtime asserts in unit tests
+    - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
+  :test_preprocess:
+    - *common_defines
+    - TEST
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE
+  :callback_after_arg_check: TRUE  # deprecated in newer versions
+  :plugins:
+    - :ignore
+    - :ignore_arg
+    - :callback
+    - :return_thru_ptr
+    - :expect_any_args
+  :treat_as:
+    uint8:    HEX8
+    uint16:   HEX16
+    uint32:   UINT32
+    int8:     INT8
+    bool:     UINT8
+
+# See https://github.com/ThrowTheSwitch/Ceedling/tree/master/plugins/gcov
+:gcov:
+  # Currently, relative paths to project root are not supported by this plugin
+  :abort_on_uncovered: false
+  :uncovered_ignore_list:
+    - ${PROJECT_ROOT}/stub/main.c
+  :delete: false
+  :html_report_type: detailed
+  :gcovr:
+    :gcov_exclude: '^.stub.*'
+    :html_artifact_filename: nexus_coverage.html
+
+:tools:
+  :gcov_fixture:
+    :executable: ${1}
+  :gcov_report:
+    :executable: gcov
+    :arguments:
+      - -p
+      - -b
+      - -o "$": GCOV_BUILD_OUTPUT_PATH
+      - "\"${1}\""
+
+  :test_compiler:
+    :executable: clang
+    :name: 'Clang Compiler'
+    :arguments:
+      - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
+      - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+      - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+      #- -DDEBUG  # enables NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY, some tests will fire these asserts
+      - -g3  # for debuggability
+      # Generic warnings/settings
+      - -Werror
+      - -Wall
+      - -Wextra
+      # Specific diagnostics
+      - -Warray-bounds
+      - -Wconversion
+      - -Wformat=2
+      - -Wshadow
+      - -Wswitch-default
+      - -Wundef
+      # Clang-specific
+      - -Wdocumentation
+      - -Wsemicolon-before-method-body
+      - -Wtautological-compare
+      - -Wunreachable-code-aggressive
+      - -fno-common
+      - -Wnon-gcc
+      - -Wnull-pointer-arithmetic
+      # Globally ignored diagnostics/blacklisted warnings
+      - -Wno-sign-conversion # ignored due to unity test runners
+      - -Wno-unknown-pragmas
+      - -Wno-missing-prototypes
+      - -Wno-documentation-unknown-command
+      - -Wno-cast-align
+      - -Wno-reserved-id-macro
+      # Additional functionality
+      - -fstack-protector-strong
+      - -c ${1} # source code input file
+      - -o ${2}
+  :test_linker:
+    :executable: clang
+    :name: 'linker'
+    :arguments:
+      # Provides core libgcc.a library
+      - -L/usr/lib/gcc/x86_64-linux-gnu/10
+      # Provides libshared and other common libraries
+      - -L/usr/lib/x86_64-linux-gnu
+      - ${1}
+      - -o ${2}
+
+  # "Release" is used to run static analysis on the source code without
+  # hitting false positives that may exist in test framework tools.
+  :release_compiler:
+    :executable: scan-build
+    :name: 'vanilla gcc-10 wrapped with clang scan-build (10)'
+    :arguments:
+      - --status-bugs
+      - -enable-checker core.UndefinedBinaryOperatorResult
+      - -enable-checker core.DivideZero
+      - -enable-checker deadcode.DeadStores
+      - -enable-checker alpha.core.BoolAssignment
+      - -enable-checker alpha.core.CastSize
+      - -enable-checker alpha.core.Conversion
+      - -enable-checker alpha.core.FixedAddr
+      - -enable-checker alpha.core.IdenticalExpr
+      - -enable-checker alpha.core.PointerArithm
+      - -enable-checker alpha.core.PointerSub
+      - -enable-checker alpha.security.ArrayBoundV2
+      - -enable-checker alpha.security.ReturnPtrRange
+      - -enable-checker security.FloatLoopCounter
+      - -maxloop 40  # default is 4
+      # - "#{ENV['GCC']}"  # conda-managed version
+      - clang
+      - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
+      - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+      - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+      - -DDEBUG  # enables NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY
+      - -g3  # for debuggability
+      # Generic warnings/settings
+      - -Werror
+      - -Wall
+      - -Wextra
+      # Specific diagnostics
+      - -Warray-bounds
+      - -Wconversion
+      - -Wformat=2
+      - -Wshadow
+      - -Wswitch-default
+      - -Wundef
+      # Clang-specific
+      - -Wdocumentation
+      - -Wsemicolon-before-method-body
+      - -Wtautological-compare
+      - -Wunreachable-code-aggressive
+      - -fno-common
+      - -Wnon-gcc
+      - -Wnull-pointer-arithmetic
+      # Globally ignored diagnostics/blacklisted warnings
+      - -Wno-sign-conversion # ignored due to unity test runners
+      - -Wno-unknown-pragmas
+      - -Wno-missing-prototypes
+      - -Wno-documentation-unknown-command
+      - -Wno-cast-align
+      - -Wno-reserved-id-macro
+      # Additional functionality
+      - -fstack-protector-strong
+      - -std=c11  # c11 to gain access to static asserts
+      - -c ${1} # source code input file
+      - -o ${2}
+
+  :release_linker:
+    :executable: clang
+    :name: 'linker'
+    :arguments:
+      # Provides core libgcc.a library
+      - -L/usr/lib/gcc/x86_64-linux-gnu/10
+      # Provides libshared and other common libraries
+      - -L/usr/lib/x86_64-linux-gnu
+      - ${1}
+      - -o ${2}
+
+# LIBRARIES
+# These libraries are automatically injected into the build process. Those specified as
+# common will be used in all types of builds. Otherwise, libraries can be injected in just
+# tests or releases. These options are MERGED with the options in supplemental yaml files.
+:libraries:
+  :placement: :end
+  :flag: "${1}"  # or "-L ${1}" for example
+  :test: []
+  :release: []
+
+:plugins:
+  :load_paths:
+    - "#{Ceedling.load_path}"
+  :enabled:
+    - gcov
+    - module_generator
+...

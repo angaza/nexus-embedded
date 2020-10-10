@@ -19,16 +19,18 @@
 #ifndef _NEXUS__INC__NX_CORE_H_
 #define _NEXUS__INC__NX_CORE_H_
 
+#include "MODULE_VERSION.h"
 #include "include/compiler_check.h"
 #include "include/user_config.h"
 #include <stdbool.h>
 #include <stdint.h>
 
-// Version of the overall embedded repository
-#define NEXUS_EMBEDDED_VERSION_MAJOR 0
-#define NEXUS_EMBEDDED_VERSION_MINOR 5
-#define NEXUS_EMBEDDED_VERSION_PATCH 0
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // typically stored as uint32, only
+// values from MODULE_VERSION.h
 #define NEXUS_EMBEDDED_VERSION                                                 \
     ((NEXUS_EMBEDDED_VERSION_MAJOR << 16) |                                    \
      (NEXUS_EMBEDDED_VERSION_MINOR << 8) | (NEXUS_EMBEDDED_VERSION_PATCH))
@@ -41,50 +43,50 @@
 #define NX_CORE_NV_BLOCK_0_LENGTH 8 // bytes
 #define NX_CORE_NV_BLOCK_1_LENGTH 16 // bytes
 
-#ifdef CONFIG_NEXUS_CHANNEL_ENABLED
-// Nexus channel
-#define NX_CORE_NV_BLOCK_2_LENGTH 10 // bytes
-#define NX_CORE_NV_BLOCK_3_LENGTH 12 // bytes
-// Blocks IDs 4-19 are reserved for established link data.
-// One block for each link present.
-// Always at least one present (block 4)
-#define NX_CORE_NV_BLOCK_4_LENGTH 36 // 1 link
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 1) // 2 links
-#define NX_CORE_NV_BLOCK_5_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 2) // 3 links ... etc
-#define NX_CORE_NV_BLOCK_6_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 3)
-#define NX_CORE_NV_BLOCK_7_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 4)
-#define NX_CORE_NV_BLOCK_8_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 5)
-#define NX_CORE_NV_BLOCK_9_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 6)
-#define NX_CORE_NV_BLOCK_10_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 7)
-#define NX_CORE_NV_BLOCK_11_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 8)
-#define NX_CORE_NV_BLOCK_12_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 9) // 10 links
-#define NX_CORE_NV_BLOCK_13_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
-#endif
-#if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 10)
-#error "More than 10 links requires additional NV configuration"
-#endif
+#ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    // Nexus channel link security (not core) requires NV storage
+    #define NX_CORE_NV_BLOCK_2_LENGTH 10 // bytes
+    #define NX_CORE_NV_BLOCK_3_LENGTH 12 // bytes
+    // Blocks IDs 4-19 are reserved for established link data.
+    // One block for each link present.
+    // Always at least one present (block 4)
+    #define NX_CORE_NV_BLOCK_4_LENGTH 36 // 1 link
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 1) // 2 links
+        #define NX_CORE_NV_BLOCK_5_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 2) // 3 links ... etc
+        #define NX_CORE_NV_BLOCK_6_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 3)
+        #define NX_CORE_NV_BLOCK_7_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 4)
+        #define NX_CORE_NV_BLOCK_8_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 5)
+        #define NX_CORE_NV_BLOCK_9_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 6)
+        #define NX_CORE_NV_BLOCK_10_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 7)
+        #define NX_CORE_NV_BLOCK_11_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 8)
+        #define NX_CORE_NV_BLOCK_12_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 9) // 10 links
+        #define NX_CORE_NV_BLOCK_13_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #endif
+    #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 10)
+        #error "More than 10 links requires additional NV configuration"
+    #endif
 
-#define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
 #else
-// keycode only
-#define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_1_LENGTH
-#endif /* ifdef CONFIG_NEXUS_CHANNEL_ENABLED */
+    // keycode only
+    #define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_1_LENGTH
+#endif /* ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 
 /** Nexus non-volatile data block metadata.
  *
@@ -131,21 +133,6 @@ NEXUS_PACKED_STRUCT nx_id
     uint32_t device_id;
 };
 
-/** IPV6 address format for Nexus IDs.
- *
- * Port is not specified and may be determined by implementing system.
- *
- * Possible scopes are:
- * - global_scope = true (globally valid IPv6 address with Nexus ARIN prefix)
- * - global_scope = false (address is link-local valid IPv6 address)
- * See also: nx_core_nx_id_to_ipv6_address
- */
-typedef struct nx_ipv6_address
-{
-    uint8_t address[16];
-    bool global_scope;
-} nx_ipv6_address;
-
 /** 16-byte secret key used for authenticating keycodes.
  *
  * Should be unique per device and assigned securely before production use.
@@ -166,14 +153,13 @@ NEXUS_PACKED_STRUCT nx_core_check_key
  *
  * \param initial_uptime_s current system uptime, in seconds. Should be
  * the same counter used to pass values into `nx_core_process`
- * \return void
  */
 void nx_core_init(uint32_t initial_uptime_s);
 
 /** Perform any 'long-running' Nexus operations.
  *
- * This function must be called within 20ms after `nxp_core_request_processing`
- * is called.
+ * This function must be called within 20ms after
+ * `nxp_core_request_processing` is called.
  *
  * Within this function, the Nexus library executes 'long-running'
  * operations that are not appropriate to run in an interrupt (such as
@@ -195,58 +181,11 @@ uint32_t nx_core_process(uint32_t uptime_seconds);
 /** Call before a planned shutdown event to safely store state and data of
  * Nexus modules.
  *
- * \return void
  */
 void nx_core_shutdown(void);
 
-/** Convert a Nexus ID into an IPV6 address.
- *
- * All Nexus IDs may be represented as valid link-local or globally valid
- * addresses depending on whether the Nexus ARIN global prefix is used. Link
- * local is sufficient for most use cases.
- *
- * This function returns a link-local address through the `dest_address`
- * pointer.
- *
- * The steps taken to convert a Nexus ID into an IPV6 address:
- *
- * 1) Represent `authority_id` as big-endian (network order).
- * 2) Represent `device_id` as big-endian (network order).
- * 3) Concatenate the leftmost/'first' byte of `device_id` to `authority_id`
- * 4) Treat this three byte block as an OUI and flip the 7th bit from the left
- * 5) Concatenate bytes [0xFF, 0xFE] to the three bytes already concatenated
- * 6) Concatenate the remaining three bytes of `device_id` to the five bytes
- * already concatenated
- * 7) Prepend [0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] (0xFE80 is 'link
- * local' scope)
- * 8) The resulting 16-byte string is a valid link-local IPV6 address
- *
- * \param id nx_id to convert to IPV6 address
- * \param dest_address pointer to IPV6 address struct to populate
- * \return true if id is successfully converted into `dest_address`, else false
- */
-bool nx_core_nx_id_to_ipv6_address(const struct nx_id* id,
-                                   struct nx_ipv6_address* dest_address);
-
-/** Convert an IPV6 address into a Nexus ID.
- *
- * Convert an IPV6 address representing a valid Nexus ID back into a Nexus
- * ID.
- *
- * This function will accept either global (Nexus ARIN prefix) or link-local
- * (FE:80) addresses that represent valid Nexus device IDs.
- *
- * In many cases, the IPV6 'address' of a Nexus device may be significantly
- * truncated (down to 2 bytes) in a link-local deployment, similar to 6LoWPAN
- * address compression.
- *
- * Will return false if the IPV6 address does not represent a Nexus device.
- *
- * \param address pointer to IPV6 address to convert to Nexus ID
- * \param id dest_id struct to populate with Nexus ID
- * \return true if `address` is successfully converted into Nexus ID, else false
- */
-bool nx_core_ipv6_address_to_nx_id(const struct nx_ipv6_address* address,
-                                   struct nx_id* dest_id);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard: _NEXUS__INC__NX_CORE_H_ */

@@ -21,65 +21,75 @@
 // In most cases, there is no need to modify the values of this file.
 // Convert user configuration to internal config.
 // 'CONFIG' prefix from Kconfig
-#ifndef CONFIG_NEXUS_CHANNEL_ENABLED
-// Used internally to determine whether to compile in channel features
-#define NEXUS_CHANNEL_ENABLED 0
+#ifndef CONFIG_NEXUS_CHANNEL_CORE_ENABLED
+    // Used internally to determine whether to compile in channel features
+    #define NEXUS_CHANNEL_CORE_ENABLED 0
 #else
-#define NEXUS_CHANNEL_ENABLED 1
+    #define NEXUS_CHANNEL_CORE_ENABLED 1
 #endif
 
 // Compile-time parameter checks
-#ifndef NEXUS_CHANNEL_ENABLED
-#error "NEXUS_CHANNEL_ENABLED must be defined."
+#ifndef NEXUS_CHANNEL_CORE_ENABLED
+    #error "NEXUS_CHANNEL_CORE_ENABLED must be defined."
 #endif
+
+// Doubles are not supported at this time in any configuration.
+#define NEXUS_CHANNEL_OC_SUPPORT_DOUBLES 0
 
 // Set up further configuration parameters
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_CORE_ENABLED
+    // both controllers and accessories may act in client or server roles
+    // depending on resource in question
+    #define OC_CLIENT 1
+    #define OC_SERVER 1
 
-// both controllers and accessories may act in client or server roles
-// depending on resource in question
-#define OC_CLIENT 1
-#define OC_SERVER 1
+    // Is int64/uint64 supported?
+    #ifndef UINT64_MAX
+        #error "Nexus Channel requires uint64_t support."
+    #endif
+    #ifndef INT64_MAX
+        #error "Nexus Channel requires int64_t support."
+    #endif
 
-#if defined(CONFIG_NEXUS_CHANNEL_PLATFORM_CONTROLLER_MODE_SUPPORTED)
-#define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 1
-#define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 0
+    #ifndef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        #define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 0
+    #else
+        #define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 1
+    #endif
 
-#elif defined(CONFIG_NEXUS_CHANNEL_PLATFORM_ACCESSORY_MODE_SUPPORTED)
-#define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 0
-#define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 1
+    #ifndef NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        #error "NEXUS_CHANNEL_LINK_SECURITY_ENABLED must be defined."
+    #endif
 
-#elif defined(CONFIG_NEXUS_CHANNEL_PLATFORM_DUAL_MODE_SUPPORTED)
-#define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 1
-#define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 1
-#endif /* if defined(CONFIG_NEXUS_CHANNEL_PLATFORM_...) */
+    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
-// Is int64/uint64 supported?
-#ifndef UINT64_MAX
-#error "Nexus Channel requires uint64_t support."
-#endif
-#ifndef INT64_MAX
-#error "Nexus Channel requires int64_t support."
-#endif
+        #if defined(CONFIG_NEXUS_CHANNEL_PLATFORM_CONTROLLER_MODE_SUPPORTED)
+            #define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 1
+            #define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 0
 
-// if Nexus Channel is enabled, then Channel Security is by default enabled;
-// this could be a configurable option in the future
-#define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 1
+        #elif defined(CONFIG_NEXUS_CHANNEL_PLATFORM_ACCESSORY_MODE_SUPPORTED)
+            #define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 0
+            #define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 1
 
-// Used to conditionally include internal PAYG credit resource
-#if defined(CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE)
-#define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 1
+        #elif defined(CONFIG_NEXUS_CHANNEL_PLATFORM_DUAL_MODE_SUPPORTED)
+            #define NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE 1
+            #define NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE 1
+        #endif /* if defined(CONFIG_NEXUS_CHANNEL_PLATFORM_...) */
+
+        // Used to conditionally include internal PAYG credit resource
+        #if defined(CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE)
+            #define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 1
+        #else
+            #define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 0
+        #endif
+    #endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
+
 #else
-#define NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE 0
-#endif
+    #define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 0
+    // No OC client or server roles if Channel is not in use
+    #define OC_CLIENT 0
+    #define OC_SERVER 0
 
-#else
-
-#define NEXUS_CHANNEL_LINK_SECURITY_ENABLED 0
-// No OC client or server roles if Channel is not in use
-#define OC_CLIENT 0
-#define OC_SERVER 0
-
-#endif /* if NEXUS_CHANNEL_ENABLED */
+#endif /* if NEXUS_CHANNEL_CORE_ENABLED */
 
 #endif /* ifndef NEXUS__CHANNEL__INCLUDE__SHARED_OC_CONFIG_H_ */

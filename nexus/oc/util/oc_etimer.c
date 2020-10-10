@@ -35,6 +35,10 @@
  * Modifications (c) 2020 Angaza, Inc.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include "oc_etimer.h"
 #include "oc_process.h"
 
@@ -78,7 +82,7 @@ OC_PROCESS_THREAD(oc_etimer_process, ev, data)
     OC_PROCESS_YIELD();
 
     if (ev == OC_PROCESS_EVENT_EXITED) {
-      struct oc_process *p = data;
+      struct oc_process *p = (struct oc_process*) data;
 
       while (timerlist != NULL && timerlist->p == p) {
         timerlist = timerlist->next;
@@ -262,3 +266,5 @@ oc_etimer_stop(struct oc_etimer *et)
 }
 /*---------------------------------------------------------------------------*/
 /** @} */
+
+#pragma GCC diagnostic pop

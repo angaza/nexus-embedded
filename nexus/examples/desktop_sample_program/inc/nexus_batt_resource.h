@@ -1,5 +1,10 @@
 
+#include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Initialize the values of the battery resource.
  *
@@ -46,3 +51,7 @@ void battery_resource_update_charge(uint8_t charge_percent);
  * \param threshold_percent low battery threshold in percent.
  */
 void battery_resource_update_low_threshold(uint8_t threshold_percent);
+
+#ifdef __cplusplus
+}
+#endif

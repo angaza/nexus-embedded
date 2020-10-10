@@ -1,0 +1,19 @@
+name: nexusemb
+channels:
+  - conda-forge
+  - defaults
+  - jjmilburn  # for ceedling
+  - Eumetsat  # for expect
+dependencies:
+  - python=3.6.9
+  - ruby=2.5.1
+  - ceedling=0.30.0
+  - gcovr=4.2
+  - check=0.15.2
+  - expect=5.45
+  - doxygen=1.8.19
+  - graphviz=2.42.3
+  - cppcheck=2.1
+  - gcc_linux-64=9.3.0
+  - clang=10.0.1
+  - clang-tools=10.0.1

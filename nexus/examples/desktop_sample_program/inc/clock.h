@@ -20,6 +20,10 @@
 #include <stdint.h>
 #include <time.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* @brief Initialize product-side monotonic clock interface.
  *
  * Simply provides an initial 'reference reading' of the system CLOCK_MONOTONIC.
@@ -27,7 +31,7 @@
  * Should be called exactly once when the program is started, and only called
  * again on program restarts (e.g. after power cycle or reboot).
  *
-*/
+ */
 void clock_init(void);
 
 /* @brief Called periodically by the program code to consume credit.
@@ -38,7 +42,7 @@ void clock_init(void);
  * It is recommended to call this function at least once per minute, to
  * ensure that credit expires in a predictable way. If this function
  * is never called, credit will never expire.
-*/
+ */
 void clock_consume_credit(void);
 
 /* @brief Convenience function to return seconds since the epoch.
@@ -67,5 +71,9 @@ uint32_t clock_read_monotonic_time_seconds(void);
  *
  */
 uint32_t clock_seconds_elapsed_since(const time_t previous_time_secs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

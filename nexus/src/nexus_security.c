@@ -63,7 +63,7 @@ void* nexus_secure_memclr(void* pointer, size_t size_data, size_t size_to_erase)
     {
         size_to_erase = size_data;
     }
-    volatile unsigned char* p = pointer;
+    volatile unsigned char* p = (volatile unsigned char*) pointer;
     while (size_to_erase--)
     {
         *p++ = 0;

@@ -16,6 +16,11 @@
 // Modifications (c) 2020 Angaza, Inc.
 */
 
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include "utils/oc_uuid.h"
 #include "include/nxp_core.h"
 #include <ctype.h>
@@ -142,3 +147,5 @@ oc_gen_uuid(oc_uuid_t *uuid)
   uuid->id[6] &= 0x0f;
   uuid->id[6] |= 0x40;
 }
+
+#pragma GCC diagnostic pop

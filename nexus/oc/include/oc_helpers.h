@@ -21,6 +21,11 @@
 #ifndef OC_HELPERS_H
 #define OC_HELPERS_H
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
+#include "oc_config.h"
 #include "utils/oc_list.h"
 #include "util/oc_mmem.h"
 #include <stdbool.h>
@@ -83,15 +88,19 @@ typedef struct oc_mmem oc_handle_t, oc_string_t, oc_array_t, oc_string_array_t,
 
 #define oc_free_int_array(ocarray) (_oc_free_array(ocarray, INT_POOL))
 #define oc_free_bool_array(ocarray) (_oc_free_array(ocarray, BYTE_POOL))
-#define oc_free_double_array(ocarray) (_oc_free_array(ocarray, DOUBLE_POOL))
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
+    #define oc_free_double_array(ocarray) (_oc_free_array(ocarray, DOUBLE_POOL))
+#endif // NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
 
 #define oc_new_int_array(ocarray, size) (_oc_new_array(ocarray, size, INT_POOL))
 #define oc_new_bool_array(ocarray, size)                                       \
   (_oc_new_array(ocarray, size, BYTE_POOL))
-/*
-#define oc_new_double_array(ocarray, size)                                     \
-  (_oc_new_array(ocarray, size, DOUBLE_POOL))
-*/
+
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
+    #define oc_new_double_array(ocarray, size)                                     \
+      (_oc_new_array(ocarray, size, DOUBLE_POOL))
+#endif // NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
+
 #define oc_new_string_array(ocstringarray, size)                               \
   (_oc_alloc_string_array(ocstringarray, size))
 
@@ -107,7 +116,12 @@ typedef struct oc_mmem oc_handle_t, oc_string_t, oc_array_t, oc_string_array_t,
 
 void oc_concat_strings(oc_string_t *concat, const char *str1, const char *str2);
 
+
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #define oc_string_len(ocstring) ((ocstring).size ? (ocstring).size - 1 : 0)
+#pragma GCC diagnostic pop
+
 #define oc_int_array_size(ocintarray) ((ocintarray).size)
 #define oc_bool_array_size(ocboolarray) ((ocboolarray).size)
 //#define oc_double_array_size(ocdoublearray) ((ocdoublearray).size)
@@ -200,4 +214,5 @@ void _oc_alloc_string_array(
 }
 #endif
 
+#pragma GCC diagnostic pop
 #endif /* OC_HELPERS_H */

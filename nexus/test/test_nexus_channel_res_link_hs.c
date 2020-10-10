@@ -70,7 +70,7 @@ struct expect_rep
 {
     oc_rep_value_type_t type;
     char* name;
-    union oc_rep_value value;
+    oc_rep_value value;
     bool received; // used to determine if we received all expected values
 };
 
@@ -95,8 +95,8 @@ oc_endpoint_t MCAST_ENDPOINT = {
     NULL, // 'next'
     0, // device
     IPV6 | MULTICAST, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// mcast address 'all OCF devices'
          0xff,
@@ -116,7 +116,8 @@ oc_endpoint_t MCAST_ENDPOINT = {
          0x01,
          0x58},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -126,8 +127,8 @@ oc_endpoint_t FAKE_ACCESSORY_ENDPOINT = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
          0xff,
@@ -147,7 +148,8 @@ oc_endpoint_t FAKE_ACCESSORY_ENDPOINT = {
          0xFB,
          0xFC},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -157,8 +159,8 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
          0xff,
@@ -178,7 +180,8 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT = {
          0xA5,
          0x9B},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -188,8 +191,8 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT_B = {
     NULL, // 'next'
     0, // device
     IPV6, // flags
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // di
-    (oc_ipv6_addr_t){
+    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
+    {(oc_ipv6_addr_t){
         5683, // port
         {// arbitrary link local address that represents a Nexus ID
          0xff,
@@ -209,7 +212,8 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT_B = {
          0xA5,
          0xFC},
         2 // scope
-    },
+    }},
+    {{0}}, // addr_local (not used)
     0, // interface index (not used)
     0, // priority (not used)
     0, // ocf_version_t (unused)
@@ -218,7 +222,7 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT_B = {
 // Global message that can be allocated and deallocated at start and end
 // of tests regardless of failures
 static oc_message_t* G_OC_MESSAGE = 0;
-static oc_rep_t* G_OC_REP = 0;
+static oc_rep_t* G_OC_REP = NULL;
 static oc_client_cb_t* G_OC_CLIENT_CB = 0;
 
 /********************************************************
@@ -230,6 +234,27 @@ TEST_FILE("oc/api/oc_server_api.c")
 TEST_FILE("oc/api/oc_client_api.c")
 TEST_FILE("oc/deps/tinycbor/cborencoder.c")
 TEST_FILE("oc/deps/tinycbor/cborparser.c")
+
+// Backing memory for parsing OC reps using `oc_parse_rep`
+// Variables here must be static to persist between invocations of this
+// function
+void _initialize_oc_rep_pool(void)
+{
+    // Prepare an space for representing OC rep
+    static char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
+    static oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
+    memset(rep_objects_alloc, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
+    memset(rep_objects_pool, 0x00, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
+    static struct oc_memb rep_objects;
+
+    rep_objects.size = sizeof(oc_rep_t);
+    rep_objects.num = OC_MAX_NUM_REP_OBJECTS;
+    rep_objects.count = rep_objects_alloc;
+    rep_objects.mem = (void*) rep_objects_pool;
+    rep_objects.buffers_avail_cb = 0;
+
+    oc_rep_set_pool(&rep_objects);
+}
 
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
@@ -264,7 +289,9 @@ void setUp(void)
 
     // must be deallocated at end of test
     G_OC_MESSAGE = oc_allocate_message();
-    G_OC_REP = 0;
+
+    G_OC_REP = NULL;
+
     G_OC_CLIENT_CB = 0;
     OC_DBG("------ SETUP FINISHED, BEGINNING TEST ------");
 }
@@ -282,7 +309,7 @@ void tearDown(void)
     // some tests *may* call oc_parse_rep, oc_free_rep handles this case
     // We null-check to make sure a test actually allocated G_OC_REP, otherwise
     // we won't be able to free it.
-    if (G_OC_REP != 0)
+    if (G_OC_REP != NULL)
     {
         oc_free_rep(G_OC_REP);
     }
@@ -382,13 +409,15 @@ void test_res_link_hs_server_get_response__default__cbor_data_model_correct(
     TEST_ASSERT_EQUAL_UINT(CONTENT_2_05, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(42, response_packet.payload_len);
 
+    _initialize_oc_rep_pool();
     oc_parse_rep(response_packet.payload, // payload,
                  response_packet.payload_len,
                  &G_OC_REP);
 
     // Local rep to iterate through `iotivity_rep` without modifying it
     // This is necessary so that when we want to deallocate `G_OC_REP`,
-    // it is pointing to the first element in the representation.
+    // it is pointing to the first element in the representation (since
+    // we will modify 'new_rep' here on each loop iteration)
     oc_rep_t new_rep;
     memcpy(&new_rep, G_OC_REP, sizeof(oc_rep_t));
     oc_rep_t* loop_rep_ptr = &new_rep;
@@ -397,44 +426,47 @@ void test_res_link_hs_server_get_response__default__cbor_data_model_correct(
     int supported_link_security_modes[1] = {0};
     int supported_challenge_modes[1] = {0};
     struct expect_rep idle_rep_no_baseline[] = {
-        {OC_REP_BYTE_STRING, (char*) CHAL_DATA_SHORT_PROP_NAME, 0, false},
-        {OC_REP_BYTE_STRING, (char*) RESP_DATA_SHORT_PROP_NAME, 0, false},
+        {OC_REP_BYTE_STRING,
+         (char*) CHAL_DATA_SHORT_PROP_NAME,
+         {.string = {0}},
+         false},
+        {OC_REP_BYTE_STRING,
+         (char*) RESP_DATA_SHORT_PROP_NAME,
+         {.string = {0}},
+         false},
         {OC_REP_INT,
          (char*) CHAL_MODE_SHORT_PROP_NAME,
-         IDLE_HS_SERVER_STATE.chal_mode,
+         {.integer = IDLE_HS_SERVER_STATE.chal_mode},
          false},
         {OC_REP_INT,
          (char*) LINK_SEC_MODE_SHORT_PROP_NAME,
-         IDLE_HS_SERVER_STATE.link_security_mode,
+         {.integer = IDLE_HS_SERVER_STATE.link_security_mode},
          false},
         {OC_REP_INT,
          (char*) STATE_SHORT_PROP_NAME,
-         IDLE_HS_SERVER_STATE.state,
+         {.integer = IDLE_HS_SERVER_STATE.state},
          false},
-        {OC_REP_INT, (char*) TIME_SINCE_INIT_SHORT_PROP_NAME, 0, false},
+        {OC_REP_INT, (char*) TIME_SINCE_INIT_SHORT_PROP_NAME, {0}, false},
         {OC_REP_INT,
          (char*) TIMEOUT_CONFIGURED_SHORT_PROP_NAME,
-         NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS,
+         {.integer = NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS},
          false},
         {OC_REP_INT_ARRAY,
          (char*) SUPPORTED_LINK_SECURITY_MODES_SHORT_PROP_NAME,
-         (union oc_rep_value)(
-             (oc_array_t){NULL, 1ul, (void*) supported_link_security_modes}),
+         {.array = {NULL, 1ul, (void*) supported_link_security_modes}},
          false},
         {OC_REP_INT_ARRAY,
          (char*) SUPPORTED_CHALLENGE_MODES_SHORT_PROP_NAME,
-         (union oc_rep_value)(
-             (oc_array_t){NULL, 1ul, (void*) supported_challenge_modes}),
+         {.array = {NULL, 1ul, (void*) supported_challenge_modes}},
          false},
     };
 
     // Iterate through the resulting response payload, checking for
     // consistency
 
-    oc_rep_t current_loop_rep = *G_OC_REP;
     while (loop_rep_ptr != NULL)
     {
-        union oc_rep_value val = loop_rep_ptr->value;
+        oc_rep_value val = loop_rep_ptr->value;
         handled = false;
         OC_DBG("name is %s", oc_string(loop_rep_ptr->name));
 
@@ -457,7 +489,7 @@ void test_res_link_hs_server_get_response__default__cbor_data_model_correct(
                     int64_t* val_array = oc_int_array(val.array);
                     int64_t* expected_array = oc_int_array(rep->value.array);
                     // loop through our expected value array
-                    for (int j = 0; j < rep->value.array.size - 1; ++j)
+                    for (uint32_t j = 0; j < rep->value.array.size - 1; ++j)
                     {
                         TEST_ASSERT_EQUAL_INT(expected_array[j], val_array[j]);
                     }
@@ -469,7 +501,7 @@ void test_res_link_hs_server_get_response__default__cbor_data_model_correct(
                 else if (rep->type == OC_REP_BYTE_STRING)
                 {
                     const uint8_t expected_length =
-                        oc_string_len(rep->value.string);
+                        (uint8_t) oc_string_len(rep->value.string);
                     if (expected_length != 0)
                     {
                         // IoTivity decodes bytetring payloads of 0 length as
@@ -556,10 +588,10 @@ void test_res_link_hs_server_get_response__default_with_baseline__cbor_data_mode
 
     PRINT("Raw CBOR Payload bytes follow (1):\n");
     // Print CBOR payload for demonstration
-    /* {"rt": ["angaza.com.nexus.link.hs"], "if": ["oic.if.rw",
-     * "oic.if.baseline"], "cD": h'', "rD": h'', "cM": 0, "lS": 0, "st": 0,
-     * "tI": 0, "tT": 300, "sL": [0], "sC": [0]}
-     */
+    // {"rt": ["angaza.com.nexus.link.hs"], "if": ["oic.if.rw",
+    // "oic.if.baseline"], "cD": h'', "rD": h'', "cM": 0, "lS": 0, "st": 0,
+    // "tI": 0, "tT": 300, "sL": [0], "sC": [0]}
+    //
     uint8_t expected_payload_bytes[104] = {
         0xbf, 0x62, 0x72, 0x74, 0x9f, 0x78, 0x18, 0x61, 0x6e, 0x67, 0x61, 0x7a,
         0x61, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x6e, 0x65, 0x78, 0x75, 0x73, 0x2e,
@@ -585,6 +617,7 @@ void test_res_link_hs_server_get_response__default_with_baseline__cbor_data_mode
     TEST_ASSERT_EQUAL_UINT(CONTENT_2_05, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(104, response_packet.payload_len);
 
+    _initialize_oc_rep_pool();
     int success = oc_parse_rep(response_packet.payload, // payload,
                                response_packet.payload_len,
                                &G_OC_REP);
@@ -630,11 +663,13 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
     {
         PRINT("%02x ", (uint8_t) * (response_packet.payload + i));
     }
-    PRINT("\n");
 
-    oc_parse_rep(response_packet.payload, // payload,
-                 response_packet.payload_len,
-                 &G_OC_REP);
+    _initialize_oc_rep_pool();
+    int error = oc_parse_rep(response_packet.payload, // payload,
+                             response_packet.payload_len,
+                             &G_OC_REP);
+
+    TEST_ASSERT_EQUAL_INT(0, error);
 
     // Local rep to iterate through `G_OC_REP` without modifying it
     // This is necessary so that when we want to deallocate `G_OC_REP`,
@@ -649,55 +684,52 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
     struct expect_rep expect_rep_received_challenge_hs_server[] = {
         {OC_REP_BYTE_STRING,
          (char*) CHAL_DATA_SHORT_PROP_NAME,
-         (union oc_rep_value)((oc_array_t){
-             NULL,
-             RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_data_len,
-             (void*) RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_data}),
+         {.string = {NULL,
+                     RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_data_len,
+                     (void*) RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_data}},
          false}, // value ignored for 'nil'
         {OC_REP_BYTE_STRING,
          (char*) RESP_DATA_SHORT_PROP_NAME,
-         0,
+         {.string = {NULL, 0, 0}},
          false}, // value ignored for 'nil'
         {OC_REP_INT,
          (char*) CHAL_MODE_SHORT_PROP_NAME,
-         RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_mode,
+         {.integer = RECEIVED_CHALLENGE_HS_SERVER_STATE.chal_mode},
          false},
         {OC_REP_INT,
          (char*) LINK_SEC_MODE_SHORT_PROP_NAME,
-         RECEIVED_CHALLENGE_HS_SERVER_STATE.link_security_mode,
+         {.integer = RECEIVED_CHALLENGE_HS_SERVER_STATE.link_security_mode},
          false},
         {OC_REP_INT,
          (char*) STATE_SHORT_PROP_NAME,
-         RECEIVED_CHALLENGE_HS_SERVER_STATE.state,
+         {.integer = RECEIVED_CHALLENGE_HS_SERVER_STATE.state},
          false},
         {OC_REP_INT,
          (char*) TIME_SINCE_INIT_SHORT_PROP_NAME,
-         RECEIVED_CHALLENGE_HS_SERVER_STATE.seconds_since_init,
+         {.integer = RECEIVED_CHALLENGE_HS_SERVER_STATE.seconds_since_init},
          false},
         {OC_REP_INT,
          (char*) TIMEOUT_CONFIGURED_SHORT_PROP_NAME,
-         NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS,
+         {.integer = NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS},
          false},
         {OC_REP_INT_ARRAY,
          (char*) SUPPORTED_LINK_SECURITY_MODES_SHORT_PROP_NAME,
-         (union oc_rep_value)(
-             (oc_array_t){NULL, 1ul, (void*) supported_link_security_modes}),
+         {.array = {NULL, 1ul, (void*) supported_link_security_modes}},
          false},
         {OC_REP_INT_ARRAY,
          (char*) SUPPORTED_CHALLENGE_MODES_SHORT_PROP_NAME,
-         (union oc_rep_value)(
-             (oc_array_t){NULL, 1ul, (void*) supported_challenge_modes}),
+         {.array = {NULL, 1ul, (void*) supported_challenge_modes}},
          false},
     };
 
     // Iterate through the resulting response payload, checking for
     // consistency
-    while (loop_rep_ptr != NULL)
+    while (loop_rep_ptr != NULL && loop_rep_ptr->name.ptr != NULL)
     {
-        union oc_rep_value val = loop_rep_ptr->value;
+        oc_rep_value val = loop_rep_ptr->value;
         handled = false;
 
-        OC_DBG("Name of the current item? %s", oc_string(loop_rep_ptr->name));
+        PRINT("Name of the current item? %s\n", oc_string(loop_rep_ptr->name));
 
         // loop through all expected representation items and and match
         // against the actual parsed rep
@@ -711,7 +743,8 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
 
             if (strncmp(rep->name, oc_string(loop_rep_ptr->name), 2) == 0)
             {
-                // OC_DBG("type is %d", rep->type);
+                PRINT("expected element name is %s, ", rep->name);
+                PRINT("type is %d\n", rep->type);
                 TEST_ASSERT_EQUAL(rep->type, loop_rep_ptr->type);
                 if (rep->type == OC_REP_INT || rep->type == OC_REP_BOOL)
                 {
@@ -722,7 +755,7 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
                     int64_t* val_array = oc_int_array(val.array);
                     int64_t* expected_array = oc_int_array(rep->value.array);
                     // loop through our expected value array
-                    for (int j = 0; j < rep->value.array.size - 1; ++j)
+                    for (uint32_t j = 0; j < rep->value.array.size - 1; ++j)
                     {
                         // OC_DBG("expected is %i actual is %i",
                         // expected_array[j], val_array[j]);
@@ -736,7 +769,8 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
                 else if (rep->type == OC_REP_BYTE_STRING)
                 {
                     const uint8_t expected_length =
-                        oc_string_len(rep->value.string);
+                        (uint8_t) oc_string_len(rep->value.string);
+                    PRINT("Expecting length of %d", expected_length);
                     if (expected_length != 0)
                     {
                         // IoTivity decodes bytetring payloads of 0 length as
@@ -756,7 +790,6 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
                         TEST_ASSERT_EQUAL_UINT8_ARRAY(
                             expected_data, received_data, expected_length);
                     }
-                    OC_DBG("here");
                     // TEST_FAIL_MESSAGE("Unhandled rep");
                 }
                 else
@@ -774,7 +807,6 @@ void test_res_link_hs_server_get_response__simulated_challenge_received__cbor_da
         TEST_ASSERT_TRUE(handled);
         loop_rep_ptr = loop_rep_ptr->next;
     }
-
     // now, confirm all expected reps were in the response payload
     for (uint8_t i = 0;
          i < sizeof(expect_rep_received_challenge_hs_server) /
@@ -801,9 +833,9 @@ void test_res_link_hs_server_post_response__unknown_payload_received__error_400_
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /* {"sL": [0], "sC": [0]}
-     * Invalid key types for this endpoint - not expecting arrays
-     */
+    // {"sL": [0], "sC": [0]}
+    // Invalid key types for this endpoint - not expecting arrays
+    //
     uint8_t request_payload_bytes[] = {
         0xbf, 0x62, 0x73, 0x4c, 0x81, 0x00, 0x62, 0x74, 0x43, 0x81, 0x00, 0xFF};
 
@@ -843,9 +875,9 @@ void test_res_link_hs_server_post_response__unsupported_challenge_mode_received_
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /* {"cD": h'0102030405', "cM": 500, "lS": 0}
-     * properties are valid, but challenge mode 500 does not exist
-     */
+    // {"cD": h'0102030405', "cM": 500, "lS": 0}
+    // properties are valid, but challenge mode 500 does not exist
+    //
     uint8_t request_payload_bytes[] = {0xA3, 0x62, 0x63, 0x44, 0x45, 0x01, 0x02,
                                        0x03, 0x04, 0x05, 0x62, 0x63, 0x4d, 0x19,
                                        0x01, 0xf4, 0x62, 0x6c, 0x53, 0x00};
@@ -886,9 +918,9 @@ void test_res_link_hs_server_post_response__unsupported_security_mode_received__
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /* {"cD": h'0102030405', "cM": 0, "lS": 500}
-     * properties are valid, but link security mode 500 does not exist
-     */
+    // {"cD": h'0102030405', "cM": 0, "lS": 500}
+    // properties are valid, but link security mode 500 does not exist
+    //
     uint8_t request_payload_bytes[] = {0xA3, 0x62, 0x63, 0x44, 0x45, 0x01, 0x02,
                                        0x03, 0x04, 0x05, 0x62, 0x63, 0x4d, 0x00,
                                        0x62, 0x6c, 0x53, 0x19, 0x01, 0xf4};
@@ -929,9 +961,9 @@ void test_res_link_hs_server_post_response__missing_a_payload_field__error_400_r
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /* {"cD": h'0102030405', "cM": 0}
-     * properties are valid, but missing lS
-     */
+    // {"cD": h'0102030405', "cM": 0}
+    // properties are valid, but missing lS
+    //
     uint8_t request_payload_bytes[] = {0xA2,
                                        0x62,
                                        0x63,
@@ -983,11 +1015,11 @@ void test_res_link_hs_server_post_response__challenge_data_too_large__error_400_
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /* {"cD": h'0102030405AABBCCDDEEFFA1B1C1D1E1F1550044000102030405AABB0ADB',
-     * "cM": 0, "lS": 0}
-     * properties are valid, but challenge data length 30 exceeds limit
-     * (This test may change in the future to accomodate longer challenge data)
-     */
+    // {"cD": h'0102030405AABBCCDDEEFFA1B1C1D1E1F1550044000102030405AABB0ADB',
+    // "cM": 0, "lS": 0}
+    // properties are valid, but challenge data length 30 exceeds limit
+    // (This test may change in the future to accomodate longer challenge data)
+    //
     uint8_t request_payload_bytes[] = {
         0xA3, 0x62, 0x63, 0x44, 0x58, 0x1E, 0x01, 0x02, 0x03, 0x04, 0x05,
         0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xA1, 0xB1, 0xC1, 0xD1, 0xE1,
@@ -1030,9 +1062,8 @@ void test_res_link_hs_server_post_response__challenge_data_invalid_type__error_4
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /*  {"cD": 1234567890, "cM": 0, "lS": 0}
-     *  Challenge data should be a bytestring, not a
-     */
+    // {"cD": 1234567890, "cM": 0, "lS": 0}
+    //  Challenge data should be a bytestring, not an unsigned integer
     uint8_t request_payload_bytes[] = {0xA3,
                                        0x62,
                                        0x63,
@@ -1087,9 +1118,8 @@ void test_res_link_hs_server_post_response__challenge_data_invalid_data_length_f
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /*  {"cD": h'0102030405', "cM": 0, "lS": 0, "badkey": 0}
-     *  Challenge data should be a bytestring, not a
-     */
+    // {"cD": h'0102030405', "cM": 0, "lS": 0, "badkey": 0}
+    // Invalid length for challenge data (5 not supported for selected mode)
     uint8_t request_payload_bytes[] = {0xA4, 0x62, 0x63, 0x44, 0x45, 0x01, 0x02,
                                        0x03, 0x04, 0x05, 0x62, 0x63, 0x4d, 0x00,
                                        0x62, 0x6c, 0x53, 0x00, 0x66, 0x62, 0x61,
@@ -1131,9 +1161,8 @@ void test_res_link_hs_server_post_response__extra_invalid_int_key__error_400_ret
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /*  {"cD": h'0102030405', "cM": 0, "lS": 0} // expecting length 8
-     *  Extra unexpected integer key in payload.
-     */
+    // {"cD": h'0102030405', "cM": 0, "lS": 0} // expecting length 8
+    //  Extra unexpected integer key in payload.
     uint8_t request_payload_bytes[] = {0xA4, 0x62, 0x63, 0x44, 0x45, 0x01, 0x02,
                                        0x03, 0x04, 0x05, 0x62, 0x63, 0x4d, 0x00,
                                        0x62, 0x6c, 0x53, 0x00, 0x66, 0x62, 0x61,
@@ -1175,9 +1204,8 @@ void test_res_link_hs_server_post_response__extra_invalid_bytestring_key__error_
     // Allocated on `oc_incoming_buffers` by setUp
     TEST_ASSERT_NOT_EQUAL(NULL, G_OC_MESSAGE);
 
-    /*  {"cD": h'0102030405', "cM": 0, "lS": 0, "badkey": h'00'}
-     *  Extra unexpected bytestring key in payload.
-     */
+    //  {"cD": h'0102030405', "cM": 0, "lS": 0, "badkey": h'00'}
+    //  Extra unexpected bytestring key in payload.
     uint8_t request_payload_bytes[] = {0xA4, 0x62, 0x63, 0x44, 0x45, 0x01, 0x02,
                                        0x03, 0x04, 0x05, 0x62, 0x63, 0x4d, 0x00,
                                        0x62, 0x6c, 0x53, 0x00, 0x66, 0x62, 0x61,
@@ -1257,8 +1285,7 @@ void test_res_link_hs_server_post_response__supported_valid_challenge_mode0_rece
     // The challenge data below consists of a MAC computed over the salt
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 8.
-    /*  {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
-     */
+    // {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
     const struct nx_core_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
@@ -1268,13 +1295,12 @@ void test_res_link_hs_server_post_response__supported_valid_challenge_mode0_rece
     // Prepare a valid POST message with a supported challenge
     _internal_set_coap_headers(&request_packet, COAP_TYPE_NON, COAP_POST);
     coap_set_header_content_format(&request_packet, APPLICATION_VND_OCF_CBOR);
-    coap_set_payload(&request_packet, request_payload_bytes, 100);
-
+    coap_set_payload(
+        &request_packet, request_payload_bytes, sizeof(request_payload_bytes));
     G_OC_MESSAGE->length =
         coap_serialize_message(&request_packet, G_OC_MESSAGE->data);
 
     OC_DBG("Requesting POST to '/h' URI");
-
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
     // `request_processing` will be called to finalize the new link
     nxp_core_request_processing_Expect();
@@ -1334,8 +1360,7 @@ void test_res_link_hs_server_post_response__supported_duplicate_mode0_command__d
     // The challenge data below consists of a MAC computed over the salt
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 8.
-    /*  {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
-     */
+    //  {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
     const struct nx_core_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
@@ -1345,7 +1370,8 @@ void test_res_link_hs_server_post_response__supported_duplicate_mode0_command__d
     // Prepare a valid POST message with a supported challenge
     _internal_set_coap_headers(&request_packet, COAP_TYPE_NON, COAP_POST);
     coap_set_header_content_format(&request_packet, APPLICATION_VND_OCF_CBOR);
-    coap_set_payload(&request_packet, request_payload_bytes, 100);
+    coap_set_payload(
+        &request_packet, request_payload_bytes, sizeof(request_payload_bytes));
 
     G_OC_MESSAGE->length =
         coap_serialize_message(&request_packet, G_OC_MESSAGE->data);
@@ -1425,8 +1451,7 @@ void test_res_link_hs_server_post_response__separate_commands_window_moved__both
     // The challenge data below consists of a MAC computed over the salt
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 20.
-    /*  {"cD": h'0102030405060708C864806BCD465AFD', "cM": 0, "lS": 0}
-     */
+    //  {"cD": h'0102030405060708C864806BCD465AFD', "cM": 0, "lS": 0}
     const struct nx_core_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes_id20[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
@@ -1549,22 +1574,22 @@ void test_res_link_hs_challenge_mode_3_key_derivation__result_expected(void)
         &NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2);
 
     OC_LOGbytes(link_key.bytes, 16);
-    const struct nx_core_check_key expected = {0x87,
-                                               0x77,
-                                               0xF1,
-                                               0xF9,
-                                               0x7C,
-                                               0x86,
-                                               0x40,
-                                               0x8E,
-                                               0x35,
-                                               0x52,
-                                               0xFB,
-                                               0xC4,
-                                               0xC9,
-                                               0x03,
-                                               0xF8,
-                                               0x73};
+    const struct nx_core_check_key expected = {{0x87,
+                                                0x77,
+                                                0xF1,
+                                                0xF9,
+                                                0x7C,
+                                                0x86,
+                                                0x40,
+                                                0x8E,
+                                                0x35,
+                                                0x52,
+                                                0xFB,
+                                                0xC4,
+                                                0xC9,
+                                                0x03,
+                                                0xF8,
+                                                0x73}};
 
     TEST_ASSERT_EQUAL_HEX8_ARRAY(
         expected.bytes, link_key.bytes, sizeof(struct nx_core_check_key));
@@ -1597,15 +1622,15 @@ nx_channel_error
 CALLBACK_test_res_link_hs_link_mode_3__send_post__sends_message_ok(
     const void* const bytes_to_send,
     uint32_t bytes_count,
-    const struct nx_ipv6_address* const source_address,
-    const struct nx_ipv6_address* const dest_address,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
     bool is_multicast,
     int NumCalls)
 {
-    struct nx_ipv6_address expected_dest_addr;
-    nexus_oc_wrapper_oc_endpoint_to_nx_ipv6(
-        &NEXUS_OC_WRAPPER_MULTICAST_OC_ENDPOINT_T_ADDR, &expected_dest_addr);
-
+    (void) source;
+    (void) dest;
+    (void) is_multicast;
+    (void) NumCalls;
     // 4 byte CoAP header (58 02 00 7C)
     // 8 byte CoaP token (7B 00 00 00 7B 00 00 00)
     // 16 byte CoAP options
@@ -1613,21 +1638,21 @@ CALLBACK_test_res_link_hs_link_mode_3__send_post__sends_message_ok(
     //
     // Payload represents 16 challenge data bytes, and requested challenge
     // mode and link security mode of 0.
-    /*
-     * BF                                     # map(*) // indefinite map
-     * 62                                  # text(2)
-     *  6344                             # "cD"
-     * 50                                  # bytes(16)
-     *  40E2010040E201008DD070D08E1836C4 #
-     * "@\xE2\x01\x00@\xE2\x01\x00\x8D\xD0p\xD0\x8E\x186\xC4"
-     * 62                                  # text(2)
-     *  634D                             # "cM"
-     * 00                                  # unsigned(0)
-     * 62                                  # text(2)
-     *  6C53                             # "lS"
-     * 00                                  # unsigned(0)
-     * FF                                  # primitive(*) // map terminator
-     */
+    //
+    // BF                                     # map(*) // indefinite map
+    // 62                                  # text(2)
+    //  6344                             # "cD"
+    // 50                                  # bytes(16)
+    // 40E2010040E201008DD070D08E1836C4 #
+    // "@\xE2\x01\x00@\xE2\x01\x00\x8D\xD0p\xD0\x8E\x186\xC4"
+    // 62                                  # text(2)
+    //  634D                             # "cM"
+    // 00                                  # unsigned(0)
+    // 62                                  # text(2)
+    //  6C53                             # "lS"
+    // 00                                  # unsigned(0)
+    // FF                                  # primitive(*) // map terminator
+    //
     uint8_t expected_data[59] = {
         0x58, 0x2,  0xe2, 0x41, 0x40, 0xe2, 0x1,  0x0,  0x40, 0xe2, 0x1,  0x0,
         0xb1, 0x68, 0x12, 0x27, 0x10, 0x52, 0x27, 0x10, 0xe2, 0x6,  0xe3, 0x8,
@@ -1643,7 +1668,9 @@ CALLBACK_test_res_link_hs_link_mode_3__send_post__sends_message_ok(
         expected_data, bytes_to_send, expected_length);
 
     TEST_ASSERT_EQUAL_MEMORY(
-        &expected_dest_addr, dest_address, sizeof(struct nx_ipv6_address));
+        &NEXUS_OC_WRAPPER_MULTICAST_NX_ID, dest, sizeof(struct nx_id));
+
+    return NX_CHANNEL_ERROR_NONE;
 }
 
 void test_res_link_hs_link_mode_3__send_post__sends_message_ok(void)
@@ -1723,9 +1750,7 @@ void test_res_link_hs_link_mode_3__send_post_another_post_in_progress__fails(
 void test_res_link_hs_link_mode_3__client_cb_already_registered__attempts_reuse(
     void)
 {
-    oc_response_handler_t dummy_handler = {0};
     oc_clock_time_IgnoreAndReturn(5); // arbitrary
-    uint8_t fake_user_data[5];
 
     // check that `oc_do_post` is called with the right data
     struct nexus_channel_om_create_link_body om_body;
@@ -2072,6 +2097,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
     // was computed over the salt (from the controller) and challenge int
     // (from the backend)
     struct nexus_window window;
+    memset(&window, 0x00, sizeof(struct nexus_window));
     _nexus_channel_res_link_hs_get_current_window(&window);
     const struct nx_core_check_key ACCESSORY_KEY = {{0xC4,
                                                      0xB8,
@@ -2177,6 +2203,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
                sizeof(controller_mac));
 
         uint32_t matched_handshake_index;
+
         // receive transmitted challenge on accessory side. Should be validated
         // immediately using the expected digits.
         nxp_channel_symmetric_origin_key_ExpectAndReturn(ACCESSORY_KEY);
@@ -2195,6 +2222,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
             matched_handshake_index, &window, &derived_link_key);
     }
 }
+/*
 
 void test_res_link_hs_client_post_cb__null_data__returns_early(void)
 {
@@ -2218,3 +2246,4 @@ void test_res_link_hs_client_get_cb__dummy__todo(void)
 
     TEST_ASSERT_TRUE(1);
 }
+*/

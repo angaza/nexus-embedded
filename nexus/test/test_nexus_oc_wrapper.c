@@ -51,6 +51,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+
 // pull in source file from IoTivity without changing its name
 // https://github.com/ThrowTheSwitch/Ceedling/issues/113
 TEST_FILE("oc/api/oc_server_api.c")
@@ -69,6 +72,7 @@ static oc_message_t* G_OC_MESSAGE = 0;
 /********************************************************
  * PRIVATE DATA
  *******************************************************/
+static const oc_interface_mask_t if_mask_arr[] = {OC_IF_BASELINE, OC_IF_RW};
 
 /********************************************************
  * PRIVATE FUNCTIONS
@@ -84,127 +88,7 @@ void setUp(void)
 void tearDown(void)
 {
     oc_message_unref(G_OC_MESSAGE);
-}
-
-void test_nexus_oc_wrapper__oc_endpoint_to_nx_ipv6__various_scenarios__ok(void)
-{
-    struct test_scenario
-    {
-        const struct oc_endpoint_t input;
-        const struct nx_ipv6_address expected;
-    };
-
-    const struct test_scenario scenarios[] = {
-        {
-            {0, // no 'next' endpoint
-             0, // arbitrary device ID
-             IPV6, // flag from oc_endpoint
-             {0}, // uuid 'di' not used
-             {
-                 5683, // port
-                 {0xFE, /// valid source address
-                  0x80,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0x02,
-                  0,
-                  0x12,
-                  0xFF,
-                  0xFE,
-                  0x34,
-                  0x56,
-                  0x78},
-                 2, // scope = link-local
-             },
-             {0}, // `addr_local` unused
-             0, // `interface_index` unused
-             0, // `priority` unused
-             OIC_VER_1_1_0},
-            {
-                {0xFE,
-                 0x80,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0x02,
-                 0,
-                 0x12,
-                 0xFF,
-                 0xFE,
-                 0x34,
-                 0x56,
-                 0x78},
-                false, // t/f for global scope (link-local scope here)
-            }, // nx_ipv6 address, global scope bool
-        },
-        {
-            {0, // no 'next' endpoint
-             0, // arbitrary device ID
-             IPV6, // flag from oc_endpoint
-             {0}, // uuid 'di' not used
-             {
-                 5683, // port
-                 {0xAA,
-                  0xBB,
-                  0xFF,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0x12,
-                  0xEF,
-                  0xDA,
-                  0x34,
-                  0x56,
-                  0x78},
-                 0, // scope = global
-             },
-             {0}, // `addr_local` unused
-             0, // `interface_index` unused
-             0, // `priority` unused
-             OIC_VER_1_1_0},
-            {
-                {0xAA,
-                 0xBB,
-                 0xFF,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0,
-                 0x12,
-                 0xEF,
-                 0xDA,
-                 0x34,
-                 0x56,
-                 0x78},
-                true, // t/f for global scope (link-local scope here)
-            }, // nx_ipv6 address, global scope bool
-        },
-    };
-
-    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
-    {
-        const struct test_scenario scenario = scenarios[i];
-        struct nx_ipv6_address output;
-        nexus_oc_wrapper_oc_endpoint_to_nx_ipv6(&scenario.input, &output);
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(
-            scenario.expected.address, output.address, 16);
-        TEST_ASSERT_EQUAL_UINT(scenario.expected.global_scope,
-                               output.global_scope);
-    }
+    nexus_channel_core_shutdown();
 }
 
 void test_nexus_oc_wrapper__oc_endpoint_to_nx_id__various_scenarios__ok(void)
@@ -220,8 +104,8 @@ void test_nexus_oc_wrapper__oc_endpoint_to_nx_id__various_scenarios__ok(void)
             {0, // no 'next' endpoint
              0, // arbitrary device ID
              IPV6, // flag from oc_endpoint
-             {0}, // uuid 'di' not used
-             {
+             {{0}}, // uuid 'di' not used
+             {{
                  5683, // port
                  {0xFE, /// valid source address
                   0x80,
@@ -240,19 +124,21 @@ void test_nexus_oc_wrapper__oc_endpoint_to_nx_id__various_scenarios__ok(void)
                   0x56,
                   0x78},
                  2, // scope = link-local
-             },
-             {0}, // `addr_local` unused
+             }},
+             {{0}}, // `addr_local` unused
              0, // `interface_index` unused
              0, // `priority` unused
              OIC_VER_1_1_0},
+            // on a LE system, this Nexus ID is stored in memory as
+            // 0x000078563412
             {0x0000, 0x12345678},
         },
         {
             {0, // no 'next' endpoint
              0, // arbitrary device ID
              IPV6, // flag from oc_endpoint
-             {0}, // uuid 'di' not used
-             {
+             {{0}}, // uuid 'di' not used
+             {{
                  5683, // port
                  {0xAA,
                   0xBB,
@@ -271,11 +157,13 @@ void test_nexus_oc_wrapper__oc_endpoint_to_nx_id__various_scenarios__ok(void)
                   0x56,
                   0x78},
                  0, // scope = global (does not impact nx_id)
-             },
-             {0}, // `addr_local` unused
+             }},
+             {{0}}, // `addr_local` unused
              0, // `interface_index` unused
              0, // `priority` unused
              OIC_VER_1_1_0},
+            // on a LE system, this Nexus ID is stored in memory as
+            // 0x000078563412
             {0x0000, 0x12345678},
         },
     };
@@ -284,8 +172,7 @@ void test_nexus_oc_wrapper__oc_endpoint_to_nx_id__various_scenarios__ok(void)
     {
         const struct test_scenario scenario = scenarios[i];
         struct nx_id output;
-        bool success =
-            nexus_oc_wrapper_oc_endpoint_to_nx_id(&scenario.input, &output);
+        nexus_oc_wrapper_oc_endpoint_to_nx_id(&scenario.input, &output);
         TEST_ASSERT_EQUAL_UINT(scenario.expected.authority_id,
                                output.authority_id);
         TEST_ASSERT_EQUAL_UINT(scenario.expected.device_id, output.device_id);
@@ -296,33 +183,33 @@ void test_nexus_oc_wrapper__nx_channel_network_receive__invalid_messages__reject
     void)
 {
     struct nx_id fake_id = {0, 12345678};
-    struct nx_ipv6_address fake_origin_address;
-    uint8_t dummy_data[10];
+    uint8_t dummy_data[200];
     memset(&dummy_data, 0xAB, sizeof(dummy_data));
-    nx_core_nx_id_to_ipv6_address(&fake_id, &fake_origin_address);
 
-    nx_channel_error result =
-        nx_channel_network_receive(NULL, 0, &fake_origin_address);
+    nx_channel_error result = nx_channel_network_receive(NULL, 0, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_UNSPECIFIED, result);
-    result = nx_channel_network_receive(NULL, 1, &fake_origin_address);
+    result = nx_channel_network_receive(NULL, 1, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_UNSPECIFIED, result);
-    result = nx_channel_network_receive(dummy_data, 0, &fake_origin_address);
+    result = nx_channel_network_receive(dummy_data, 0, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_UNSPECIFIED, result);
+    result = nx_channel_network_receive(
+        dummy_data,
+        NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES + 1,
+        &fake_id);
+    TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_MESSAGE_TOO_LARGE, result);
 }
 
 void test_nexus_oc_wrapper__nx_channel_network_receive__valid_message__no_error(
     void)
 {
     struct nx_id fake_id = {0, 12345678};
-    struct nx_ipv6_address fake_origin_address;
     uint8_t dummy_data[10];
     memset(&dummy_data, 0xAB, sizeof(dummy_data));
-    nx_core_nx_id_to_ipv6_address(&fake_id, &fake_origin_address);
 
     nxp_core_request_processing_Expect(); // due to a valid message being
     // received
     nx_channel_error result =
-        nx_channel_network_receive(dummy_data, 10, &fake_origin_address);
+        nx_channel_network_receive(dummy_data, 10, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_NONE, result);
 }
 
@@ -331,24 +218,36 @@ void test_nexus_oc_wrapper__oc_send_buffer__expected_calls_to_nxp_channel_networ
 {
     // we assert that this flag is set
     G_OC_MESSAGE->endpoint.flags = IPV6 | MULTICAST;
-    struct nx_id fake_id = {0, 12345678};
-    struct nx_ipv6_address expected_source_address;
-    struct nx_ipv6_address expected_dest_address;
-    nx_core_nx_id_to_ipv6_address(&fake_id, &expected_source_address);
-    nexus_oc_wrapper_oc_endpoint_to_nx_ipv6(&G_OC_MESSAGE->endpoint,
-                                            &expected_dest_address);
-
-    nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
+    G_OC_MESSAGE->length = NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES;
+    struct nx_id fake_source_nx_id = {0, 12345678};
+    nxp_channel_get_nexus_id_ExpectAndReturn(fake_source_nx_id);
 
     nxp_channel_network_send_ExpectAndReturn(
         G_OC_MESSAGE->data,
-        G_OC_MESSAGE->length,
-        &expected_source_address,
-        &expected_dest_address,
-        true, // we set the endpoint flags to "MULTICAST"
+        (uint32_t) G_OC_MESSAGE->length,
+        &fake_source_nx_id,
+        &NEXUS_OC_WRAPPER_MULTICAST_NX_ID,
+        true, // we set the endpoint flags to "MULTICAST" above
         NX_CHANNEL_ERROR_NONE);
 
     oc_send_buffer(G_OC_MESSAGE);
+}
+
+void test_nexus_oc_wrapper__oc_send_buffer__message_too_large__does_not_call_nxp_channel_network_send(
+    void)
+{
+    // we assert that this flag is set
+    G_OC_MESSAGE->endpoint.flags = IPV6;
+    struct nx_id fake_source_nx_id = {0, 12345678};
+    nxp_channel_get_nexus_id_ExpectAndReturn(fake_source_nx_id);
+
+    G_OC_MESSAGE->length =
+        NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES + 1;
+    // no `nxp_channel_network_send_ExpectAndReturn` indicates that the
+    // too large message is dropped and not passed to the product link layer
+    int result = oc_send_buffer(G_OC_MESSAGE);
+    // nonzero return code
+    TEST_ASSERT_EQUAL(1, result);
 }
 
 void test_nexus_oc_wrapper__oc_send_discovery_request__identical_to_send_buffer(
@@ -356,20 +255,17 @@ void test_nexus_oc_wrapper__oc_send_discovery_request__identical_to_send_buffer(
 {
     // we assert that this flag is set
     G_OC_MESSAGE->endpoint.flags = IPV6;
-    struct nx_id fake_id = {0, 12345678};
-    struct nx_ipv6_address expected_source_address;
-    struct nx_ipv6_address expected_dest_address;
-    nx_core_nx_id_to_ipv6_address(&fake_id, &expected_source_address);
-    nexus_oc_wrapper_oc_endpoint_to_nx_ipv6(&G_OC_MESSAGE->endpoint,
-                                            &expected_dest_address);
-
-    nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
+    struct nx_id expected_source_nx_id = {0, 12345678};
+    struct nx_id expected_dest_nx_id;
+    nxp_channel_get_nexus_id_ExpectAndReturn(expected_source_nx_id);
+    nexus_oc_wrapper_oc_endpoint_to_nx_id(&G_OC_MESSAGE->endpoint,
+                                          &expected_dest_nx_id);
 
     nxp_channel_network_send_ExpectAndReturn(G_OC_MESSAGE->data,
-                                             G_OC_MESSAGE->length,
-                                             &expected_source_address,
-                                             &expected_dest_address,
-                                             false, // we didn't
+                                             (uint32_t) G_OC_MESSAGE->length,
+                                             &expected_source_nx_id,
+                                             &expected_dest_nx_id,
+                                             false, // we didn't set multicast
                                              NX_CHANNEL_ERROR_NONE);
 
     oc_send_discovery_request(G_OC_MESSAGE);
@@ -388,9 +284,9 @@ void test_nexus_oc_wrapper__repack_buffer_secured__repack_ok(void)
     cose_mac0.kid = 0;
     cose_mac0.nonce = 5; // arbitrary
     cose_mac0.payload = buf;
-    cose_mac0.payload_len = strlen(data);
+    cose_mac0.payload_len = (uint8_t) strlen(data);
     struct nexus_check_value mac = {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+        {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
     cose_mac0.mac = &mac;
 
     nexus_oc_wrapper_repack_buffer_secured(buf, &cose_mac0);
@@ -435,3 +331,169 @@ void test_nexus_oc_wrapper__repack_buffer_secured__repack_ok(void)
         0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, expected_secured_buf, sizeof(buf));
 }
+
+void test_nexus_oc_wrapper_nx_id_to_oc_endpoint__various_scenarios__output_expected(
+    void)
+{
+    struct test_scenario
+    {
+        const struct nx_id input;
+        const struct oc_endpoint_t expected;
+    };
+
+    const struct test_scenario scenarios[] = {
+        {
+            // on a LE system, this Nexus ID is stored in memory as
+            // 0x000078563412
+            {0x0000, 0x12345678}, // authority ID, device ID
+            {0, // no 'next' endpoint
+             0, // arbitrary device ID
+             IPV6, // flag from oc_endpoint
+             {{0}}, // uuid 'di' not used
+             {{
+                 5683, // port
+                 {0xFE, /// valid source address
+                  0x80,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0x02,
+                  0,
+                  0x12,
+                  0xFF,
+                  0xFE,
+                  0x34,
+                  0x56,
+                  0x78},
+                 2, // scope = link-local
+             }},
+             {{0}}, // `addr_local` unused
+             0, // `interface_index` unused
+             0, // `priority` unused
+             OIC_VER_1_1_0},
+        },
+        {
+            // on a LE system, this Nexus ID is stored in memory as
+            // 0x2010AB000000
+            {0x1020, 0xAB}, // authority ID, device ID
+            {0, // no 'next' endpoint
+             0, // arbitrary device ID
+             IPV6, // flag from oc_endpoint
+             {{0}}, // uuid 'di' not used
+             {{
+                 5683, // port
+                 {0xFE,
+                  0x80,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0x12,
+                  0x20,
+                  0x00,
+                  0xFF,
+                  0xFE,
+                  0,
+                  0,
+                  0xAB},
+                 2, // local scope
+             }},
+             {{0}}, // `addr_local` unused
+             0, // `interface_index` unused
+             0, // `priority` unused
+             OIC_VER_1_1_0},
+        },
+        {
+            // on a LE system, this Nexus ID is stored in memory as
+            // 0xACD22201FBFC
+            {0xD2AC, 0xFCFB0122}, // authority ID, device ID
+            {0, // no 'next' endpoint
+             0, // arbitrary device ID
+             IPV6, // flag from oc_endpoint
+             {{0}}, // uuid 'di' not used
+             {{
+                 5683, // port
+                 {0xFE,
+                  0x80,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0xD0,
+                  0xAC,
+                  0xFC,
+                  0xFF,
+                  0xFE,
+                  0xFB,
+                  0x01,
+                  0x22},
+                 2, // local scope
+             }},
+             {{0}}, // `addr_local` unused
+             0, // `interface_index` unused
+             0, // `priority` unused
+             OIC_VER_1_1_0},
+        },
+    };
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // not a great test because we're stuck with our host byte order
+        const struct test_scenario scenario = scenarios[i];
+        oc_endpoint_t output;
+        nexus_oc_wrapper_nx_id_to_oc_endpoint(&scenario.input, &output);
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            scenario.expected.addr.ipv6.address, output.addr.ipv6.address, 16);
+        TEST_ASSERT_EQUAL_UINT(scenario.expected.addr.ipv6.scope,
+                               output.addr.ipv6.scope);
+    }
+}
+
+void test_nexus_oc_wrapper__nexus_channel_set_request_handler__unknown_method_fails(
+    void)
+{
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_core_nv_read_IgnoreAndReturn(true);
+    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_core_random_init_Ignore();
+    nxp_core_random_value_IgnoreAndReturn(123456);
+    oc_clock_init_Ignore();
+
+    nexus_channel_core_init();
+
+    nexus_channel_link_manager_init();
+
+    // register resource
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/nx/pc",
+        .resource_type = "angaza.com.nexus.payg_credit",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    oc_resource_t* res = oc_ri_get_app_resource_by_uri(
+        "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+
+    TEST_ASSERT_EQUAL(
+        NX_CHANNEL_ERROR_METHOD_UNSUPPORTED,
+        nexus_channel_set_request_handler(
+            res, 5, nexus_channel_res_payg_credit_get_handler, false));
+}
+
+#pragma GCC diagnostic pop

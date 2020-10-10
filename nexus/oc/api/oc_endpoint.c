@@ -16,6 +16,10 @@
 // Modifications (c) 2020 Angaza, Inc.
 */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include "oc_endpoint.h"
 #include "oc_core_res.h"
 #include "port/oc_connectivity.h"
@@ -43,7 +47,7 @@ oc_new_endpoint(void)
 /*#ifndef OC_DYNAMIC_ALLOCATION
   oc_network_event_handler_mutex_lock();
 #endif // !OC_DYNAMIC_ALLOCATION*/
-  oc_endpoint_t *endpoint = oc_memb_alloc(&oc_endpoints_s);
+  oc_endpoint_t *endpoint = (oc_endpoint_t*) oc_memb_alloc(&oc_endpoints_s);
 /*#ifndef OC_DYNAMIC_ALLOCATION
   oc_network_event_handler_mutex_unlock();
 #endif // !OC_DYNAMIC_ALLOCATION*/
@@ -298,7 +302,7 @@ oc_parse_ipv6_address(const char *address, size_t len, oc_endpoint_t *endpoint)
       str_idx += 2;
     }
     seg_len = len - str_idx;
-    const char *next_seg = memchr(&address[str_idx], ':', seg_len);
+    const char *next_seg = (const char*) memchr(&address[str_idx], ':', seg_len);
     if (next_seg) {
       seg_len = next_seg - &address[str_idx];
     }
@@ -353,7 +357,7 @@ oc_parse_endpoint_string(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
 
   const char *address = NULL;
   endpoint->device = 0;
-  endpoint->flags = 0;
+  endpoint->flags = (enum transport_flags) 0;
   size_t len = oc_string_len(*endpoint_str);
 #ifdef OC_TCP
   if (len > strlen(OC_SCHEME_COAPS_TCP) &&
@@ -385,7 +389,7 @@ oc_parse_endpoint_string(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
 
   /* Extract a uri path if requested and available */
   const char *u = NULL;
-  u = memchr(address, '/', len);
+  u = (const char*) memchr(address, '/', len);
   if (uri) {
     if (u) {
       oc_new_string(uri, u, (len - (u - address)));
@@ -396,15 +400,15 @@ oc_parse_endpoint_string(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
   const char *p = NULL;
   /* If IPv6 address, look for port after ] */
   if (address[0] == '[') {
-    p = memchr(address, ']', len);
+    p = (const char*) memchr(address, ']', len);
     if (!p) {
       return -1;
     }
     /* A : that ever follows ] must precede a port */
-    p = memchr(p, ':', len - (p - address + 1));
+    p = (const char*) memchr(p, ':', len - (p - address + 1));
   } else {
     /* IPv4 address or hostname; the first : must precede a port */
-    p = memchr(address, ':', len);
+    p = (const char*) memchr(address, ':', len);
   }
 
   uint16_t port = 0;
@@ -461,7 +465,7 @@ oc_parse_endpoint_string(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
   }
 
   if (address[0] == '[' && address[address_len - 1] == ']') {
-    endpoint->flags |= IPV6;
+    endpoint->flags = (enum transport_flags) (endpoint->flags | IPV6);
     endpoint->addr.ipv6.port = port;
     oc_parse_ipv6_address(&address[1], address_len - 2, endpoint);
   }
@@ -527,14 +531,14 @@ oc_endpoint_string_parse_path(oc_string_t *endpoint_str, oc_string_t *path)
   const char *path_start = NULL;
   const char *query_start = NULL;
 
-  path_start = memchr(address, '/', len);
+  path_start = (const char*) memchr(address, '/', len);
 
   if (!path_start) {
     // no path found return error
     return -1;
   }
 
-  query_start = memchr((address + (path_start - address)), '?',
+  query_start = (const char*) memchr((address + (path_start - address)), '?',
                        (len - (path_start - address)));
   if (query_start) {
     oc_new_string(path, path_start, (query_start - path_start));
@@ -660,3 +664,5 @@ oc_endpoint_set_local_address(oc_endpoint_t *ep, int interface_index)
   */
 }
 #endif /* OC_CLIENT */
+
+#pragma GCC diagnostic pop

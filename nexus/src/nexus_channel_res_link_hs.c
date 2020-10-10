@@ -1,4 +1,4 @@
-/** \file nexus_channel_link_hs_res.c
+/** \file nexus_channel_res_link_hs.c
  * Nexus Channel Link Handshake OCF Resource (Implementation)
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
@@ -20,7 +20,7 @@
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_rep.h"
 
-#if NEXUS_CHANNEL_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 // Abbreviated property names
 const char* CHAL_DATA_SHORT_PROP_NAME = "cD";
@@ -35,10 +35,10 @@ const char* SUPPORTED_CHALLENGE_MODES_SHORT_PROP_NAME = "sC";
 
 extern oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
 
-#define KEY_DERIVATION_MATERIAL_LENGTH_BYTES                                   \
-    (CHALLENGE_MODE_3_SALT_LENGTH_BYTES + 4)
+    #define KEY_DERIVATION_MATERIAL_LENGTH_BYTES                               \
+        (CHALLENGE_MODE_3_SALT_LENGTH_BYTES + 4)
 
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
 // modes accessory will expose when performing link handshake
 static const enum nexus_channel_link_security_mode
     supported_link_security_modes[1] = {
@@ -47,27 +47,28 @@ static const enum nexus_channel_link_security_mode
 static const enum nexus_channel_link_handshake_challenge_mode
     supported_challenge_modes[1] = {
         NEXUS_CHANNEL_LINK_HANDSHAKE_CHALLENGE_MODE_0_CHALLENGE_RESULT};
-#endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
+    #endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 
 // RAM representation of this link handshake resource
 // Handshakes are not persisted in NV, only an established link.
 static struct
 {
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
     // may be initiating handshakes with multiple accessories at once
     nexus_link_hs_controller_t
         clients[NEXUS_CHANNEL_SIMULTANEOUS_LINK_HANDSHAKES];
-#endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
     nexus_link_hs_accessory_t server;
 
-// Stored/NV parameters specific to accessory follow
-// number of flags stored [16] / CHAR_BIT [8]
-#define NEXUS_CHANNEL_LINK_HS_MAX_RECEIVE_FLAG_BYTE 2
-// recognize up to 15 'link handshake counts/indexes' behind the current center
-#define NEXUS_CHANNEL_LINK_HS_RECEIVE_WINDOW_BEFORE_CENTER_INDEX 15
-// and 8 ahead of the current index.
-#define NEXUS_CHANNEL_LINK_HS_RECEIVE_WINDOW_AFTER_CENTER_INDEX 8
+        // Stored/NV parameters specific to accessory follow
+        // number of flags stored [16] / CHAR_BIT [8]
+        #define NEXUS_CHANNEL_LINK_HS_MAX_RECEIVE_FLAG_BYTE 2
+        // recognize up to 15 'link handshake counts/indexes' behind the current
+        // center
+        #define NEXUS_CHANNEL_LINK_HS_RECEIVE_WINDOW_BEFORE_CENTER_INDEX 15
+        // and 8 ahead of the current index.
+        #define NEXUS_CHANNEL_LINK_HS_RECEIVE_WINDOW_AFTER_CENTER_INDEX 8
     NEXUS_PACKED_STRUCT
     {
         // Used to prevent replay attacks with old handshakes. Specific
@@ -80,7 +81,7 @@ static struct
         uint8_t received_ids[NEXUS_CHANNEL_LINK_HS_MAX_RECEIVE_FLAG_BYTE];
     }
     stored_accessory;
-#endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
+    #endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 } _this;
 
 // forward declarations
@@ -89,15 +90,15 @@ bool _nexus_channel_res_link_hs_link_mode_3_send_post(
 
 NEXUS_IMPL_STATIC void _nexus_channel_res_link_hs_reset_server_state(void)
 {
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
     // Relies on fact that 'idle' is 0 for all values in the struct.
     memset(&_this.server, 0x00, sizeof(_this.server));
-#endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
+    #endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 }
 
 void nexus_channel_res_link_hs_init(void)
 {
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
     _nexus_channel_res_link_hs_reset_server_state();
     // Accessories also load the `handshake_count` from NV, if present.
     memset(&_this.stored_accessory.received_ids,
@@ -134,32 +135,35 @@ void nexus_channel_res_link_hs_init(void)
 
     // Only accessories serve a handshake resource
     const oc_interface_mask_t if_mask_arr[] = {OC_IF_RW, OC_IF_BASELINE};
-#ifdef NEXUS_DEFINED_DURING_TESTING
+    const struct nx_channel_resource_props link_hs_props = {
+        .uri = "/h",
+        .resource_type = "angaza.com.nexus.link.hs",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_link_hs_server_get,
+        .get_secured = false,
+        .post_handler = nexus_channel_res_link_hs_server_post,
+        .post_secured = false};
+
+        #ifdef NEXUS_DEFINED_DURING_TESTING
     nx_channel_error result =
-#endif // ifdef NEXUS_DEFINED_DURING_TESTING
-        nx_channel_register_resource("/h",
-                                     "angaza.com.nexus.link.hs",
-                                     2,
-                                     if_mask_arr,
-                                     OC_GET,
-                                     nexus_channel_res_link_hs_server_get,
-                                     false);
-#ifdef NEXUS_DEFINED_DURING_TESTING
+        #endif // ifdef NEXUS_DEFINED_DURING_TESTING
+        nx_channel_register_resource(&link_hs_props);
+        #ifdef NEXUS_DEFINED_DURING_TESTING
     NEXUS_ASSERT(result == NX_CHANNEL_ERROR_NONE,
                  "Unexpected error registering resource");
-#endif // ifdef NEXUS_DEFINED_DURING_TESTING
-    nx_channel_register_resource_handler(
-        "/h", OC_POST, nexus_channel_res_link_hs_server_post, false);
-#endif // NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+        #endif // ifdef NEXUS_DEFINED_DURING_TESTING
+    #endif // NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
     memset(&_this.clients, 0x00, sizeof(_this.clients));
-#endif // NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #endif // NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 }
 
-// only used in unit tests
-#ifdef NEXUS_DEFINED_DURING_TESTING
-// Used internally in unit tests
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    // only used in unit tests
+    #ifdef NEXUS_DEFINED_DURING_TESTING
+        // Used internally in unit tests
+        #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
 NEXUS_IMPL_STATIC void _nexus_channel_res_link_hs_set_server_state(
     const nexus_link_hs_accessory_t* server_state)
 {
@@ -168,9 +172,9 @@ NEXUS_IMPL_STATIC void _nexus_channel_res_link_hs_set_server_state(
                         "Invalid handshake server struct size");
     memcpy(&_this.server, server_state, sizeof(nexus_link_hs_accessory_t));
 }
-#endif /* if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
+        #endif /* if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+        #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 NEXUS_IMPL_STATIC void _nexus_channel_res_link_hs_set_client_state(
     const nexus_link_hs_controller_t* client_state, uint8_t index)
 {
@@ -190,21 +194,25 @@ _nexus_channel_res_link_hs_get_client_state(uint8_t index)
 {
     return &_this.clients[index];
 }
-#endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
-#endif // NEXUS_DEFINED_DURING_TESTING
+        #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #endif // NEXUS_DEFINED_DURING_TESTING
 
 uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
 {
     uint32_t next_call_secs = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 
-// process pending accessory/server tasks
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    // process pending accessory/server tasks
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
     const enum nexus_channel_link_handshake_state server_state =
         _this.server.state;
     if (server_state != LINK_HANDSHAKE_STATE_IDLE)
     {
         // calculate time since we started the link handshake
-        _this.server.seconds_since_init += seconds_elapsed;
+        // Note: handshakes aren't expected to last more than a few minutes.
+        NEXUS_ASSERT(seconds_elapsed < UINT16_MAX,
+                     "unexpected time since last call");
+        _this.server.seconds_since_init =
+            (uint16_t)(_this.server.seconds_since_init + seconds_elapsed);
 
         if (_this.server.seconds_since_init >
             NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS)
@@ -220,8 +228,8 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
             next_call_secs = 1;
         }
     }
-#endif
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #endif
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
     for (uint8_t i = 0; i < NEXUS_CHANNEL_SIMULTANEOUS_LINK_HANDSHAKES; i++)
     {
         // process any pending activity for each link handshake
@@ -233,7 +241,10 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
             continue;
         }
 
-        client_hs->seconds_since_init += seconds_elapsed;
+        NEXUS_ASSERT(seconds_elapsed < UINT16_MAX,
+                     "unexpected time since last call");
+        client_hs->seconds_since_init =
+            (uint16_t)(client_hs->seconds_since_init + seconds_elapsed);
 
         // Set any handshakes that have timed out to idle
         if (client_hs->seconds_since_init >
@@ -245,8 +256,8 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
         }
         else if (client_hs->state == LINK_HANDSHAKE_STATE_ACTIVE)
         {
-            const uint16_t seconds_since_post =
-                client_hs->seconds_since_init - client_hs->last_post_seconds;
+            const uint16_t seconds_since_post = (uint16_t)(
+                client_hs->seconds_since_init - client_hs->last_post_seconds);
             if (seconds_since_post >=
                 NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_RETRY_SECONDS)
             {
@@ -264,7 +275,7 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
             u32min(NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_RETRY_SECONDS,
                    next_call_secs);
     }
-#endif
+    #endif
     return next_call_secs;
 }
 
@@ -349,7 +360,7 @@ _res_link_hs_generate_link_key(uint32_t challenge_int,
     return derived_link_key;
 }
 
-#if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
 
 NEXUS_IMPL_STATIC void
 _nexus_channel_res_link_hs_get_current_window(struct nexus_window* window)
@@ -528,7 +539,8 @@ _nexus_channel_res_link_hs_challenge_data_length(const oc_rep_t* rep,
     uint8_t length = 0;
     if (strncmp(oc_string(rep->name), CHAL_DATA_SHORT_PROP_NAME, 2) == 0)
     {
-        length = oc_string_len(rep->value.string);
+        // Note: oc_string_len returns an unsigned integer
+        length = (uint8_t) oc_string_len(rep->value.string);
 
         // only accept incoming challenge bytes that don't exceed the
         // max bytes acceptable to this accessory.
@@ -611,9 +623,13 @@ _nexus_channel_res_link_hs_server_post_parse_payload_requested_modes(
     bool valid = true;
     if (memcmp(received_name, CHAL_MODE_SHORT_PROP_NAME, 2) == 0)
     {
-        if (_nexus_channel_res_link_hs_challenge_mode_supported(received_value))
+        if (_nexus_channel_res_link_hs_challenge_mode_supported(
+                (enum nexus_channel_link_handshake_challenge_mode)
+                    received_value))
         {
-            _this.server.chal_mode = received_value;
+            _this.server.chal_mode =
+                (enum nexus_channel_link_handshake_challenge_mode)
+                    received_value;
         }
         else
         {
@@ -623,9 +639,10 @@ _nexus_channel_res_link_hs_server_post_parse_payload_requested_modes(
     else if (memcmp(received_name, LINK_SEC_MODE_SHORT_PROP_NAME, 2) == 0)
     {
         if (_nexus_channel_res_link_hs_link_security_mode_supported(
-                received_value))
+                (enum nexus_channel_link_security_mode) received_value))
         {
-            _this.server.link_security_mode = received_value;
+            _this.server.link_security_mode =
+                (enum nexus_channel_link_security_mode) received_value;
         }
         else
         {
@@ -746,7 +763,7 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
     }
 
     // Next, see if the payload represents a valid challenge
-    bool challenge_validated = false;
+    bool challenge_validated;
     uint32_t matched_handshake_index;
     struct nx_core_check_key derived_link_key;
     struct nexus_check_value received_mac;
@@ -775,17 +792,16 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
         return;
     }
 
-    // nonce is set to 0 by zero-initialization of entire union
-    union nexus_channel_link_security_data security_data = {0};
+    // mode0.sym_key will be overwritten by memcpy
+    union nexus_channel_link_security_data security_data;
+    security_data.mode0.nonce = 0;
+
     memcpy(&security_data.mode0.sym_key,
            &derived_link_key,
            sizeof(struct nx_core_check_key));
 
-    struct nx_id controller_id = {0};
-    // currently, there is no case in which this call should fail
-    const bool ipv6_valid =
-        nexus_oc_wrapper_oc_endpoint_to_nx_id(request->origin, &controller_id);
-    NEXUS_ASSERT(ipv6_valid, "Invalid IPV6 address, can't create nx_id");
+    struct nx_id controller_id;
+    nexus_oc_wrapper_oc_endpoint_to_nx_id(request->origin, &controller_id);
 
     // Attempt to create a new link to the controller
     const bool link_created = nexus_channel_link_manager_create_link(
@@ -821,9 +837,9 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
     oc_send_response(request, OC_STATUS_CREATED);
 }
 
-#endif /* ifdef NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
+    #endif /* ifdef NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 
-#if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
+    #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 
 bool _nexus_channel_res_link_hs_link_mode_3_send_post(
     const nexus_link_hs_controller_t* client_hs)
@@ -879,7 +895,10 @@ bool _nexus_channel_res_link_hs_link_mode_3_send_post(
     }
 
     PRINT("res_link_hs: Challenge data to send: ");
-    PRINTbytes(client_hs->send_chal_data, client_hs->send_chal_data_len);
+    // From clang scan-build 10:
+    // "warning: Out of bound memory access (access exceeds upper limit of
+    // memory block)"
+    // PRINTbytes(client_hs->send_chal_data, client_hs->send_chal_data_len);
     PRINT("res_link_hs: Requesting link handshake *challenge* mode %u\n",
           client_hs->requested_chal_mode);
     PRINT("res_link_hs: Requesting link *security* mode %u\n",
@@ -1023,12 +1042,7 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
     NEXUS_ASSERT(data->endpoint != NULL, "Endpoint should never be null.");
     OC_LOGipaddr(*data->endpoint);
 
-    NEXUS_STATIC_ASSERT(
-        sizeof(((struct nx_ipv6_address*) 0)->address) ==
-            sizeof(((oc_ipv6_addr_t*) 0)->address),
-        "Endpoint IPV6 or nx_ipv6_address is not 16 bytes in length.");
-
-    struct nx_id accessory_id = {0};
+    struct nx_id accessory_id;
     nexus_oc_wrapper_oc_endpoint_to_nx_id(data->endpoint, &accessory_id);
 
     // Determine which handshake this response refers to. User data
@@ -1047,7 +1061,8 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
                 // OC_WRN("Received non-bytestring " resp_data " in response.");
                 return;
             }
-            const uint8_t length = oc_string_len(rep->value.string);
+            // Note: oc_string_len returns unsigned integer
+            const uint8_t length = (uint8_t) oc_string_len(rep->value.string);
             const uint8_t* rep_data = oc_cast(rep->value.string, uint8_t);
             // we only expect to receive a MAC, nothing else
             if (length != sizeof(struct nexus_check_value))
@@ -1070,7 +1085,10 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
             }
 
             // nonce is set to 0 by zero-initialization of entire union
-            union nexus_channel_link_security_data security_data = {0};
+            union nexus_channel_link_security_data security_data;
+            memset(&security_data,
+                   0x00,
+                   sizeof(union nexus_channel_link_security_data));
             memcpy(&security_data.mode0.sym_key,
                    &client_hs->link_key,
                    sizeof(struct nx_core_check_key));
@@ -1105,6 +1123,6 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
     nxp_core_request_processing();
 }
 
-#endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
-#endif /* if NEXUS_CHANNEL_ENABLED */
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */

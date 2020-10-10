@@ -186,7 +186,7 @@ oc_populate_resource_object(oc_resource_t *resource, const char *name,
   }
   oc_store_uri(uri, &resource->uri);
   oc_new_string_array(&resource->types, num_resource_types);
-  resource->properties = 0;
+  resource->properties = (oc_resource_properties_t) 0;
   resource->device = device;
 
 /*
@@ -253,7 +253,7 @@ void
 oc_resource_bind_resource_interface(oc_resource_t *resource,
                                     oc_interface_mask_t iface_mask)
 {
-  resource->interfaces |= iface_mask;
+  resource->interfaces = (oc_interface_mask_t) (resource->interfaces | iface_mask);
 }
 
 void

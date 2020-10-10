@@ -11,12 +11,20 @@
 #include "nxp_channel.h"
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Product-specific function to 'receive' incoming data
 void receive_data_from_network(void* data,
                                uint32_t data_len,
-                               struct nx_ipv6_address* source_addr);
+                               struct nx_id* source_nx_id);
 
 // Exposed for demonstration in this example program, used to 'simulate'
 // a reply from an accessory.
 void enable_simulated_accessory_response(void);
 void disable_simulated_accessory_response(void);
+
+#ifdef __cplusplus
+}
+#endif

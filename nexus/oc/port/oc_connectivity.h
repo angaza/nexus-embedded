@@ -30,14 +30,13 @@
 #include "util/oc_process.h"
 #include <stdint.h>
 
-/*
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-#ifndef OC_DYNAMIC_ALLOCATION
-*/
+//#ifndef OC_DYNAMIC_ALLOCATION
+
 #ifndef OC_MAX_APP_DATA_SIZE
 #error "Set OC_MAX_APP_DATA_SIZE in oc_config.h"
 #endif // !OC_MAX_APP_DATA_SIZE
@@ -154,9 +153,9 @@ typedef enum { CSM_NONE, CSM_SENT, CSM_DONE, CSM_ERROR = 255 } tcp_csm_state_t;
 tcp_csm_state_t oc_tcp_get_csm_state(oc_endpoint_t *endpoint);
 int oc_tcp_update_csm_state(oc_endpoint_t *endpoint, tcp_csm_state_t csm);
 #endif // OC_TCP
-
+*/
 #ifdef __cplusplus
 }
 #endif
-*/
+
 #endif /* OC_CONNECTIVITY_H */

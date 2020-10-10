@@ -50,12 +50,10 @@
 
 #include "oc_config.h"
 
-/*
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-*/
 
 #define CC_CONCAT2(s1, s2) s1##s2
 /**
@@ -181,9 +179,9 @@ void oc_memb_set_buffers_avail_cb(struct oc_memb *m,
 int oc_memb_inmemb(struct oc_memb *m, void *ptr);
 */
 int oc_memb_numfree(struct oc_memb *m);
-/*
+
 #ifdef __cplusplus
 }
 #endif
-*/
+
 #endif /* OC_MEMB_H */

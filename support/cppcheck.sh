@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SOURCE_DIR="../nexus_keycode/src"
-INCLUDE_DIRS="../nexus_keycode/include $SOURCE_DIR"
+SOURCE_DIR="../nexus/src"
+INCLUDE_DIRS="../nexus/include $SOURCE_DIR"
 SOURCES=`find $SOURCE_DIR -name '*.c'`
 OUTPUT="cppcheck-results.xml"
 

@@ -8,6 +8,10 @@ za-install-sonar-scanner
 # fail if any remaining step returns nonzero
 set -exuo pipefail
 
+# Avoid errors that occur when wrapping an address sanitized build with
+# the SonarScanner wrapper.
+export ASAN_OPTIONS="verify_asan_link_order=0"
+
 cd nexus
 
 echo "--- Preparing coverage reports for later upload"

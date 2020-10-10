@@ -28,6 +28,10 @@
 #include "include/nx_core.h"
 #include "include/nx_keycode.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** User feedback interface.
  *
  * The Nexus library requires platform resources to indicate to users the
@@ -43,7 +47,8 @@ enum nxp_keycode_feedback_type
      */
     NXP_KEYCODE_FEEDBACK_TYPE_NONE = 0,
     /** Request user feedback indicating 'invalid Nexus keycode received'.
-     * For example, if the received keycode does not match any expected formats.
+     * For example, if the received keycode does not match any expected
+     * formats.
      */
     NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID = 1,
     /** Request user feedback indicating 'valid Nexus keycode received,
@@ -52,8 +57,8 @@ enum nxp_keycode_feedback_type
     NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_VALID = 2,
     NXP_KEYCODE_FEEDBACK_TYPE_RESERVED = 3,
     /** Request user feedback indicating 'valid Nexus keycode received and
-     * it should be applied'. For example, if user enters a valid keycode that
-     * adds credit to the device.
+     * it should be applied'. For example, if user enters a valid keycode
+     * that adds credit to the device.
      */
     NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED = 4,
     /** Request user feedback indicating 'valid keypress received'.
@@ -64,9 +69,10 @@ enum nxp_keycode_feedback_type
      * Useful if, while entering a keycode, user enters a wrong key.
      */
     NXP_KEYCODE_FEEDBACK_TYPE_KEY_REJECTED = 6,
-    /** Request user feedback displaying the internally-assigned device serial
-     * number to be displayed. Could be communicated via an LED or LCD display.
-     * Requires an interface to the module with awareness of the serial number.
+    /** Request user feedback displaying the internally-assigned device
+     * serial number to be displayed. Could be communicated via an LED or
+     * LCD display. Requires an interface to the module with awareness of
+     * the serial number.
      */
     NXP_KEYCODE_FEEDBACK_TYPE_DISPLAY_SERIAL_ID = 7,
 };
@@ -78,15 +84,14 @@ enum nxp_keycode_feedback_type
  * should be signalled to the user. It is up to the manufacturer to
  * implement user feedback (LEDs, etc.) representing this feedback type.
  *
- * The initiation of any feedback pattern must be asynchronous: this function
- * must return immediately after starting the feedback pattern, rather than
- * waiting for completion of the pattern.
+ * The initiation of any feedback pattern must be asynchronous: this
+ * function must return immediately after starting the feedback pattern,
+ * rather than waiting for completion of the pattern.
  *
- * If the product is currently displaying a feedback pattern and a second call
- * to `NXP_KEYCODE_FEEDBACK_start` is received, the device should interrupt/end
- * the
- * current feedback pattern and begin the newly received pattern. The patterns
- * should not be queued.
+ * If the product is currently displaying a feedback pattern and a second
+ * call to `NXP_KEYCODE_FEEDBACK_start` is received, the device should
+ * interrupt/end the current feedback pattern and begin the newly received
+ * pattern. The patterns should not be queued.
  *
  * \par Example Scenario:
  * (For reference only. Actual implementation will differ based on platform)
@@ -98,17 +103,15 @@ enum nxp_keycode_feedback_type
  * NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_VALID;
  *      NXP_KEYCODE_FEEDBACK_start(to_display);
  *      @endcode
- * -# `NXP_KEYCODE_FEEDBACK_start` initiates appropriate platform-specific UI
- * feedback.
+ * -# `NXP_KEYCODE_FEEDBACK_start` initiates appropriate platform-specific
+ * UI feedback.
  *      - @code
- *      // (Inside platform firmware, in body of `NXP_KEYCODE_FEEDBACK_start`
- * function)
- *      switch (script)
+ *      // (Inside platform firmware, in body of
+ * `NXP_KEYCODE_FEEDBACK_start` function) switch (script)
  *      {
  *          case NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_VALID:
- *              enable_output_PWM(output_LED); // platform enables LED output
- *              display_LED_success_blinks(); // UI shows 'success' pattern
- *              break;
+ *              enable_output_PWM(output_LED); // platform enables LED
+ * output display_LED_success_blinks(); // UI shows 'success' pattern break;
  *          // other cases here
  *      }
  *      return true;
@@ -126,8 +129,8 @@ bool nxp_keycode_feedback_start(enum nxp_keycode_feedback_type feedback_type);
  *
  * If the device is currently in `PAYG_UNLOCKED`
  * state, then keycodes that add credit will *not* result in calls to this
- * function because they have no logical effect (you can't add more credit to
- * a device that has infinite credit).
+ * function because they have no logical effect (you can't add more credit
+ * to a device that has infinite credit).
  *
  * \return true if unit credit is added successfully, false otherwise.
  */
@@ -153,8 +156,9 @@ bool nxp_keycode_payg_credit_set(uint32_t credit);
  */
 bool nxp_keycode_payg_credit_unlock(void);
 
-/** Platform identity interface. Allows Nexus Keycode to authenticate keycodes
- * and to perform functions that involve the device unique identity.
+/** Platform identity interface. Allows Nexus Keycode to authenticate
+ * keycodes and to perform functions that involve the device unique
+ * identity.
  */
 
 /** Return device-specific unique 16-byte authentication key.
@@ -178,6 +182,16 @@ struct nx_core_check_key nxp_keycode_get_secret_key(void);
  */
 uint32_t nxp_keycode_get_user_facing_id(void);
 
+/** Called when an `nx_keycode_custom_flag` changes value.
+ *
+ * Provides the type of the flag that changed, as well as the new value.
+ *
+ * \param flag `nx_keycode_custom_flag` which changed
+ * \param value new value of the flag (true or false)
+ */
+void nxp_keycode_notify_custom_flag_changed(enum nx_keycode_custom_flag flag,
+                                            bool value);
+
 //
 // OPTIONAL "PASSTHROUGH" INTERFACE BELOW
 // (Required for Nexus Channel)
@@ -190,7 +204,8 @@ enum nxp_keycode_passthrough_application_subtype_id
      */
     NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_RESERVED = 0,
 
-    /* Passthrough data to be processed by Nexus Channel as an origin command.
+    /* Passthrough data to be processed by Nexus Channel as an origin
+     * command.
      */
     NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_NX_CHANNEL_ORIGIN_COMMAND =
         1,
@@ -210,8 +225,8 @@ enum nxp_keycode_passthrough_error
      */
     NXP_KEYCODE_PASSTHROUGH_ERROR_DATA_UNRECOGNIZED,
 
-    /** The provided data is recognized by the product, but has an out-of-range
-     * value or size.
+    /** The provided data is recognized by the product, but has an
+     * out-of-range value or size.
      */
     NXP_KEYCODE_PASSTHROUGH_ERROR_DATA_INVALID_VALUE_OR_SIZE,
 
@@ -223,13 +238,13 @@ enum nxp_keycode_passthrough_error
 /**  Receive a passthrough keycode from the Nexus Keycode library.
  *
  * These keycodes represent product-specific commands, conveyed in the form
- * of a numeric keycode consisting of ASCII digits 0-9 inclusive. Specifically,
- * these are keycodes which are not related to "Device Credit", and may convey
- * other information. Thus, they are 'passed through' to the application that
- * handles the relevant logic.
+ * of a numeric keycode consisting of ASCII digits 0-9 inclusive.
+ * Specifically, these are keycodes which are not related to "Device
+ * Credit", and may convey other information. Thus, they are 'passed
+ * through' to the application that handles the relevant logic.
  *
- * This is used to allow manufacturer-specific keycodes to be received by the
- * Nexus Keycode logic, and passed upwards to the product for further
+ * This is used to allow manufacturer-specific keycodes to be received by
+ * the Nexus Keycode logic, and passed upwards to the product for further
  * processing.
  *
  * If the data received via this function is not recognized or understood by
@@ -241,10 +256,9 @@ enum nxp_keycode_passthrough_error
  * the `NXP_KEYCODE_FEEDBACK_start` interface.`
  *
  * If the product code does recognize and attempts to process the received
- * data, this function must return `NXP_KEYCODE_PASSTHROUGH_ERROR_NONE`. In this
- * case,
- * the PAYG library will drive no UI response, and the product must drive the
- * appropriate UI response (if any).
+ * data, this function must return `NXP_KEYCODE_PASSTHROUGH_ERROR_NONE`. In
+ * this case, the PAYG library will drive no UI response, and the product
+ * must drive the appropriate UI response (if any).
  *
  * \param passthrough_keycode keycode data to pass through to application
  * \return NXP_KEYCODE_PASSTHROUGH_ERROR_NONE if data is recognized by the
@@ -252,5 +266,9 @@ enum nxp_keycode_passthrough_error
  */
 enum nxp_keycode_passthrough_error nxp_keycode_passthrough_keycode(
     const struct nx_keycode_complete_code* passthrough_keycode);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard: _NEXUS__INC__NXP_KEYCODE_H_ */

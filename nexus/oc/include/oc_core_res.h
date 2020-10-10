@@ -93,9 +93,9 @@ void oc_core_populate_resource(int core_resource, size_t device_index,
 bool oc_filter_resource_by_rt(oc_resource_t *resource, oc_request_t *request);
 
 bool oc_core_is_DCR(oc_resource_t *resource, size_t device);
-
+*/
 #ifdef __cplusplus
 }
 #endif
-*/
+
 #endif /* OC_CORE_RES_H */

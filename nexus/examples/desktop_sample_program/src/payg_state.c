@@ -24,7 +24,7 @@
 
 static struct
 {
-    NEXUS_PACKED_STRUCT payg_state_struct stored;
+    struct payg_state_struct stored;
     bool last_payg_state;
 } _this;
 
