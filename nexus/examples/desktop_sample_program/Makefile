@@ -55,7 +55,7 @@ LDFLAGS = -lm -lrt
 
 # this rule defines how to get .o files from .c files
 %.o : %.c
-	$(CC) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 SOURCE_FILES := $(shell find src -name '*.c')
 
