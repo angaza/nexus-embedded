@@ -29,7 +29,7 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -43,9 +43,8 @@
 
 // Other support libraries
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <string.h>
 
 /********************************************************
@@ -259,11 +258,9 @@ void _initialize_oc_rep_pool(void)
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
     // register platform and device
     nexus_channel_core_init();
 
@@ -343,7 +340,7 @@ void test_res_link_server_process_idle_vs_active__process_seconds_returned_ok(
 {
     _nexus_channel_res_link_hs_reset_server_state();
     uint32_t secs = nexus_channel_res_link_hs_process(0);
-    TEST_ASSERT_EQUAL_INT(NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
+    TEST_ASSERT_EQUAL_INT(NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
                           secs);
 
     // Should expect to be called every 1s while a link handshake is in progress
@@ -365,7 +362,7 @@ void test_res_link_server_process_active_to_inactive__times_out(void)
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_TIMED_OUT);
     secs = nexus_channel_res_link_hs_process(
         NEXUS_CHANNEL_LINK_HANDSHAKE_ACCESSORY_TIMEOUT_SECONDS + 1);
-    TEST_ASSERT_EQUAL_INT(NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
+    TEST_ASSERT_EQUAL_INT(NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
                           secs);
 }
 
@@ -1286,7 +1283,7 @@ void test_res_link_hs_server_post_response__supported_valid_challenge_mode0_rece
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 8.
     // {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
-    const struct nx_core_check_key fake_origin_key = {{0xAB}};
+    const struct nx_common_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
         0x06, 0x07, 0x08, 0xCD, 0xEE, 0x57, 0xCC, 0x88, 0xD6, 0x0B,
@@ -1303,7 +1300,7 @@ void test_res_link_hs_server_post_response__supported_valid_challenge_mode0_rece
     OC_DBG("Requesting POST to '/h' URI");
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
     // `request_processing` will be called to finalize the new link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                     &response_packet,
                                                     (void*) &RESP_BUFFER,
@@ -1361,7 +1358,7 @@ void test_res_link_hs_server_post_response__supported_duplicate_mode0_command__d
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 8.
     //  {"cD": h'0102030405060708CDEE57CC88D60BE2', "cM": 0, "lS": 0}
-    const struct nx_core_check_key fake_origin_key = {{0xAB}};
+    const struct nx_common_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
         0x06, 0x07, 0x08, 0xCD, 0xEE, 0x57, 0xCC, 0x88, 0xD6, 0x0B,
@@ -1380,7 +1377,7 @@ void test_res_link_hs_server_post_response__supported_duplicate_mode0_command__d
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
     // `request_processing` will be called to finalize the new link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                     &response_packet,
                                                     (void*) &RESP_BUFFER,
@@ -1452,7 +1449,7 @@ void test_res_link_hs_server_post_response__separate_commands_window_moved__both
     // '0x0102030405060708' using the 'fake origin key', with a handshake
     // count of 20.
     //  {"cD": h'0102030405060708C864806BCD465AFD', "cM": 0, "lS": 0}
-    const struct nx_core_check_key fake_origin_key = {{0xAB}};
+    const struct nx_common_check_key fake_origin_key = {{0xAB}};
     uint8_t request_payload_bytes_id20[] = {
         0xA3, 0x62, 0x63, 0x44, 0x50, 0x01, 0x02, 0x03, 0x04, 0x05,
         0x06, 0x07, 0x08, 0xC8, 0x64, 0x80, 0x6B, 0xCD, 0x46, 0x5A,
@@ -1472,7 +1469,7 @@ void test_res_link_hs_server_post_response__separate_commands_window_moved__both
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
     // `request_processing` will be called to finalize the new link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
 
     bool handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                     &response_packet,
@@ -1547,7 +1544,7 @@ void test_res_link_hs_server_post_response__separate_commands_window_moved__both
     // try again from a different endpoint - should succeed
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
     // `request_processing` will be called to finalize the new link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
 
     memset(&response_packet, 0x00, sizeof(response_packet));
 
@@ -1566,7 +1563,7 @@ void test_res_link_hs_challenge_mode_3_key_derivation__result_expected(void)
     const uint8_t salt_bytes[8] = {1, 2, 3, 5, 255, 71, 25, 10};
     const uint32_t challenge_result = 382847;
 
-    struct nx_core_check_key link_key = _res_link_hs_generate_link_key(
+    struct nx_common_check_key link_key = _res_link_hs_generate_link_key(
         challenge_result,
         salt_bytes,
         sizeof(salt_bytes),
@@ -1574,25 +1571,25 @@ void test_res_link_hs_challenge_mode_3_key_derivation__result_expected(void)
         &NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2);
 
     OC_LOGbytes(link_key.bytes, 16);
-    const struct nx_core_check_key expected = {{0x87,
-                                                0x77,
-                                                0xF1,
-                                                0xF9,
-                                                0x7C,
-                                                0x86,
-                                                0x40,
-                                                0x8E,
-                                                0x35,
-                                                0x52,
-                                                0xFB,
-                                                0xC4,
-                                                0xC9,
-                                                0x03,
-                                                0xF8,
-                                                0x73}};
+    const struct nx_common_check_key expected = {{0x87,
+                                                  0x77,
+                                                  0xF1,
+                                                  0xF9,
+                                                  0x7C,
+                                                  0x86,
+                                                  0x40,
+                                                  0x8E,
+                                                  0x35,
+                                                  0x52,
+                                                  0xFB,
+                                                  0xC4,
+                                                  0xC9,
+                                                  0x03,
+                                                  0xF8,
+                                                  0x73}};
 
     TEST_ASSERT_EQUAL_HEX8_ARRAY(
-        expected.bytes, link_key.bytes, sizeof(struct nx_core_check_key));
+        expected.bytes, link_key.bytes, sizeof(struct nx_common_check_key));
 }
 
 void test_res_link_hs_link_mode_3__no_free_callbacks__returns_false(void)
@@ -1611,7 +1608,6 @@ void test_res_link_hs_link_mode_3__no_free_callbacks__returns_false(void)
     om_body.trunc_acc_id.digits_count = 0;
     om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
 
     bool result = nexus_channel_res_link_hs_link_mode_3(&om_body);
     TEST_ASSERT_EQUAL(false, result);
@@ -1631,8 +1627,8 @@ CALLBACK_test_res_link_hs_link_mode_3__send_post__sends_message_ok(
     (void) dest;
     (void) is_multicast;
     (void) NumCalls;
-    // 4 byte CoAP header (58 02 00 7C)
-    // 8 byte CoaP token (7B 00 00 00 7B 00 00 00)
+    // 4 byte CoAP header
+    // 1 byte CoaP token (7B)
     // 16 byte CoAP options
     // CBOR payload (delimited by 0xFF)
     //
@@ -1653,13 +1649,12 @@ CALLBACK_test_res_link_hs_link_mode_3__send_post__sends_message_ok(
     // 00                                  # unsigned(0)
     // FF                                  # primitive(*) // map terminator
     //
-    uint8_t expected_data[59] = {
-        0x58, 0x2,  0xe2, 0x41, 0x40, 0xe2, 0x1,  0x0,  0x40, 0xe2, 0x1,  0x0,
-        0xb1, 0x68, 0x12, 0x27, 0x10, 0x52, 0x27, 0x10, 0xe2, 0x6,  0xe3, 0x8,
-        0x0,  0x42, 0x8,  0x0,  0xff, 0xbf, 0x62, 0x63, 0x44, 0x50, 0x40, 0xe2,
-        0x1,  0x0,  0x40, 0xe2, 0x1,  0x0,  0x8d, 0xd0, 0x70, 0xd0, 0x8e, 0x18,
-        0x36, 0xc4, 0x62, 0x63, 0x4d, 0x0,  0x62, 0x6c, 0x53, 0x0,  0xff};
-    uint8_t expected_length = 59;
+    uint8_t expected_data[41] = {
+        0x51, 0x2,  0xe2, 0x41, 0x40, 0xb1, 0x68, 0x12, 0x27, 0x10, 0xff,
+        0xbf, 0x62, 0x63, 0x44, 0x50, 0x40, 0xe2, 0x1,  0x0,  0x40, 0xe2,
+        0x1,  0x0,  0x8d, 0xd0, 0x70, 0xd0, 0x8e, 0x18, 0x36, 0xc4, 0x62,
+        0x63, 0x4d, 0x0,  0x62, 0x6c, 0x53, 0x0,  0xff};
+    uint8_t expected_length = 41;
 
     // Don't worry about the pool allocated for the message, we only care
     // about the message contents
@@ -1681,12 +1676,12 @@ void test_res_link_hs_link_mode_3__send_post__sends_message_ok(void)
     om_body.trunc_acc_id.digits_count = 0;
     om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
 
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
-    nxp_core_request_processing_Expect(); // within origin command receipt in hs
+    nxp_common_request_processing_Expect(); // within origin command receipt in
+                                            // hs
 
-    nxp_core_request_processing_Expect(); // within network_events
+    nxp_common_request_processing_Expect(); // within network_events
     struct nx_id fake_device_id = {0, 12345678};
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_device_id);
     nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
@@ -1718,8 +1713,6 @@ void test_res_link_hs_link_mode_3__send_post_another_post_in_progress__fails(
     // Number of `oc_init_post` here may need to change if concurrent
     // requests change (brittle test).
     oc_response_handler_t dummy_handler = {0};
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
-
     oc_init_post(
         "dummy_uri", &FAKE_ENDPOINT, NULL, dummy_handler, LOW_QOS, NULL);
     oc_init_post(
@@ -1733,7 +1726,7 @@ void test_res_link_hs_link_mode_3__send_post_another_post_in_progress__fails(
     om_body.accessory_challenge.six_int_digits = 382847;
 
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool result = nexus_channel_res_link_hs_link_mode_3(&om_body);
     // will queue attempt to post , but will not have posted yet
     TEST_ASSERT_EQUAL(true, result);
@@ -1750,8 +1743,6 @@ void test_res_link_hs_link_mode_3__send_post_another_post_in_progress__fails(
 void test_res_link_hs_link_mode_3__client_cb_already_registered__attempts_reuse(
     void)
 {
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
-
     // check that `oc_do_post` is called with the right data
     struct nexus_channel_om_create_link_body om_body;
     // not currently using trunc_acc_id now
@@ -1762,7 +1753,7 @@ void test_res_link_hs_link_mode_3__client_cb_already_registered__attempts_reuse(
     struct nx_id fake_id = {0, 1234567};
 
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool result = nexus_channel_res_link_hs_link_mode_3(&om_body);
     // will queue attempt to post , but will not have posted yet
     TEST_ASSERT_EQUAL(true, result);
@@ -1783,7 +1774,7 @@ void test_res_link_hs_link_mode_3__client_cb_already_registered__attempts_reuse(
     // trigger another execution (due to retry logic)
     // where cb will already have been allocated, still expect network to
     // send
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
     nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
     nexus_channel_res_link_hs_process(30);
@@ -1806,8 +1797,6 @@ void test_res_link_hs_link_mode_3__waiting_timer_not_expired__does_not_retry(
     CHALLENGE_IN_PROGRESS.state = LINK_HANDSHAKE_STATE_ACTIVE;
 
     _nexus_channel_res_link_hs_set_client_state(&CHALLENGE_IN_PROGRESS, 0);
-
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
 
     nexus_link_hs_controller_t* client_hs =
         _nexus_channel_res_link_hs_get_client_state(0);
@@ -1832,11 +1821,9 @@ void test_res_link_hs_link_mode_3__retries_post__times_out_eventually(void)
 
     _nexus_channel_res_link_hs_set_client_state(&CHALLENGE_IN_PROGRESS, 0);
 
-    oc_clock_time_IgnoreAndReturn(5); // arbitrary
-
     // should not time out, should retry. Will call request processing
     // as well
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
 
     struct nx_id fake_device_id = {0, 12345678};
     // expect to send another POST after retrying
@@ -1888,7 +1875,6 @@ void test_res_link_hs_link_mode_3__accepted_post_response__creates_link(void)
     client_handler.response = nexus_channel_res_link_hs_client_post;
     // register a fake client callback, similar to what happens in
     // `oc_init_post`
-    oc_clock_time_ExpectAndReturn(5); // arbitrary timestamp for callback
 
     // the user data must be set as well so that the POST can can
     // complete the handshake - otherwise, it will attempt to deference
@@ -1911,7 +1897,6 @@ void test_res_link_hs_link_mode_3__accepted_post_response__creates_link(void)
     // type code of response is '2.05/OK'
     coap_udp_init_message(
         &resp_packet, COAP_TYPE_NON, CREATED_2_01, G_OC_CLIENT_CB->mid);
-    coap_set_header_accept(&resp_packet, APPLICATION_VND_OCF_CBOR);
     coap_set_token(
         &resp_packet, G_OC_CLIENT_CB->token, G_OC_CLIENT_CB->token_len);
     coap_set_header_uri_path(&resp_packet,
@@ -1964,8 +1949,8 @@ void test_res_link_hs_link_mode_3__accepted_post_response__creates_link(void)
     oc_network_event(G_OC_MESSAGE);
 
     // One call from `nexus_channel_link_manager_create_link`
-    nxp_core_request_processing_Expect();
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
+    nxp_common_request_processing_Expect();
 
     nxp_channel_notify_event_Expect(
         NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
@@ -2000,7 +1985,6 @@ void test_res_link_hs_link_mode_3__post_response_invalid_mac__no_link_created(
     client_handler.response = nexus_channel_res_link_hs_client_post;
     // register a fake client callback, similar to what happens in
     // `oc_init_post`
-    oc_clock_time_ExpectAndReturn(5); // arbitrary timestamp for callback
 
     // the user data must be set as well so that the POST can can
     // complete the handshake - otherwise, it will attempt to deference
@@ -2023,7 +2007,6 @@ void test_res_link_hs_link_mode_3__post_response_invalid_mac__no_link_created(
     // type code of response is '2.05/OK'
     coap_udp_init_message(
         &resp_packet, COAP_TYPE_NON, CREATED_2_01, G_OC_CLIENT_CB->mid);
-    coap_set_header_accept(&resp_packet, APPLICATION_VND_OCF_CBOR);
     coap_set_token(
         &resp_packet, G_OC_CLIENT_CB->token, G_OC_CLIENT_CB->token_len);
     coap_set_header_uri_path(&resp_packet,
@@ -2076,7 +2059,7 @@ void test_res_link_hs_link_mode_3__post_response_invalid_mac__no_link_created(
     // oc_network_event will unref the message, no need to do so here
     oc_network_event(G_OC_MESSAGE);
 
-    // `nxp_core_request_processing` should result in a call to core process
+    // `nxp_common_request_processing` should result in a call to common_process
     nexus_channel_core_process(0);
 
     // should not have been completed
@@ -2099,22 +2082,22 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
     struct nexus_window window;
     memset(&window, 0x00, sizeof(struct nexus_window));
     _nexus_channel_res_link_hs_get_current_window(&window);
-    const struct nx_core_check_key ACCESSORY_KEY = {{0xC4,
-                                                     0xB8,
-                                                     0x40,
-                                                     0x48,
-                                                     0xCF,
-                                                     0x04,
-                                                     0x24,
-                                                     0xA2,
-                                                     0x5D,
-                                                     0xC5,
-                                                     0xE9,
-                                                     0xD3,
-                                                     0xF0,
-                                                     0x67,
-                                                     0x40,
-                                                     0x36}};
+    const struct nx_common_check_key ACCESSORY_KEY = {{0xC4,
+                                                       0xB8,
+                                                       0x40,
+                                                       0x48,
+                                                       0xCF,
+                                                       0x04,
+                                                       0x24,
+                                                       0xA2,
+                                                       0x5D,
+                                                       0xC5,
+                                                       0xE9,
+                                                       0xD3,
+                                                       0xF0,
+                                                       0x67,
+                                                       0x40,
+                                                       0x36}};
 
     struct test_scenario
     {
@@ -2140,7 +2123,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
         // call controller function to generate MAC from challenge int and salt
 
         struct test_scenario scenario = scenarios[i];
-        struct nx_core_check_key expected_link_key =
+        struct nx_common_check_key expected_link_key =
             _res_link_hs_generate_link_key(
                 scenario.expected_challenge_int_digits,
                 salt,
@@ -2159,7 +2142,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
         // receive transmitted challenge on accessory side. Should be validated
         // immediately using the expected digits.
         nxp_channel_symmetric_origin_key_ExpectAndReturn(ACCESSORY_KEY);
-        struct nx_core_check_key derived_link_key;
+        struct nx_common_check_key derived_link_key;
         bool challenge_validated =
             _nexus_channel_res_link_hs_server_validate_challenge(
                 &scenario.transmitted_challenge[0],
@@ -2187,7 +2170,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
         // call controller function to generate MAC from challenge int and salt
 
         struct test_scenario scenario = scenarios[i];
-        struct nx_core_check_key expected_link_key =
+        struct nx_common_check_key expected_link_key =
             _res_link_hs_generate_link_key(
                 scenario.expected_challenge_int_digits,
                 salt,
@@ -2207,7 +2190,7 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
         // receive transmitted challenge on accessory side. Should be validated
         // immediately using the expected digits.
         nxp_channel_symmetric_origin_key_ExpectAndReturn(ACCESSORY_KEY);
-        struct nx_core_check_key derived_link_key;
+        struct nx_common_check_key derived_link_key;
         bool challenge_validated =
             _nexus_channel_res_link_hs_server_validate_challenge(
                 &scenario.transmitted_challenge[0],

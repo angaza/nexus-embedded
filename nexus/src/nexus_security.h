@@ -26,7 +26,8 @@ extern "C" {
  * Identical/known for all Nexus Channel devices.
  * *Never* used as an encryption or authentication key!
  */
-extern const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1;
+extern const struct nx_common_check_key
+    NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1;
 
 /** Arbitrary, non-secret key used as seed in key derivation operations.
  *
@@ -35,7 +36,8 @@ extern const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1;
  * Identical/known for all Nexus Channel devices.
  * *Never* used as an encryption or authentication key!
  */
-extern const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2;
+extern const struct nx_common_check_key
+    NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2;
 
 /* Securely erase a section of memory (RAM).
  *

@@ -22,7 +22,7 @@
 #ifndef NEXUS__INC__NX_CHANNEL_H_
 #define NEXUS__INC__NX_CHANNEL_H_
 
-#include "nx_core.h"
+#include "nx_common.h"
 
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_ri.h"
@@ -93,7 +93,7 @@ nx_channel_register_resource(const struct nx_channel_resource_props* props);
 /** Register a method handler to an existing Nexus Channel resource.
  *
  * After resources are created (see `nx_channel_register_resource`), Nexus
- * Core can attach additional function handlers to resource requests, for
+ * Channel can attach additional function handlers to resource requests, for
  * example, "GET /nx/pc". In this example, the handler for this request
  * would be implemented by the Nexus Channel PAYG Credit module. If
  * `secured` is true, then the resource method will only be accessible by
@@ -115,6 +115,92 @@ nx_channel_register_resource_handler(const char* uri,
                                      oc_request_callback_t handler,
                                      bool secured);
 
+/* Structure representing message received in *response* to a request.
+ *
+ * If `nx_channel_do_get/post_request` are called and a response is later
+ * received, this is the information that will be passed to the `callback`
+ * function in your application logic.
+ */
+typedef struct
+{
+    oc_rep_t* payload; // pointer to CBOR payload in OCF representation
+    struct nx_id* source; // pointer to Nexus ID of device sending the response
+    oc_status_t code; // CoAP status code of the response message
+    void* request_context; // additional client data from the request
+} nx_channel_client_response_t;
+
+/* Signature of a function that will be called once a response is received
+ * to `nx_channel_do_get_request` or `nx_channel_do_post_request`.
+ */
+typedef void (*nx_channel_response_handler_t)(nx_channel_client_response_t*);
+
+/** Make A GET (read) request to the resource at `uri` on device `server`.
+ *
+ * Given the Nexus ID of a device hosting a resource (a 'server'), make
+ * a GET request to the resource hosted on that device at `uri`.
+ *
+ * \param uri C string representing the URI of the resource
+ * \param server Nexus ID of the device which is hosting `uri`
+ * \param query C string representing query string
+ * \param handler function to call once a response is received
+ * \param request_context additional data required to process the response
+ * to the request. See `nx_channel_client_response_t`
+ * \return `nx_channel_error` detailing success or failure
+ */
+nx_channel_error
+nx_channel_do_get_request(const char* uri,
+                          const struct nx_id* const server,
+                          const char* query,
+                          nx_channel_response_handler_t handler,
+                          void* request_context);
+
+/** Prepare a POST (update) request to the resource at `uri` on device `server`.
+ *
+ * Given the Nexus ID of a device hosting a resource (a 'server'), prepare
+ * a POST request to the resource hosted on that device at `uri`.
+ *
+ * As a POST request may have a body (unlike a GET request), the process
+ * of sending a post request is first to call `nx_channel_init_post_request`,
+ * then build the body using `oc_rep_start_root_object()/`oc_rep_set_`, and
+ * close the body using `oc_rep_end_root_object()`.
+ *
+ * Then, call `nx_channel_do_post_request` to send the POST request with
+ * the specified body.
+ *
+ * e.g.:
+ *
+ * ```
+ *
+ * nx_channel_init_post_request("batt", &dest_nx_id, &post_response_handler);
+ * oc_rep_start_root_object();
+ * oc_rep_set_int(root, th, 35); // set 'threshold' to 35%
+ * oc_rep_end_root_object();
+ * nx_channel_do_post_request();
+ * ```
+ *
+ * \param uri C string representing the URI of the resource
+ * \param server Nexus ID of the device which is hosting `uri`
+ * \param query C string representing query string
+ * \param handler function to call once a response is received
+ * \param request_context additional data required to process the response
+ * to the request. See `nx_channel_client_response_t`
+ * \return `nx_channel_error` detailing success or failure
+ */
+nx_channel_error
+nx_channel_init_post_request(const char* uri,
+                             const struct nx_id* const server,
+                             const char* query,
+                             nx_channel_response_handler_t handler,
+                             void* request_context);
+
+/** Make A POST (update) request to the resource at `uri` on device `server`.
+ *
+ * Requires `nx_channel_init_post_request` to be called first.
+ *
+ * \return `nx_channel_error` detailing success or failure
+ */
+nx_channel_error nx_channel_do_post_request(void);
+
 /*! \brief Nexus Channel origin command encoding/bearer type.
  *
  * The origin manager can receive 'origin commands' through various
@@ -131,10 +217,10 @@ enum nx_channel_origin_command_bearer_type
 
 /*! \brief Handle a Nexus Channel Origin Command
  *
- *  After receiving a Nexus Channel Origin Command, pass it to Nexus Channel
- *  core for processing by calling this function.
+ * After receiving a Nexus Channel Origin Command, pass it to Nexus Channel
+ * for processing by calling this function.
  *
- *  Origin commands are generated by a backend ('origin'), which sends
+ * Origin commands are generated by a backend ('origin'), which sends
  * command data down to the device.
  *
  * \param bearer_type How is this origin command encoded?

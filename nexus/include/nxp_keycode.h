@@ -25,7 +25,7 @@
 #ifndef _NEXUS__INC__NXP_KEYCODE_H_
 #define _NEXUS__INC__NXP_KEYCODE_H_
 
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 #include "include/nx_keycode.h"
 
 #ifdef __cplusplus
@@ -169,7 +169,7 @@ bool nxp_keycode_payg_credit_unlock(void);
  *
  * \return copy of permanent, 16-byte device-specific secret key
  */
-struct nx_core_check_key nxp_keycode_get_secret_key(void);
+struct nx_common_check_key nxp_keycode_get_secret_key(void);
 
 /** Return the device-specific, user-facing serial ID.
  *

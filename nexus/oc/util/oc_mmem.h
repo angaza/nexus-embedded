@@ -52,7 +52,7 @@ struct oc_mmem
   void *ptr;
 };
 
-typedef enum { BYTE_POOL, INT_POOL, DOUBLE_POOL } pool;
+typedef enum { BYTE_POOL, INT_POOL, DOUBLE_POOL } oc_pool;
 
 
 void oc_mmem_init(void);
@@ -76,13 +76,13 @@ size_t _oc_mmem_alloc(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  struct oc_mmem *m, size_t size, pool pool_type);
+  struct oc_mmem *m, size_t size, oc_pool pool_type);
 
 void _oc_mmem_free(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  struct oc_mmem *m, pool pool_type);
+  struct oc_mmem *m, oc_pool pool_type);
 
 #ifdef __cplusplus
 }

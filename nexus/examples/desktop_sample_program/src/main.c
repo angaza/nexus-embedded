@@ -18,9 +18,9 @@
 #include "keyboard.h"
 #include "menu.h"
 #include "nonvol.h"
-#include "nx_core.h"
+#include "nx_common.h"
 #include "nx_keycode.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include "payg_state.h"
 #include "processing.h"
 #include "screen.h"
@@ -52,9 +52,9 @@ int main(void)
 
     printf("Initializing Nexus library...\n");
     // Pass in current system uptime to initialize Nexus timekeeping
-    nx_core_init(clock_read_monotonic_time_seconds());
+    nx_common_init(clock_read_monotonic_time_seconds());
 
-    // Initialize custom resources after `nx_core_init`
+    // Initialize custom resources after `nx_common_init`
     battery_resource_init();
     printf("Done\n");
 

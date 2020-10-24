@@ -463,9 +463,6 @@ oc_parse_rep(const uint8_t *in_payload, int payload_size, oc_rep_t **out_rep)
   } else {
     *out_rep = 0;
   }
-  OC_WRN("Returning status");
-  OC_WRN("is error no error? %d", err == CborNoError);
-  OC_WRN("can we return?");
   return err;
 }
 /*

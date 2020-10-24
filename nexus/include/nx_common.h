@@ -1,5 +1,5 @@
-/** \file nx_core.h
- * \brief Core definitions and functions provided by Nexus.
+/** \file nx_common.h
+ * \brief Definitions and functions common to all Nexus products.
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -12,12 +12,12 @@
  * port code.
  *
  * Some of these must be used - for instance, no Nexus system will
- * operate without calling `nx_core_init` at startup, or calling
- * `nx_core_process` periodically.
+ * operate without calling `nx_common_init` at startup, or calling
+ * `nx_common_process` periodically.
  */
 
-#ifndef _NEXUS__INC__NX_CORE_H_
-#define _NEXUS__INC__NX_CORE_H_
+#ifndef _NEXUS__INC__NX_COMMON_H_
+#define _NEXUS__INC__NX_COMMON_H_
 
 #include "MODULE_VERSION.h"
 #include "include/compiler_check.h"
@@ -40,59 +40,59 @@ extern "C" {
 //
 
 // statically allocate memory for RAM-resident NV block copies
-#define NX_CORE_NV_BLOCK_0_LENGTH 8 // bytes
-#define NX_CORE_NV_BLOCK_1_LENGTH 16 // bytes
+#define NX_COMMON_NV_BLOCK_0_LENGTH 8 // bytes
+#define NX_COMMON_NV_BLOCK_1_LENGTH 16 // bytes
 
 #ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-    // Nexus channel link security (not core) requires NV storage
-    #define NX_CORE_NV_BLOCK_2_LENGTH 10 // bytes
-    #define NX_CORE_NV_BLOCK_3_LENGTH 12 // bytes
+    // Nexus channel link security (not common) requires NV storage
+    #define NX_COMMON_NV_BLOCK_2_LENGTH 10 // bytes
+    #define NX_COMMON_NV_BLOCK_3_LENGTH 12 // bytes
     // Blocks IDs 4-19 are reserved for established link data.
     // One block for each link present.
     // Always at least one present (block 4)
-    #define NX_CORE_NV_BLOCK_4_LENGTH 36 // 1 link
+    #define NX_COMMON_NV_BLOCK_4_LENGTH 36 // 1 link
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 1) // 2 links
-        #define NX_CORE_NV_BLOCK_5_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_5_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 2) // 3 links ... etc
-        #define NX_CORE_NV_BLOCK_6_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_6_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 3)
-        #define NX_CORE_NV_BLOCK_7_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_7_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 4)
-        #define NX_CORE_NV_BLOCK_8_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_8_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 5)
-        #define NX_CORE_NV_BLOCK_9_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_9_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 6)
-        #define NX_CORE_NV_BLOCK_10_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_10_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 7)
-        #define NX_CORE_NV_BLOCK_11_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_11_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 8)
-        #define NX_CORE_NV_BLOCK_12_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_12_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 9) // 10 links
-        #define NX_CORE_NV_BLOCK_13_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+        #define NX_COMMON_NV_BLOCK_13_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 10)
         #error "More than 10 links requires additional NV configuration"
     #endif
 
-    #define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_4_LENGTH
+    #define NX_COMMON_NV_MAX_BLOCK_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
 #else
     // keycode only
-    #define NX_CORE_NV_MAX_BLOCK_LENGTH NX_CORE_NV_BLOCK_1_LENGTH
+    #define NX_COMMON_NV_MAX_BLOCK_LENGTH NX_COMMON_NV_BLOCK_1_LENGTH
 #endif /* ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 
 /** Nexus non-volatile data block metadata.
  *
  * Assumes uint16_t is 2 bytes wide, and uint8_t is 1 byte wide.
  */
-struct nx_core_nv_block_meta
+struct nx_common_nv_block_meta
 {
     uint16_t block_id;
     uint8_t length;
@@ -103,8 +103,8 @@ struct nx_core_nv_block_meta
  * \param block_meta metadata about the block to verify
  * \param full_block_data pointer to the first byte of data in the block
  */
-bool nx_core_nv_block_valid(const struct nx_core_nv_block_meta block_meta,
-                            uint8_t* const full_block_data);
+bool nx_common_nv_block_valid(const struct nx_common_nv_block_meta block_meta,
+                              uint8_t* const full_block_data);
 
 //
 // CRYPTO, AUTH, INTEGRITY RELATED
@@ -140,7 +140,7 @@ NEXUS_PACKED_STRUCT nx_id
  * Must be packed as operations using this key expect the bytes to be
  * sequentially ordered, with no padding.
  */
-NEXUS_PACKED_STRUCT nx_core_check_key
+NEXUS_PACKED_STRUCT nx_common_check_key
 {
     uint8_t bytes[16];
 };
@@ -152,14 +152,14 @@ NEXUS_PACKED_STRUCT nx_core_check_key
  * from NV if available.
  *
  * \param initial_uptime_s current system uptime, in seconds. Should be
- * the same counter used to pass values into `nx_core_process`
+ * the same counter used to pass values into `nx_common_process`
  */
-void nx_core_init(uint32_t initial_uptime_s);
+void nx_common_init(uint32_t initial_uptime_s);
 
 /** Perform any 'long-running' Nexus operations.
  *
  * This function must be called within 20ms after
- * `nxp_core_request_processing` is called.
+ * `nxp_common_request_processing` is called.
  *
  * Within this function, the Nexus library executes 'long-running'
  * operations that are not appropriate to run in an interrupt (such as
@@ -176,16 +176,16 @@ void nx_core_init(uint32_t initial_uptime_s);
  * \return maximum number of seconds to wait until `nx_keycode_process`
  * should be called again, based on the state of this module.
  */
-uint32_t nx_core_process(uint32_t uptime_seconds);
+uint32_t nx_common_process(uint32_t uptime_seconds);
 
 /** Call before a planned shutdown event to safely store state and data of
  * Nexus modules.
  *
  */
-void nx_core_shutdown(void);
+void nx_common_shutdown(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* end of include guard: _NEXUS__INC__NX_CORE_H_ */
+#endif /* end of include guard: _NEXUS__INC__NX_COMMON_H_ */

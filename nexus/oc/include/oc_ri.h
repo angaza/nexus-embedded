@@ -206,6 +206,7 @@ void oc_ri_init(void);
 
 void oc_ri_shutdown(void);
 
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 void oc_ri_add_timed_event_callback_ticks(void *cb_data,
                                           oc_trigger_t event_callback,
                                           oc_clock_time_t ticks);
@@ -220,6 +221,7 @@ void oc_ri_add_timed_event_callback_ticks(void *cb_data,
 
 void oc_ri_remove_timed_event_callback(void *cb_data,
                                        oc_trigger_t event_callback);
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 int oc_status_code(oc_status_t key);
 

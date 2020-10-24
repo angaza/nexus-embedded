@@ -23,7 +23,7 @@
 #include "port/oc_connectivity.h"
 #include "utils/oc_list.h"
 // hook into Nexus for event processing
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 
 #ifdef NEXUS_USE_OC_NETWORK_EVENTS_PROCESS
 OC_LIST(network_events);
@@ -91,7 +91,7 @@ oc_network_event(oc_message_t *message)
   //_oc_signal_event_loop();
 #else
   // Note: Nexus code which calls `oc_network_event` must call
-  // `nxp_core_request_processing` after this returns
+  // `nxp_common_request_processing` after this returns
   oc_recv_message(message);
 #endif // NEXUS_USE_OC_NETWORK_EVENTS_PROCESS
 }

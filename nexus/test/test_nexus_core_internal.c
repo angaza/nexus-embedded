@@ -25,7 +25,7 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -41,9 +41,8 @@
 
 // Other support libraries
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <string.h>
 
 /********************************************************
@@ -73,50 +72,48 @@ void setUp(void)
 {
 
     // Diagnostic only for quick functional check of logging.
-    PRINT("Print output - Nexus Core Internal Setup\n");
+    PRINT("Print output - Nexus Common Internal Setup\n");
     OC_DBG("OC_DEBUG");
     OC_WRN("OC_WRN");
     OC_ERR("OC_ERR");
 
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    nxp_core_request_processing_Expect();
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nxp_common_request_processing_Expect();
 }
 
 // Teardown (called after any 'test_*' function is called, automatically)
 void tearDown(void)
 {
-    nx_core_shutdown();
+    nx_common_shutdown();
 }
 
 void test_keycode_core_uptime__uptime_error_on_invalid_value__ok(void)
 {
     // arbitrary starting uptime
-    nx_core_init(1200);
-    TEST_ASSERT_FALSE(nexus_core_init_completed());
-    nx_core_process(1200);
-    TEST_ASSERT_TRUE(nexus_core_init_completed());
-    TEST_ASSERT_EQUAL(1200, nexus_core_uptime());
-    nx_core_process(1240);
-    TEST_ASSERT_EQUAL(1240, nexus_core_uptime());
+    nx_common_init(1200);
+    TEST_ASSERT_FALSE(nexus_common_init_completed());
+    nx_common_process(1200);
+    TEST_ASSERT_TRUE(nexus_common_init_completed());
+    TEST_ASSERT_EQUAL(1200, nexus_common_uptime());
+    nx_common_process(1240);
+    TEST_ASSERT_EQUAL(1240, nexus_common_uptime());
     // 1210 is in the past compared to 1240
-    nx_core_process(1210);
-    TEST_ASSERT_EQUAL(1240, nexus_core_uptime());
+    nx_common_process(1210);
+    TEST_ASSERT_EQUAL(1240, nexus_common_uptime());
 }
 
 void test_keycode_core_uptime__uptime_increments_to_max_values__ok(void)
 {
     // Count up to 130+ years in seconds without rollover
-    nx_core_init(0);
-    TEST_ASSERT_FALSE(nexus_core_init_completed());
-    nx_core_process(0);
-    TEST_ASSERT_TRUE(nexus_core_init_completed());
+    nx_common_init(0);
+    TEST_ASSERT_FALSE(nexus_common_init_completed());
+    nx_common_process(0);
+    TEST_ASSERT_TRUE(nexus_common_init_completed());
     for (uint32_t i = 0; i < UINT32_MAX; i += UINT32_MAX / 3)
     {
-        nx_core_process(i);
-        TEST_ASSERT_EQUAL(i, nexus_core_uptime());
+        nx_common_process(i);
+        TEST_ASSERT_EQUAL(i, nexus_common_uptime());
     }
 }

@@ -60,7 +60,7 @@ bool _nexus_channel_om_ascii_parse_message(
  */
 bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
     struct nexus_channel_om_command_message* message,
-    const struct nx_core_check_key* origin_key);
+    const struct nx_common_check_key* origin_key);
 
 /*! \brief Determine command ID and validate auth field for a message
  *
@@ -82,7 +82,7 @@ bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
 bool _nexus_channel_om_ascii_infer_fields_compute_auth(
     struct nexus_channel_om_command_message* message,
     const struct nexus_window* window,
-    const struct nx_core_check_key* origin_key);
+    const struct nx_common_check_key* origin_key);
 
 // called by 'parse' to apply the message (if possible), modifying state
 bool _nexus_channel_om_ascii_apply_message(

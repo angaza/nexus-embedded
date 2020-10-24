@@ -28,7 +28,7 @@ oc_malloc(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_handle_t *block, size_t num_items, pool pool_type)
+  oc_handle_t *block, size_t num_items, oc_pool pool_type)
 {
   if (!mmem_initialized) {
     oc_mmem_init();
@@ -48,7 +48,7 @@ oc_free(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_handle_t *block, pool pool_type)
+  oc_handle_t *block, oc_pool pool_type)
 {
   _oc_mmem_free(
 #ifdef OC_MEMORY_TRACE
@@ -119,7 +119,7 @@ _oc_new_array(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_array_t *ocarray, size_t size, pool type)
+  oc_array_t *ocarray, size_t size, oc_pool type)
 {
   switch (type) {
   case INT_POOL:
@@ -141,7 +141,7 @@ _oc_free_array(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_array_t *ocarray, pool type)
+  oc_array_t *ocarray, oc_pool type)
 {
   oc_free(
 #ifdef OC_MEMORY_TRACE

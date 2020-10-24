@@ -12,7 +12,7 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-    #include "include/nxp_core.h"
+    #include "include/nxp_common.h"
     #include "include/nxp_keycode.h"
     #include "src/nexus_keycode_core.h"
     #include "src/nexus_nv.h"
@@ -38,7 +38,7 @@ static struct
 //
 NEXUS_STATIC_ASSERT(
     sizeof(_this_core.stored) ==
-        (NX_CORE_NV_BLOCK_0_LENGTH - NEXUS_NV_BLOCK_ID_WIDTH -
+        (NX_COMMON_NV_BLOCK_0_LENGTH - NEXUS_NV_BLOCK_ID_WIDTH -
          NEXUS_NV_BLOCK_CRC_WIDTH),
     "nexus_keycode_mas: _this_core.stored invalid size for NV block.");
 
@@ -335,11 +335,11 @@ NEXUS_IMPL_STATIC uint32_t nexus_keycode_mas_bookend_process(void)
         // that the uptime value reflects recent reality
         if (_this_bookend.latest_uptime == UINT32_MAX)
         {
-            _this_bookend.latest_uptime = nexus_core_uptime();
+            _this_bookend.latest_uptime = nexus_common_uptime();
         }
 
         // check for message-receipt timeout
-        uint32_t elapsed = nexus_core_uptime() - _this_bookend.latest_uptime;
+        uint32_t elapsed = nexus_common_uptime() - _this_bookend.latest_uptime;
 
         if (elapsed > NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS)
         {
@@ -351,7 +351,7 @@ NEXUS_IMPL_STATIC uint32_t nexus_keycode_mas_bookend_process(void)
     // if receiving a message, need frequent processing; otherwise don't care
     return _this_bookend.start_seen ?
                1 :
-               NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+               NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 }
 
 NEXUS_IMPL_STATIC void nexus_keycode_mas_bookend_push(const nx_keycode_key key)
@@ -359,7 +359,7 @@ NEXUS_IMPL_STATIC void nexus_keycode_mas_bookend_push(const nx_keycode_key key)
     // make sure we track elapsed time; not strictly necessary for rejected
     // keys, but should be harmless
     _this_bookend.latest_uptime = UINT32_MAX;
-    nxp_core_request_processing();
+    nxp_common_request_processing();
 
     // process the actual keypress
     if (nx_keycode_is_rate_limited())

@@ -20,7 +20,7 @@ extern "C" {
 NEXUS_PACKED_STRUCT identity_struct
 {
     uint32_t serial_id;
-    struct nx_core_check_key secret_key;
+    struct nx_common_check_key secret_key;
 };
 
 #define PROD_IDENTITY_BLOCK_LENGTH sizeof(struct identity_struct)

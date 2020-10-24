@@ -23,6 +23,15 @@ different major version codes.
 
 Compatible with NEXUS_VERSION >= 2.1
 
+* Adds client-side request- and reply- handling interfaces, including support for
+query strings and "reply context". This context stores information about the request that
+can be used to process the corresponding reply when it is received from the server.
+
+* Add "rtr" (Resource Type Registry) to the resource registration API. The "rtr" value is
+required for all Nexus Channel resources as per the specification at the time of this
+release. It is intended to be used in resource discovery, to be implemented in a future
+release.
+
 * Rename public interfaces in `include/` to avoid using `core` for names of
 common/baseline code used by all Nexus implementations. This is done to avoid
 confusing these functions and definitions with "Nexus Channel Core", which is unrelated.
@@ -31,6 +40,10 @@ confusing these functions and definitions with "Nexus Channel Core", which is un
 (More on Nexus Channel Core [here](https://angaza.github.io/nexus-channel-models/))
 
 * Apply code style formatting to all source in the `oc/` folder/subfolders
+
+* Add an embedded sample program using a PlatformIO board running Zephyr OS. The sample
+provides an interactive demonstration of client and server behavior with a battery
+resource implemented to the specification as of this release.
 
 ## Embedded Module Version 0.8.0
 

@@ -15,7 +15,7 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-    #include "src/nexus_core_internal.h"
+    #include "src/nexus_common_internal.h"
     #include "src/nexus_keycode_pro.h"
 
     #include <stdbool.h>
@@ -38,13 +38,13 @@ struct nexus_keycode_handling_config
 
 /** Initialize the Nexus Keycode module.
  *
- * Called on startup by `nx_core_init()`.
+ * Called on startup by `nx_common_init()`.
  */
 void nexus_keycode_core_init(void);
 
 /** Process any pending activity from Nexus keycode submodules.
  *
- * Called inside `nx_core_process()`.
+ * Called inside `nx_common_process()`.
  *
  * \param seconds_elapsed seconds since this function was previously called
  * \return seconds until this function must be called again

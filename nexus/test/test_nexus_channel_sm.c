@@ -1,4 +1,4 @@
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
@@ -21,7 +21,7 @@
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
@@ -37,9 +37,8 @@
 #include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nexus_keycode_core.h>
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -119,11 +118,9 @@ void setUp(void)
 {
     // We may tangentially trigger events in security manager tests, ignore
     nxp_channel_notify_event_Ignore();
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
     nexus_channel_om_init_Ignore();
 
     nexus_channel_core_init();
@@ -139,7 +136,7 @@ void setUp(void)
         .if_masks = if_mask_arr,
         .get_handler = nexus_channel_res_payg_credit_get_handler,
         .get_secured = false,
-        .post_handler = false,
+        .post_handler = NULL,
         .post_secured = false};
 
     nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
@@ -550,7 +547,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__ok
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -558,10 +555,10 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__ok
 
     sec_data.mode0.nonce = 0;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -649,7 +646,7 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data = {
@@ -657,10 +654,10 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
 
     sec_data.mode0.nonce = 0;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -741,7 +738,7 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -749,10 +746,10 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -819,7 +816,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_cos
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -827,10 +824,10 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_cos
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -912,7 +909,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_inv
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -920,10 +917,10 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_inv
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1007,7 +1004,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
     linked_id.authority_id = 12345;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1015,10 +1012,10 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1101,7 +1098,7 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__in
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1109,10 +1106,10 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__in
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1253,10 +1250,8 @@ void test_coap_nexus_engine__resource_unsecured_message_unsecured__ok(void)
 
     oc_network_event(G_OC_MESSAGE);
 
-    // XXX: only does not call nxp_channel_network_send because payg_credit_get
-    // is
-    // currently
-    // not implemented!
+    // XXX: does not call nxp_channel_network_send because payg_credit_get
+    // is currently not implemented!
     nexus_channel_res_payg_credit_get_handler_ExpectAnyArgs();
     nexus_channel_core_process(0);
 
@@ -1270,11 +1265,17 @@ void test_coap_nexus_engine__resource_secured_message_unsecured__fails(void)
         "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
 
     // register a new secured resource handler
+    // Although there is no PUT registered on the nx/pc resource,
+    // security management happens before we pass the message to the
+    // 'unsecured' coap handler.
     nexus_channel_sm_nexus_resource_method_new(res, OC_PUT);
 
     coap_packet_t request_packet = {0};
     // initialize packet: PUT with arbitrary message ID
-    coap_udp_init_message(&request_packet, COAP_TYPE_CON, 3, 123);
+    coap_udp_init_message(&request_packet, COAP_TYPE_NON, 3, 123);
+    // set a 1-byte token per Nexus Channel Core spec
+    uint8_t token_val = 0xfa;
+    coap_set_token(&request_packet, &token_val, 1);
     // set the request URI path and content format
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_VND_OCF_CBOR);
@@ -1292,11 +1293,12 @@ void test_coap_nexus_engine__resource_secured_message_unsecured__fails(void)
 
     // process the message; should not get to `coap_receive` and sends an
     // early error reply because of failed authentication
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
 
     struct nx_id fake_id = {0, 12345678};
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
     nxp_channel_network_send_ExpectAnyArgsAndReturn(0);
+
     nexus_channel_core_process(0);
 
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
@@ -1318,7 +1320,7 @@ void test_do_post_cose_mac0_appended__ok(void)
     linked_id.authority_id = 53932;
     linked_id.device_id = 4244308258;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data = {
@@ -1326,10 +1328,10 @@ void test_do_post_cose_mac0_appended__ok(void)
 
     sec_data.mode0.nonce = 0;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1338,7 +1340,6 @@ void test_do_post_cose_mac0_appended__ok(void)
     nexus_channel_core_process(0);
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
 
-    oc_clock_time_IgnoreAndReturn(1);
     nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
     nxp_channel_network_send_IgnoreAndReturn(NX_CHANNEL_ERROR_NONE);
     TEST_ASSERT_TRUE(
@@ -1365,8 +1366,8 @@ void test_do_post_cose_mac0_appended__ok(void)
 
     TEST_ASSERT_TRUE(oc_do_post());
 
-    // one event for outgoing message, another for etimer (clearing transaction)
-    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    // one event for outgoing message
+    TEST_ASSERT_EQUAL(1, oc_process_nevents());
     nexus_channel_core_process(0);
 
     /* gdb output at oc_send_buffer:

@@ -93,7 +93,7 @@ typedef struct nexus_link_hs_accessory_t
 // on that link
 typedef struct nexus_link_hs_controller_state_t
 {
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
 
     // computed challenge data that is sent when initiating a link
     uint8_t send_chal_data[NEXUS_CHANNEL_LINK_MAX_CHAL_DATA_BYTES];
@@ -166,12 +166,12 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data);
     #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
     #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
-struct nx_core_check_key _res_link_hs_generate_link_key(
+struct nx_common_check_key _res_link_hs_generate_link_key(
     uint32_t challenge_int,
     const uint8_t* salt_bytes,
     uint8_t salt_len,
-    const struct nx_core_check_key* derivation_key_a,
-    const struct nx_core_check_key* derivation_key_b);
+    const struct nx_common_check_key* derivation_key_a,
+    const struct nx_common_check_key* derivation_key_b);
 
 // return current handshake window representation
 void _nexus_channel_res_link_hs_get_current_window(struct nexus_window* window);
@@ -205,7 +205,7 @@ bool _nexus_channel_res_link_hs_server_validate_challenge(
     const struct nexus_check_value* rcvd_mac,
     const struct nexus_window* window,
     uint32_t* matched_handshake_index,
-    struct nx_core_check_key* derived_key);
+    struct nx_common_check_key* derived_key);
 
 // used in unit tests to programmatically set resource state
 // (as accessory)
@@ -216,7 +216,7 @@ void _nexus_channel_res_link_hs_set_server_state(
 void _nexus_channel_res_link_hs_server_post_finalize_success_state(
     const uint32_t matched_handshake_index,
     struct nexus_window* window,
-    const struct nx_core_check_key* derived_link_key);
+    const struct nx_common_check_key* derived_link_key);
 
 // (as controller)
 void _nexus_channel_res_link_hs_set_client_state(

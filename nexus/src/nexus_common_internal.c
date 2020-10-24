@@ -1,5 +1,5 @@
 /** \file
- * Nexus Core Internal Module (Implementation)
+ * Nexus Common Internal Module (Implementation)
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -8,11 +8,11 @@
  * or substantial portions of the Software.
  *
  * This file implements the functions defined by
- * 'include/nx_core.h', and exposes other internal
- * information via `nexus_core_internal.h`.
+ * 'include/nx_common.h', and exposes other internal
+ * information via `nexus_common_internal.h`.
  */
 
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 #include "include/nxp_keycode.h"
 #include "src/nexus_channel_core.h"
 #include "src/nexus_keycode_core.h"
@@ -27,9 +27,9 @@ static struct
     bool pending_init;
 } _this;
 
-const uint32_t NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS = 240;
+const uint32_t NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS = 240;
 
-void nx_core_init(uint32_t initial_uptime_s)
+void nx_common_init(uint32_t initial_uptime_s)
 {
     // on init, get the first uptime measurement from the product code so that
     // subsequent calls compute the timedelta from application init properly
@@ -46,12 +46,12 @@ void nx_core_init(uint32_t initial_uptime_s)
 #endif
 
     // Request for implementing system to call
-    // 'nx_core_process' after calling `nx_core_init` to
+    // 'nx_common_process' after calling `nx_common_init` to
     // complete Nexus initialization and set accurate callback interval
-    (void) nxp_core_request_processing();
+    (void) nxp_common_request_processing();
 }
 
-uint32_t nx_core_process(uint32_t uptime_seconds)
+uint32_t nx_common_process(uint32_t uptime_seconds)
 {
     if (uptime_seconds < _this.uptime_s)
     {
@@ -66,7 +66,7 @@ uint32_t nx_core_process(uint32_t uptime_seconds)
     const uint32_t seconds_elapsed = uptime_seconds - _this.uptime_s;
     _this.uptime_s = uptime_seconds;
 
-    uint32_t min_sleep = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+    uint32_t min_sleep = NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 
 #if NEXUS_KEYCODE_ENABLED
     min_sleep = u32min(min_sleep, nexus_keycode_core_process(seconds_elapsed));
@@ -87,17 +87,17 @@ uint32_t nx_core_process(uint32_t uptime_seconds)
     return min_sleep;
 }
 
-bool nexus_core_init_completed(void)
+bool nexus_common_init_completed(void)
 {
     return _this.init_completed;
 }
 
-uint32_t nexus_core_uptime(void)
+uint32_t nexus_common_uptime(void)
 {
     return _this.uptime_s;
 }
 
-void nx_core_shutdown(void)
+void nx_common_shutdown(void)
 {
 #if NEXUS_CHANNEL_CORE_ENABLED
     nexus_channel_core_shutdown();

@@ -168,6 +168,7 @@ dispatch_coap_request(void)
   if (transaction->message->length > 0) {
     coap_send_transaction(transaction);
 
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
     if (client_cb->observe_seq == -1) {
       if (client_cb->qos == LOW_QOS)
         oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb,
@@ -176,6 +177,7 @@ dispatch_coap_request(void)
         oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb,
                                 OC_EXCHANGE_LIFETIME);
     }
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
     success = true;
   } else {
@@ -242,15 +244,6 @@ static bool prepare_coap_request(oc_client_cb_t *cb)
     coap_udp_init_message(request, type, (uint8_t) cb->method, cb->mid);
   }
 
-#ifdef OC_SPEC_VER_OIC
-  if (cb->endpoint.version == OIC_VER_1_1_0) {
-    coap_set_header_accept(request, APPLICATION_CBOR);
-  } else
-#endif /* OC_SPEC_VER_OIC */
-  {
-    coap_set_header_accept(request, APPLICATION_VND_OCF_CBOR);
-  }
-
   coap_set_token(request, cb->token, cb->token_len);
 
   coap_set_header_uri_path(request, oc_string(cb->uri), oc_string_len(cb->uri));
@@ -258,7 +251,7 @@ static bool prepare_coap_request(oc_client_cb_t *cb)
   if (cb->observe_seq != -1)
   {
     OC_WRN("Observe is not supported but callback has observe_seq set");
-    coap_set_header_observe(request, cb->observe_seq);
+    //coap_set_header_observe(request, cb->observe_seq);
   }
 
 

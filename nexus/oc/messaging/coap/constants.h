@@ -79,7 +79,7 @@ extern "C" {
 #define COAP_HEADER_LEN                                                        \
     4 /* | version:0x03 type:0x0C tkl:0xF0 | code | mid:0x00FF | mid:0xFF00 |  \
        */
-#define COAP_TOKEN_LEN 8 /* The maximum number of bytes for the Token */
+#define COAP_TOKEN_LEN 1 /* The maximum number of bytes for the Token */
 #define COAP_ETAG_LEN 8 /* The maximum number of bytes for the ETag */
 
 #define COAP_HEADER_VERSION_MASK 0xC0
@@ -169,6 +169,7 @@ typedef enum
 /* CoAP header option numbers */
 typedef enum
 {
+#if 0
     COAP_OPTION_IF_MATCH = 1, /* 0-8 B */
     COAP_OPTION_URI_HOST = 3, /* 1-255 B */
     COAP_OPTION_ETAG = 4, /* 1-8 B */
@@ -176,10 +177,14 @@ typedef enum
     COAP_OPTION_OBSERVE = 6, /* 0-3 B */
     COAP_OPTION_URI_PORT = 7, /* 0-2 B */
     COAP_OPTION_LOCATION_PATH = 8, /* 0-255 B */
+#endif
     COAP_OPTION_URI_PATH = 11, /* 0-255 B */
     COAP_OPTION_CONTENT_FORMAT = 12, /* 0-2 B */
+#if 0
     COAP_OPTION_MAX_AGE = 14, /* 0-4 B */
+#endif
     COAP_OPTION_URI_QUERY = 15, /* 0-255 B */
+#if 0
     COAP_OPTION_ACCEPT = 17, /* 0-2 B */
     COAP_OPTION_LOCATION_QUERY = 20, /* 0-255 B */
     COAP_OPTION_BLOCK2 = 23, /* 1-3 B */
@@ -190,6 +195,7 @@ typedef enum
     COAP_OPTION_SIZE1 = 60, /* 0-4 B */
     OCF_OPTION_ACCEPT_CONTENT_FORMAT_VER = 2049, /* 2 B */
     OCF_OPTION_CONTENT_FORMAT_VER = 2053 /* 2 B */
+#endif
 } coap_option_t;
 
 /* CoAP Content-Formats */

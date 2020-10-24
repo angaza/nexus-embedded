@@ -37,7 +37,7 @@ extern "C" {
  *
  * \return copy of permanent, 16-byte device-specific secret key
  */
-struct nx_core_check_key nxp_channel_symmetric_origin_key(void);
+struct nx_common_check_key nxp_channel_symmetric_origin_key(void);
 
 /** Name of a specific Nexus Channel event type.
  */
@@ -117,6 +117,18 @@ nx_channel_error nxp_channel_network_send(const void* const bytes_to_send,
  * \return copy of the permanent Nexus ID of this device
  */
 struct nx_id nxp_channel_get_nexus_id(void);
+
+//
+// PSEUDORANDOM NUMBER GENERATION INTERFACE
+//
+
+/*
+ * Calculate a pseudo-random number. Assumes that the generator has been
+ * properly initialized.
+ *
+ * \return A pseudo-random number.
+ */
+uint32_t nxp_channel_random_value(void);
 
 #ifdef CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
 

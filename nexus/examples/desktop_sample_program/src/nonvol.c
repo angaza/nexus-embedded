@@ -11,7 +11,7 @@
 #include "nonvol.h"
 #include "identity.h"
 #include "nx_keycode.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include "payg_state.h"
 #include <assert.h>
 #include <stdio.h>
@@ -127,8 +127,8 @@ bool nv_write(char block_sentinel,
     return true;
 }
 
-bool nxp_core_nv_write(const struct nx_core_nv_block_meta block_meta,
-                       void* write_buffer)
+bool nxp_common_nv_write(const struct nx_common_nv_block_meta block_meta,
+                         void* write_buffer)
 {
     return nv_write(BLOCK_SENTINEL_NX,
                     block_meta.block_id,
@@ -241,17 +241,17 @@ bool nv_read(char block_sentinel,
     return success;
 }
 
-bool nxp_core_nv_read(const struct nx_core_nv_block_meta block_meta,
-                      void* read_buffer)
+bool nxp_common_nv_read(const struct nx_common_nv_block_meta block_meta,
+                        void* read_buffer)
 {
-    uint8_t intermediate_read_buffer[NX_CORE_NV_MAX_BLOCK_LENGTH];
+    uint8_t intermediate_read_buffer[NX_COMMON_NV_MAX_BLOCK_LENGTH];
 
     if (nv_read(BLOCK_SENTINEL_NX,
                 block_meta.block_id,
                 block_meta.length,
                 &intermediate_read_buffer) &&
         // If we got here, the block meta matches expected.
-        nx_core_nv_block_valid(block_meta, intermediate_read_buffer))
+        nx_common_nv_block_valid(block_meta, intermediate_read_buffer))
     {
         memcpy(read_buffer, &intermediate_read_buffer, block_meta.length);
         return true;

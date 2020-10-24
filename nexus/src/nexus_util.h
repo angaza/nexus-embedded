@@ -40,11 +40,11 @@ extern "C" {
 
 /** Used for internal integrity checks.
  */
-extern const struct nx_core_check_key NEXUS_INTEGRITY_CHECK_FIXED_00_KEY;
+extern const struct nx_common_check_key NEXUS_INTEGRITY_CHECK_FIXED_00_KEY;
 
 /** Used for internal integrity checks
  */
-extern const struct nx_core_check_key NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY;
+extern const struct nx_common_check_key NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY;
 
 /** Result of an internal authentication check computation.
  */
@@ -53,8 +53,10 @@ NEXUS_PACKED_STRUCT nexus_check_value
     uint8_t bytes[8];
 };
 
-struct nexus_check_value nexus_check_compute(
-    const struct nx_core_check_key* key, const void* data, uint16_t data_size);
+struct nexus_check_value
+nexus_check_compute(const struct nx_common_check_key* key,
+                    const void* data,
+                    uint16_t data_size);
 
 /** Compute pseudorandom bytes based on a seed and secret key.
  *
@@ -70,11 +72,12 @@ struct nexus_check_value nexus_check_compute(
  * \param output pointer to location to store pseudorandom bytes output
  * \param output_size max number of bytes to copy to output
  */
-void nexus_check_compute_pseudorandom_bytes(const struct nx_core_check_key* key,
-                                            const void* seed,
-                                            uint16_t seed_size,
-                                            void* output,
-                                            uint16_t output_size);
+void nexus_check_compute_pseudorandom_bytes(
+    const struct nx_common_check_key* key,
+    const void* seed,
+    uint16_t seed_size,
+    void* output,
+    uint16_t output_size);
 
 static inline uint64_t
 nexus_check_value_as_uint64(const struct nexus_check_value* value)

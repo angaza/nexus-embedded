@@ -21,20 +21,20 @@ extern "C" {
 #define NEXUS_NV_BLOCK_ID_WIDTH 2
 #define NEXUS_NV_BLOCK_CRC_WIDTH 2
 #define NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES 4
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_OM;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9;
-extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_OM;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9;
+extern struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
 
 /** (Internal) Update a Nexus NV block.
  *
@@ -57,7 +57,7 @@ extern struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10;
  * from inner data into the eventual block to be written.
  * \return true if the data are up to date in NV, false if the update failed
  */
-bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
+bool nexus_nv_update(const struct nx_common_nv_block_meta block_meta,
                      uint8_t* inner_data);
 
 /** (Internal) Read *inner/contained* data from a Nexus NV block
@@ -73,7 +73,7 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
  * then zero bytes will be copied to `data`)
  * \return true if the read is successful, false otherwise
  */
-bool nexus_nv_read(const struct nx_core_nv_block_meta block_meta,
+bool nexus_nv_read(const struct nx_common_nv_block_meta block_meta,
                    uint8_t* inner_data);
 
 #ifdef __cplusplus

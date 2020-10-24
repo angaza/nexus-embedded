@@ -78,7 +78,7 @@ _oc_mmem_alloc(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  struct oc_mmem *m, size_t size, pool pool_type)
+  struct oc_mmem *m, size_t size, oc_pool pool_type)
 {
   if (!m) {
     OC_ERR("oc_mmem is NULL");
@@ -161,7 +161,7 @@ _oc_mmem_free(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  struct oc_mmem *m, pool pool_type)
+  struct oc_mmem *m, oc_pool pool_type)
 {
   if (!m) {
     //OC_ERR("oc_mmem is NULL");

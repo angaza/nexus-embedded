@@ -10,8 +10,8 @@
 
 #include "src/nexus_channel_res_lm.h"
 #include "include/nxp_channel.h"
-#include "include/nxp_core.h"
-#include "src/nexus_core_internal.h"
+#include "include/nxp_common.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_security.h"
 #include "src/nexus_util.h"
@@ -54,7 +54,7 @@ NEXUS_STATIC_ASSERT(sizeof(_this.stored) ==
 
 // Look up an NV metadata block based on ID
 NEXUS_IMPL_STATIC bool _nexus_channel_link_manager_index_to_nv_block(
-    uint8_t index, struct nx_core_nv_block_meta** dest_block_meta_ptr)
+    uint8_t index, struct nx_common_nv_block_meta** dest_block_meta_ptr)
 {
     bool success = true;
     switch (index)
@@ -107,7 +107,7 @@ bool nexus_channel_link_manager_init(void)
     memset(&_this, 0x00, sizeof(_this));
 
     // Must initialize tmp_block_meta for CWE-457
-    struct nx_core_nv_block_meta* tmp_block_meta = {0};
+    struct nx_common_nv_block_meta* tmp_block_meta = {0};
     nexus_channel_link_t tmp_link;
     // load data for each link from nonvolatile
     for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
@@ -206,7 +206,7 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
                 // Write the update to NV
                 // The new link is at the *current* next link index, before we
                 // increment
-                struct nx_core_nv_block_meta* tmp_block_meta = 0;
+                struct nx_common_nv_block_meta* tmp_block_meta = 0;
                 (void) _nexus_channel_link_manager_index_to_nv_block(
                     i, &tmp_block_meta);
                 NEXUS_ASSERT(tmp_block_meta != 0, "Block ID not found");
@@ -222,7 +222,7 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
                       new_link->security_mode);
                 PRINT("res_lm: Persisting link key: ");
                 PRINTbytes(new_link->security_data.mode0.sym_key.bytes,
-                           sizeof(struct nx_core_check_key));
+                           sizeof(struct nx_common_check_key));
                 if (new_link->operating_mode ==
                     CHANNEL_LINK_OPERATING_MODE_CONTROLLER)
                 {
@@ -256,7 +256,7 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
     }
 
     // no urgent callbacks required
-    return NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+    return NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 }
 
 // internal use, return pointer to the link
@@ -340,7 +340,7 @@ bool nexus_channel_link_manager_create_link(
            security_data,
            sizeof(union nexus_channel_link_security_data));
 
-    nxp_core_request_processing();
+    nxp_common_request_processing();
 
     // will try to add link on next `_process` call
     return true;
@@ -360,7 +360,7 @@ static void _nexus_channel_link_manager_clear_link_internal(uint8_t link_id)
     // Write the update to NV, clearing this link block. On the next
     // read, if the block is all 0x00, it will be considered a
     // meaningless link and ignored.
-    struct nx_core_nv_block_meta* tmp_block_meta = 0;
+    struct nx_common_nv_block_meta* tmp_block_meta = 0;
     (void) _nexus_channel_link_manager_index_to_nv_block(link_id,
                                                          &tmp_block_meta);
     NEXUS_ASSERT(tmp_block_meta != 0, "Block ID not found");
@@ -388,7 +388,7 @@ void nexus_channel_link_manager_clear_all_links(void)
     // The only place `pending_clear_all_links` is reset to false is in
     // `process`
     _this.pending_clear_all_links = true;
-    nxp_core_request_processing();
+    nxp_common_request_processing();
 }
 
 enum nexus_channel_link_operating_mode

@@ -107,6 +107,7 @@ oc_set_immutable_device_identifier(size_t device, oc_uuid_t *piid)
 }
 */
 
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 void
 oc_set_delayed_callback(void *cb_data, oc_trigger_t callback, uint16_t seconds)
 {
@@ -118,6 +119,7 @@ oc_remove_delayed_callback(void *cb_data, oc_trigger_t callback)
 {
   oc_ri_remove_timed_event_callback(cb_data, callback);
 }
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 void
 oc_process_baseline_interface(oc_resource_t *resource)

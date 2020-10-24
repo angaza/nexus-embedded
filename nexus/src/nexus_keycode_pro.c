@@ -12,7 +12,7 @@
 
 #if NEXUS_KEYCODE_ENABLED
 
-    #include "include/nxp_core.h"
+    #include "include/nxp_common.h"
     #include "include/nxp_keycode.h"
     #include "src/nexus_keycode_core.h"
     #include "src/nexus_util.h"
@@ -129,7 +129,7 @@ _nexus_keycode_stored;
 //
 NEXUS_STATIC_ASSERT(
     sizeof(_nexus_keycode_stored) ==
-        (NX_CORE_NV_BLOCK_1_LENGTH - NEXUS_NV_BLOCK_ID_WIDTH -
+        (NX_COMMON_NV_BLOCK_1_LENGTH - NEXUS_NV_BLOCK_ID_WIDTH -
          NEXUS_NV_BLOCK_CRC_WIDTH),
     "nexus_keycode_pro: _nexus_keycode_stored invalid size for NV block.");
 
@@ -146,7 +146,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 
 NEXUS_IMPL_STATIC uint16_t nexus_keycode_pro_small_compute_check(
     const struct nexus_keycode_pro_small_message* message,
-    const struct nx_core_check_key* key);
+    const struct nx_common_check_key* key);
 
 NEXUS_IMPL_STATIC bool nexus_keycode_pro_full_parse_activation(
     struct nexus_keycode_frame* frame,
@@ -173,7 +173,7 @@ nexus_keycode_pro_full_deinterleave(struct nexus_keycode_frame* frame,
 
 NEXUS_IMPL_STATIC uint32_t nexus_keycode_pro_full_compute_check(
     const struct nexus_keycode_pro_full_message* message,
-    const struct nx_core_check_key* key);
+    const struct nx_common_check_key* key);
 
 NEXUS_IMPL_STATIC bool
 nexus_keycode_pro_mask_idx_from_message_id(const uint16_t full_message_id,
@@ -239,7 +239,7 @@ void nexus_keycode_pro_enqueue(const struct nexus_keycode_frame* mas_message)
         _this_core.pending = true;
     }
 
-    (void) nxp_core_request_processing();
+    (void) nxp_common_request_processing();
 }
 
 uint32_t nexus_keycode_pro_process(void)
@@ -247,7 +247,7 @@ uint32_t nexus_keycode_pro_process(void)
     // done if no frame is pending
     if (!_this_core.pending)
     {
-        return NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+        return NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
     }
 
     // otherwise, interpret the pending frame, then initiate feedback
@@ -505,7 +505,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
     const struct nexus_keycode_pro_small_message* message)
 {
     // Checks 'is this message valid?'
-    const struct nx_core_check_key secret_key = nxp_keycode_get_secret_key();
+    const struct nx_common_check_key secret_key = nxp_keycode_get_secret_key();
 
     uint16_t check_expected;
 
@@ -585,8 +585,8 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
             nexus_keycode_pro_set_full_message_id_flag(
                 (uint16_t) message->full_message_id);
 
-            if (nxp_core_payg_state_get_current() !=
-                NXP_CORE_PAYG_STATE_UNLOCKED)
+            if (nxp_common_payg_state_get_current() !=
+                NXP_COMMON_PAYG_STATE_UNLOCKED)
             {
                 const uint16_t increment_days =
                     nexus_keycode_pro_small_get_add_credit_increment_days(
@@ -659,8 +659,8 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
         {
             // 2-minute code only applied if disabled
             case NEXUS_KEYCODE_PRO_SMALL_ENABLE_SHORT_TEST:
-                if (nxp_core_payg_state_get_current() ==
-                    NXP_CORE_PAYG_STATE_DISABLED)
+                if (nxp_common_payg_state_get_current() ==
+                    NXP_COMMON_PAYG_STATE_DISABLED)
                 {
                     test_applied = true;
                     test_credit_secs =
@@ -673,8 +673,8 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
     #if (NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX > 0)
                 if (nexus_keycode_pro_get_long_qc_code_count() <
                         NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX &&
-                    nxp_core_payg_state_get_current() !=
-                        NXP_CORE_PAYG_STATE_UNLOCKED)
+                    nxp_common_payg_state_get_current() !=
+                        NXP_COMMON_PAYG_STATE_UNLOCKED)
                 {
                     test_applied = true;
                     test_credit_secs =
@@ -727,7 +727,7 @@ nexus_keycode_pro_small_parse_and_apply(const struct nexus_keycode_frame* frame)
 
 NEXUS_IMPL_STATIC uint16_t nexus_keycode_pro_small_compute_check(
     const struct nexus_keycode_pro_small_message* message,
-    const struct nx_core_check_key* key)
+    const struct nx_common_check_key* key)
 {
     struct nexus_keycode_pro_small_message message_copy = *message;
 
@@ -1136,7 +1136,7 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_full_apply(
     const struct nexus_keycode_pro_full_message* message)
 {
     // validate the message
-    const struct nx_core_check_key secret_key =
+    const struct nx_common_check_key secret_key =
         message->type_code <
                 (uint8_t) NEXUS_KEYCODE_PRO_FULL_FACTORY_ALLOW_TEST ?
             nxp_keycode_get_secret_key() :
@@ -1197,8 +1197,8 @@ nexus_keycode_pro_full_apply_activation(
             nexus_keycode_pro_set_full_message_id_flag(
                 (uint16_t) message->full_message_id);
 
-            if (nxp_core_payg_state_get_current() !=
-                NXP_CORE_PAYG_STATE_UNLOCKED)
+            if (nxp_common_payg_state_get_current() !=
+                NXP_COMMON_PAYG_STATE_UNLOCKED)
             {
                 nxp_keycode_payg_credit_add(credit_increment_seconds);
             }
@@ -1213,8 +1213,8 @@ nexus_keycode_pro_full_apply_activation(
             /* Intended for specially designated 'demo' units
              * Note: Demo codes *can* be reused (no message ID is set)
              */
-            if (nxp_core_payg_state_get_current() !=
-                NXP_CORE_PAYG_STATE_UNLOCKED)
+            if (nxp_common_payg_state_get_current() !=
+                NXP_COMMON_PAYG_STATE_UNLOCKED)
             {
                 // The body of the demo code overrides 'hours' to convey
                 // 'minutes', so we only need to multiply by 60 here to get
@@ -1308,8 +1308,8 @@ nexus_keycode_pro_full_apply_factory(
     {
         case NEXUS_KEYCODE_PRO_FULL_FACTORY_ALLOW_TEST:
             // only apply if we are disabled and haven't hit the limit.
-            if (nxp_core_payg_state_get_current() ==
-                NXP_CORE_PAYG_STATE_DISABLED)
+            if (nxp_common_payg_state_get_current() ==
+                NXP_COMMON_PAYG_STATE_DISABLED)
             {
                 test_applied = true;
                 nxp_keycode_payg_credit_add(
@@ -1423,7 +1423,7 @@ nexus_keycode_pro_full_deinterleave(struct nexus_keycode_frame* frame,
  */
 NEXUS_IMPL_STATIC uint32_t nexus_keycode_pro_full_compute_check(
     const struct nexus_keycode_pro_full_message* message,
-    const struct nx_core_check_key* key)
+    const struct nx_common_check_key* key)
 {
     // Compute over 9 bytes:
     // 4 = full_message_id (as uint32_t)
@@ -1706,17 +1706,17 @@ nexus_keycode_pro_can_unit_accept_qc_code(const uint32_t qc_credit_seconds)
     const bool is_short_code =
         qc_credit_seconds <= NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS;
 
-    const enum nxp_core_payg_state payg_state_before =
-        nxp_core_payg_state_get_current();
+    const enum nxp_common_payg_state payg_state_before =
+        nxp_common_payg_state_get_current();
 
-    if (payg_state_before == NXP_CORE_PAYG_STATE_UNLOCKED)
+    if (payg_state_before == NXP_COMMON_PAYG_STATE_UNLOCKED)
     {
         return false;
     }
 
     // Don't allow test codes shorter than an hour to 'stack'
     if (qc_credit_seconds != NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS &&
-        payg_state_before != NXP_CORE_PAYG_STATE_DISABLED)
+        payg_state_before != NXP_COMMON_PAYG_STATE_DISABLED)
     {
         return false;
     }

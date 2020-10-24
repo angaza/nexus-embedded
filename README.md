@@ -14,12 +14,12 @@ embedded platforms.
 1. Copy the `nexus` directory into your project
 2. Add include paths for `nexus` and `nexus/include`
 3. Run `cd nexus && python conf_nexus.py` and select configuration options (*Important*: Must run `python conf_nexus.py` from within the `nexus` folder).
-4. Implement the functions specified in `nexus/include/nxp_core.h`
+4. Implement the functions specified in `nexus/include/nxp_common.h`
 5. [Keycode only] Implement the functions specified in `nexus/include/nxp_keycode.h`
 6. [Channel only] Implement the functions specified in `nexus/include/nxp_channel.h`
-7. Use the functions provided by `nexus/include/nx_keycode.h`, `nexus/include/nx_channel.h`, and `nexus/include/nx_core.h` to interact with Nexus
+7. Use the functions provided by `nexus/include/nx_keycode.h`, `nexus/include/nx_channel.h`, and `nexus/include/nx_common.h` to interact with Nexus
 
-The functions declared in `include/nxp_core.h` provide the Nexus
+The functions declared in `include/nxp_common.h` provide the Nexus
 System with the ability to store and retrieve data from nonvolatile
 storage (flash), as well as determine the current system uptime. These are
 platform dependent, which is why they must be implemented by your code.

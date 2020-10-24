@@ -1,6 +1,6 @@
 #include "include/nx_channel.h"
 
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 #include "src/nexus_channel_om.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_util.h"
@@ -10,9 +10,9 @@
 
 // Other support libraries
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 
-// Hide channel core OC dependencies from origin manager tests
+// Hide channel OC dependencies from origin manager tests
 #include <mock_nexus_channel_core.h>
 #include <mock_nexus_channel_res_link_hs.h>
 #include <stdbool.h>
@@ -34,7 +34,7 @@
 uint8_t dummy_data[15];
 char* INVALID_ASCII_ORIGIN_COMMAND = "12944";
 
-struct nx_core_check_key CONTROLLER_KEY = {{
+struct nx_common_check_key CONTROLLER_KEY = {{
     0xFE,
     0xFE,
     0xFE,
@@ -54,22 +54,22 @@ struct nx_core_check_key CONTROLLER_KEY = {{
 }};
 
 // = b'\xc4\xb8@H\xcf\x04$\xa2]\xc5\xe9\xd3\xf0g@6'
-struct nx_core_check_key ACCESSORY_KEY = {{0xC4,
-                                           0xB8,
-                                           0x40,
-                                           0x48,
-                                           0xCF,
-                                           0x04,
-                                           0x24,
-                                           0xA2,
-                                           0x5D,
-                                           0xC5,
-                                           0xE9,
-                                           0xD3,
-                                           0xF0,
-                                           0x67,
-                                           0x40,
-                                           0x36}};
+struct nx_common_check_key ACCESSORY_KEY = {{0xC4,
+                                             0xB8,
+                                             0x40,
+                                             0x48,
+                                             0xCF,
+                                             0x04,
+                                             0x24,
+                                             0xA2,
+                                             0x5D,
+                                             0xC5,
+                                             0xE9,
+                                             0xD3,
+                                             0xF0,
+                                             0x67,
+                                             0x40,
+                                             0x36}};
 
 // generated using CONTROLLER_KEY, command count = 15
 char* VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES =
@@ -107,8 +107,8 @@ struct nexus_channel_om_command_message message;
 void setUp(void)
 {
     // ignore NV read/writes
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
 
     nexus_channel_om_init();
 
@@ -226,7 +226,8 @@ void test_handle_ascii_origin_command__valid_message_already_used__rejects_messa
             VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES)));
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(CONTROLLER_KEY);
-    // No need for another 'core' mock here, we don't attempt to apply to core.
+    // No need for another 'common' mock here, we don't attempt to apply to
+    // Nexus common.
     TEST_ASSERT_FALSE(_nexus_channel_om_handle_ascii_origin_command(
         VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES,
         (uint32_t) strlen(
@@ -659,10 +660,11 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__link_command_mode_3_
         &message, &window, &CONTROLLER_KEY));
 }
 
-void test__nexus_channel_om_ascii_apply_message__core_rejects_command__return_false(
+void test__nexus_channel_om_ascii_apply_message__common_rejects_command__return_false(
     void)
 {
-    // valid message, but will be 'rejected' for unrelated reasons by core
+    // valid message, but will be 'rejected' for unrelated reasons by Nexus
+    // common
     struct nexus_channel_om_command_message input_msg = {
         // LinkCommandToken(9, '2382847', '173346',))
         NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type

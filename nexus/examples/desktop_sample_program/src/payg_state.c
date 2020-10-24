@@ -12,7 +12,7 @@
 #include "identity.h"
 #include "nonvol.h"
 #include "nxp_channel.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include "nxp_keycode.h"
 #include "processing.h"
 
@@ -48,17 +48,17 @@ void payg_state_init(void)
                              (uint8_t*) &_this.stored);
 }
 
-enum nxp_core_payg_state nxp_core_payg_state_get_current(void)
+enum nxp_common_payg_state nxp_common_payg_state_get_current(void)
 {
     if (_this.stored.is_unlocked)
     {
-        return NXP_CORE_PAYG_STATE_UNLOCKED;
+        return NXP_COMMON_PAYG_STATE_UNLOCKED;
     }
     if (_this.stored.credit > 0)
     {
-        return NXP_CORE_PAYG_STATE_ENABLED;
+        return NXP_COMMON_PAYG_STATE_ENABLED;
     }
-    return NXP_CORE_PAYG_STATE_DISABLED;
+    return NXP_COMMON_PAYG_STATE_DISABLED;
 }
 
 bool update_payg_state(bool is_unlocked, uint32_t credit)
@@ -66,15 +66,15 @@ bool update_payg_state(bool is_unlocked, uint32_t credit)
     _this.stored.is_unlocked = is_unlocked;
     _this.stored.credit = credit;
     // Notify the product code on state changes.
-    enum nxp_core_payg_state current_payg_state =
-        nxp_core_payg_state_get_current();
+    enum nxp_common_payg_state current_payg_state =
+        nxp_common_payg_state_get_current();
 
     if (_this.last_payg_state != current_payg_state)
     {
         // our 'port_request_processing' is called by Nexus Keycode to
         // request processing, but we also use it internally to update
         // and read the current time
-        nxp_core_request_processing();
+        nxp_common_request_processing();
         _this.last_payg_state = current_payg_state;
     }
 
@@ -83,7 +83,7 @@ bool update_payg_state(bool is_unlocked, uint32_t credit)
     return true;
 }
 
-uint32_t nxp_core_payg_credit_get_remaining(void)
+uint32_t nxp_common_payg_credit_get_remaining(void)
 {
     return _this.stored.credit;
 }

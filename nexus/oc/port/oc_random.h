@@ -44,12 +44,6 @@ extern "C"
 #endif
 
 /*
- * Initialize the pseudo-random generator.
- *
- */
-void oc_random_init(void);
-
-/*
  * Calculate a pseudo random number.
  *
  * \return A pseudo-random number.

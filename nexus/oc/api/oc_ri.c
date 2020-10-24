@@ -51,24 +51,16 @@
 #include "oc_api.h"
 #include "oc_ri.h"
 #include "oc_uuid.h"
-/*
-#ifdef OC_BLOCK_WISE
-#include "oc_blockwise.h"
-#endif // OC_BLOCK_WISE
 
 #if defined(OC_COLLECTIONS) && defined(OC_SERVER)
 #include "oc_collection.h"
 #endif // OC_COLLECTIONS && OC_SERVER
 
-#ifdef OC_SECURITY
-#include "security/oc_acl_internal.h"
-#include "security/oc_tls.h"
-#endif // OC_SECURITY
-*/
-
 #ifdef OC_SERVER
 OC_LIST(app_resources);
-//OC_LIST(observe_callbacks); -- no observe
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+OC_LIST(observe_callbacks);
+#endif
 OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
 #endif // OC_SERVER
 
@@ -100,7 +92,7 @@ oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
 static void
 set_mpro_status_codes(void)
 {
-  // OK_200 
+  // OK_200
   oc_coap_status_codes[OC_STATUS_OK] = CONTENT_2_05;
   // CREATED_201
   oc_coap_status_codes[OC_STATUS_CREATED] = CREATED_2_01;
@@ -259,7 +251,7 @@ stop_processes(void)
 #endif // OC_TCP*/
 #ifdef NEXUS_USE_OC_NETWORK_EVENT_PROCESS
   oc_process_exit(&oc_network_events);
-#endif // NEXUS_USE_OC_NETWORK_EVENT_PROCESS 
+#endif // NEXUS_USE_OC_NETWORK_EVENT_PROCESS
   oc_process_exit(&oc_etimer_process);
   oc_process_exit(&timed_callback_events);
   oc_process_exit(&coap_engine);
@@ -312,7 +304,6 @@ oc_ri_delete_all_app_resources(void)
 void
 oc_ri_init(void)
 {
-  oc_random_init();
   oc_clock_init();
   set_mpro_status_codes();
 
@@ -468,9 +459,11 @@ check_event_callbacks(void)
   poll_event_callback_timers(timed_callbacks, &event_callbacks_s);
 }
 
-/* OBSERVE is not currently implemented
+// OBSERVE is not currently implemented
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 #ifdef OC_SERVER
 
+/* no callsites - observe not implemented, callsites commented
 static oc_event_callback_retval_t
 oc_observe_notification_delayed(void *data)
 {
@@ -478,9 +471,7 @@ oc_observe_notification_delayed(void *data)
   coap_notify_observers((oc_resource_t *)data, NULL, NULL);
   return OC_EVENT_DONE;
 }
-#endif
 
-#ifdef OC_SERVER
 static oc_event_callback_retval_t
 periodic_observe_handler(void *data)
 {
@@ -550,23 +541,24 @@ add_periodic_observe_callback(oc_resource_t *resource)
 
   return true;
 }
-#endif
 */
+#endif
+#endif // #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 static void
 free_all_event_timers(void)
 {
 #ifdef OC_SERVER
-/* OBSERVE is not currently implemented
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
   oc_event_callback_t *obs_cb =
     (oc_event_callback_t *)oc_list_pop(observe_callbacks);
   while (obs_cb != NULL) {
     oc_etimer_stop(&obs_cb->timer);
     oc_list_remove(observe_callbacks, obs_cb);
     oc_memb_free(&event_callbacks_s, obs_cb);
-    obs_cb = oc_list_pop(observe_callbacks);
+    obs_cb = (oc_event_callback_t*) oc_list_pop(observe_callbacks);
   }
-  */
+#endif // #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 #endif // OC_SERVER
   oc_event_callback_t *event_cb =
     (oc_event_callback_t *)oc_list_pop(timed_callbacks);
@@ -636,19 +628,9 @@ does_interface_support_method(oc_interface_mask_t iface_mask,
   return supported;
 }
 
-/*
-#ifdef OC_BLOCK_WISE
-bool
-oc_ri_invoke_coap_entity_handler(void *request, void *response,
-                                 oc_blockwise_state_t **request_state,
-                                 oc_blockwise_state_t **response_state,
-                                 uint16_t block2_size, oc_endpoint_t *endpoint)
-#else  // OC_BLOCK_WISE
-*/
 bool
 oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
                                  oc_endpoint_t *endpoint)
-//#endif // !OC_BLOCK_WISE
 {
   /* Flags that capture status along various stages of processing
    *  the request.
@@ -686,14 +668,6 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   oc_request_t request_obj;
   oc_response_buffer_t response_buffer;
   oc_response_t response_obj;
-
-/*
-#ifdef OC_BLOCK_WISE
-#ifndef OC_SERVER
-  (void)block2_size;
-#endif // !OC_SERVER
-#endif // OC_BLOCK_WISE
-*/
 
   /* Postpone allocating response_state right after calling
    * oc_parse_rep()
@@ -738,16 +712,7 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   // Obtain handle to buffer containing the serialized payload
   const uint8_t *payload = NULL;
   int payload_len = 0;
-/*
-#ifdef OC_BLOCK_WISE
-  if (*request_state) {
-    payload = (*request_state)->buffer;
-    payload_len = (*request_state)->payload_size;
-  }
-#else  // OC_BLOCK_WISE
-*/
   payload_len = coap_get_payload(request, &payload);
-//#endif // !OC_BLOCK_WISE
 
 //#ifndef OC_DYNAMIC_ALLOCATION
   char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
@@ -781,13 +746,6 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
       bad_request = true;
     }
 
-/*
-#if defined(OC_BLOCK_WISE)
-    // Free request_state cause it isn't used any more
-    oc_blockwise_free_request_buffer(*request_state);
-    *request_state = NULL;
-#endif
-*/
   }
 
   oc_resource_t *resource, *cur_resource = NULL;
@@ -854,31 +812,8 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   }
 
 // Alloc response_state. It also affects request_obj.response.
-/*
-#ifdef OC_BLOCK_WISE
-  if (cur_resource && !bad_request) {
-    if (!(*response_state)) {
-      OC_DBG("creating new block-wise response state");
-      *response_state = oc_blockwise_alloc_response_buffer(
-        uri_path, uri_path_len, endpoint, method, OC_BLOCKWISE_SERVER);
-      if (!(*response_state)) {
-        OC_ERR("failure to alloc response state");
-        bad_request = true;
-      } else {
-        if (uri_query_len > 0) {
-          oc_new_string(&(*response_state)->uri_query, uri_query,
-                        uri_query_len);
-        }
-        response_buffer.buffer = (*response_state)->buffer;
-        response_buffer.buffer_size = (uint16_t)OC_MAX_APP_DATA_SIZE;
-      }
-    }
-  }
-#else  // OC_BLOCK_WISE
-*/
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = (uint16_t)OC_BLOCK_SIZE;
-//#endif // !OC_BLOCK_WISE
 
   OC_DBG("Checking current resource and not bad request...");
   if (cur_resource && !bad_request) {
@@ -989,10 +924,8 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   }
 
 #ifdef OC_SERVER
-  /* If a GET request was successfully processed, then check its
-   *  observe option.
-   */
-  /* Observe and blockwise not implemented
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+
   uint32_t observe = 2;
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&
       coap_get_header_observe(request, &observe)) {
@@ -1002,20 +935,14 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
       // If the observe option is set to 0, make an attempt to add the
       // requesting client as an observer.
       if (observe == 0) {
-#ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, cur_resource, block2_size,
-                                 endpoint, iface_mask) >= 0) {
-#else  // OC_BLOCK_WISE
         if (coap_observe_handler(request, response, cur_resource, endpoint,
                                  iface_mask) >= 0) {
-#endif // !OC_BLOCK_WISE
           /* If the resource is marked as periodic observable it means
            * it must be polled internally for updates (which would lead to
            * notifications being sent). If so, add the resource to a list of
            * periodic GET callbacks to utilize the framework's internal
            * polling mechanism.
            */
-          /*
           if (cur_resource->properties & OC_PERIODIC) {
             if (!add_periodic_observe_callback(cur_resource)) {
               set_observe_option = false;
@@ -1034,18 +961,6 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
           } else {
             oc_collection_t *collection = (oc_collection_t *)cur_resource;
             oc_link_t *links = (oc_link_t *)oc_list_head(collection->links);
-#ifdef OC_SECURITY
-            while (links) {
-              if (links->resource &&
-                  (links->resource->properties & OC_OBSERVABLE)) {
-                if (!oc_sec_check_acl(OC_GET, links->resource, endpoint)) {
-                  set_observe_option = false;
-                  break;
-                }
-              }
-              links = links->next;
-            }
-#endif // OC_SECURITY
             if (set_observe_option) {
               if (iface_mask == OC_IF_B) {
                 links = (oc_link_t *)oc_list_head(collection->links);
@@ -1073,13 +988,9 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
       // remove the resource from the list periodic GET callbacks if it
       // is periodic observable.
       else if (observe == 1) {
-#ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, cur_resource, block2_size,
-                                 endpoint, iface_mask) > 0) {
-#else  // OC_BLOCK_WISE
         if (coap_observe_handler(request, response, cur_resource, endpoint,
                                  iface_mask) > 0) {
-#endif // !OC_BLOCK_WISE
+
           if (cur_resource->properties & OC_PERIODIC) {
             remove_periodic_observe_callback(cur_resource);
           }
@@ -1100,8 +1011,9 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
       }
     }
   }
-*/ // end of unsupported observe / collections / blockwise section (~984)
-#endif // OC_SERVER 
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+#endif // OC_SERVER
+
 
   if (request_obj.origin && (request_obj.origin->flags & MULTICAST) &&
       response_buffer.code >= oc_status_code(OC_STATUS_BAD_REQUEST)) {
@@ -1123,16 +1035,6 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
  * out-of-band upon availability of the resource state knows it must
  * send out a response with it.
  */
-/*
-#ifdef OC_BLOCK_WISE
-    if (coap_separate_accept(request, response_obj.separate_response, endpoint,
-                             observe, block2_size) == 1)
-#else  // OC_BLOCK_WISE 
-    if (coap_separate_accept(request, response_obj.separate_response, endpoint,
-                             observe) == 1)
-#endif /* !OC_BLOCK_WISE 
-      response_obj.separate_response->active = 1;
-*/
 
   OC_WRN("Separate response not currently supported");
   } else
@@ -1162,18 +1064,12 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
           //                                  &oc_observe_notification_delayed, 0);
           // No observers to notify, OBSERVE not supported
       }
-      
+
 
 #endif // OC_SERVER
     if (response_buffer.response_length > 0) {
-      /*
-#ifdef OC_BLOCK_WISE
-      (*response_state)->payload_size = response_buffer.response_length;
-#else  // OC_BLOCK_WISE
-*/
       coap_set_payload(response, response_buffer.buffer,
                        response_buffer.response_length);
-//#endif // !OC_BLOCK_WISE
 #ifdef OC_SPEC_VER_OIC
       if (endpoint->version == OIC_VER_1_1_0) {
         coap_set_header_content_format(response, APPLICATION_CBOR);
@@ -1184,16 +1080,11 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
       }
     }
 
-    if (response_buffer.code ==
-        oc_status_code(OC_STATUS_REQUEST_ENTITY_TOO_LARGE)) {
-      coap_set_header_size1(response, OC_BLOCK_SIZE);
-    }
-
     /* response_buffer.code at this point contains a valid CoAP status
      *  code.
      */
     coap_set_status_code(response, response_buffer.code);
-  }  
+  }
   OC_DBG("Request handled? %d", success);
 
   return success;
@@ -1204,11 +1095,6 @@ static void
 free_client_cb(oc_client_cb_t *cb)
 {
   oc_list_remove(client_cbs, cb);
-  /*
-#ifdef OC_BLOCK_WISE
-  oc_blockwise_scrub_buffers_for_client_cb(cb);
-#endif // OC_BLOCK_WISE
-*/
   oc_free_string(&cb->uri);
   if (oc_string_len(cb->query)) {
     oc_free_string(&cb->query);
@@ -1314,17 +1200,9 @@ oc_ri_is_client_cb_valid(oc_client_cb_t *client_cb)
   return false;
 }
 
-/*
-#ifdef OC_BLOCK_WISE
-bool
-oc_ri_invoke_client_cb(void *response, oc_blockwise_state_t **response_state,
-                       oc_client_cb_t *cb, oc_endpoint_t *endpoint)
-#else  // OC_BLOCK_WISE
-*/
 bool
 oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
                        oc_endpoint_t *endpoint)
-//#endif // OC_BLOCK_WISE
 {
   endpoint->version = OCF_VER_1_0_0;
 #ifdef OC_SPEC_VER_OIC
@@ -1357,28 +1235,11 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
     }
   }
 
-/*
-#ifdef OC_BLOCK_WISE
-  if (response_state) {
-    oc_blockwise_response_state_t *bwt_response_state =
-      (oc_blockwise_response_state_t *)*response_state;
-    client_response.observe_option = bwt_response_state->observe_seq;
-  }
-#else  */// OC_BLOCK_WISE
-  coap_get_header_observe(pkt, (uint32_t *)&client_response.observe_option);
-//#endif // !OC_BLOCK_WISE
+  //coap_get_header_observe(pkt, (uint32_t *)&client_response.observe_option);
 
   bool separate = false;
 
-/*
-#ifdef OC_BLOCK_WISE
-  if (response_state) {
-    payload = (*response_state)->buffer;
-    payload_len = (*response_state)->payload_size;
-  }
-#else */ // OC_BLOCK_WISE
   payload_len = coap_get_payload(response, (const uint8_t **)&payload);
-//#endif // !OC_BLOCK_WISE
 
 // #ifndef OC_DYNAMIC_ALLOCATION
   char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
@@ -1404,11 +1265,6 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
         uint16_t mid = cb->mid;
         cb->ref_count = 0;
         oc_ri_free_client_cbs_by_mid(mid);
-/*
-#ifdef OC_BLOCK_WISE
-        *response_state = NULL;
-#endif // OC_BLOCK_WISE
-*/
         //return true;
         return false;
       }
@@ -1461,10 +1317,6 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
       oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
       free_client_cb(cb);
     }
-    /*
-#ifdef OC_BLOCK_WISE
-    *response_state = NULL;
-#endif */// OC_BLOCK_WISE
   } else {
     cb->observe_seq = client_response.observe_option;
 
@@ -1480,8 +1332,8 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
             oc_string_len(dup_cb->uri) == uri_len &&
             strncmp(oc_string(dup_cb->uri), oc_string(cb->uri), uri_len) == 0 &&
             oc_endpoint_compare(&dup_cb->endpoint, endpoint) == 0) {
-          OC_DBG("Freeing cb %s, token 0x%02X%02X", oc_string(dup_cb->uri),
-                 dup_cb->token[0], dup_cb->token[1]);
+          OC_DBG("Freeing cb %s, token 0x%02X", oc_string(dup_cb->uri),
+                 dup_cb->token[0]);
           oc_ri_remove_timed_event_callback(dup_cb, &oc_ri_remove_client_cb);
           free_client_cb(dup_cb);
           break;
@@ -1540,14 +1392,9 @@ oc_ri_alloc_client_cb(const char *uri, oc_endpoint_t *endpoint,
   cb->qos = qos;
   cb->handler = handler;
   cb->user_data = user_data;
-  cb->token_len = 8;
-  int i = 0;
-  uint32_t r;
-  while (i < cb->token_len) {
-    r = oc_random_value();
-    memcpy(cb->token + i, &r, sizeof(r));
-    i += sizeof(r);
-  }
+  cb->token_len = 1;
+  // Take one byte from random value
+  cb->token[0] = oc_random_value() & 0xff;
   cb->discovery = false;
   cb->timestamp = oc_clock_time();
   cb->observe_seq = -1;
@@ -1572,11 +1419,6 @@ oc_ri_shutdown(void)
 #ifdef OC_CLIENT
   free_all_client_cbs();
 #endif // OC_CLIENT
-/*
-#ifdef OC_BLOCK_WISE
-  oc_blockwise_scrub_buffers(true);
-#endif // OC_BLOCK_WISE
-*/
   while (oc_main_poll() != 0)
     ;
 

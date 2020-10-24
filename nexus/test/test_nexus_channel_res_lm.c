@@ -29,7 +29,7 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -43,9 +43,8 @@
 
 // Other support libraries
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <string.h>
 
 /********************************************************
@@ -113,11 +112,9 @@ void _initialize_oc_rep_pool(void)
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
     // register platform and device
     nexus_channel_core_init();
 
@@ -174,7 +171,7 @@ void test_link_manager_create_link__link_is_created_ok(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -182,7 +179,7 @@ void test_link_manager_create_link__link_is_created_ok(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -191,7 +188,7 @@ void test_link_manager_create_link__link_is_created_ok(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -215,7 +212,7 @@ void test_link_manager_create_link__link_is_created_ok(void)
         &linked_id, &result_link.linked_device_id, sizeof(struct nx_id));
     TEST_ASSERT_EQUAL_MEMORY(&link_key,
                              &result_link.security_data.mode0.sym_key,
-                             sizeof(struct nx_core_check_key));
+                             sizeof(struct nx_common_check_key));
     TEST_ASSERT_EQUAL(sec_data.mode0.nonce,
                       result_link.security_data.mode0.nonce);
     TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -232,7 +229,7 @@ void test_link_manager_create_link_then_delete__single_link_deleted_ok(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -240,7 +237,7 @@ void test_link_manager_create_link_then_delete__single_link_deleted_ok(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -249,7 +246,7 @@ void test_link_manager_create_link_then_delete__single_link_deleted_ok(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -269,7 +266,7 @@ void test_link_manager_create_link_then_delete__single_link_deleted_ok(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_TRUE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_clear_all_links();
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
     nexus_channel_link_manager_process(0);
@@ -286,7 +283,7 @@ void test_link_manager_create_multiple_links_delete__both_deleted(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -294,7 +291,7 @@ void test_link_manager_create_multiple_links_delete__both_deleted(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -303,7 +300,7 @@ void test_link_manager_create_multiple_links_delete__both_deleted(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -320,7 +317,7 @@ void test_link_manager_create_multiple_links_delete__both_deleted(void)
 
     // now, create a second link
     struct nx_id linked_id_2 = {0x1234, 555555};
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id_2,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -336,7 +333,7 @@ void test_link_manager_create_multiple_links_delete__both_deleted(void)
     TEST_ASSERT_TRUE(result);
 
     // now, clear both links
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_clear_all_links();
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
@@ -358,7 +355,7 @@ void test_link_manager_create_link_no_process_call__second_create_link_fails(
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -366,9 +363,9 @@ void test_link_manager_create_link_no_process_call__second_create_link_fails(
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -394,7 +391,7 @@ void test_link_manager_create_identical_link__create_link_fails(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -402,9 +399,9 @@ void test_link_manager_create_identical_link__create_link_fails(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -434,7 +431,7 @@ void test_link_manager_create_link__exceeded_link_limit__return_false(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -442,7 +439,7 @@ void test_link_manager_create_link__exceeded_link_limit__return_false(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -453,7 +450,7 @@ void test_link_manager_create_link__exceeded_link_limit__return_false(void)
 
     for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
     {
-        nxp_core_request_processing_Expect();
+        nxp_common_request_processing_Expect();
         // increment device ID each time so we don't attempt to create an
         // identical link
         linked_id.device_id++;
@@ -470,7 +467,7 @@ void test_link_manager_create_link__exceeded_link_limit__return_false(void)
     }
 
     // cannot create more links than MAX_SIMULTANEOUS
-    // does not expect to call `nxp_core_request_processing_Expect`
+    // does not expect to call `nxp_common_request_processing_Expect`
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -487,7 +484,7 @@ void test_link_manager__security_data_from_nxid__no_data_present__returns_false(
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -495,7 +492,7 @@ void test_link_manager__security_data_from_nxid__no_data_present__returns_false(
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     struct nexus_channel_link_security_mode0_data link_mode0_data;
     memset(&link_mode0_data,
@@ -520,7 +517,7 @@ void test_link_manager__security_data_from_nxid__data_present__returns_correct_d
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -528,9 +525,9 @@ void test_link_manager__security_data_from_nxid__data_present__returns_correct_d
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -549,7 +546,7 @@ void test_link_manager__security_data_from_nxid__data_present__returns_correct_d
     TEST_ASSERT_EQUAL(sec_data.mode0.nonce, link_mode0_data.nonce);
     TEST_ASSERT_EQUAL_MEMORY(&sec_data.mode0.sym_key,
                              &link_mode0_data.sym_key,
-                             sizeof(struct nx_core_check_key));
+                             sizeof(struct nx_common_check_key));
 }
 
 void test_link_manager__increment_security_data_mode0__nonce_updated(void)
@@ -559,7 +556,7 @@ void test_link_manager__increment_security_data_mode0__nonce_updated(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -567,10 +564,10 @@ void test_link_manager__increment_security_data_mode0__nonce_updated(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     // create a link
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -665,7 +662,7 @@ void test_res_link_hs_server_get_response__one_link_exists__cbor_correct_oc_pars
     // big endian = 0x0001e240
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -673,9 +670,9 @@ void test_res_link_hs_server_get_response__one_link_exists__cbor_correct_oc_pars
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool link_created = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -744,7 +741,7 @@ void test_res_link_hs_server_get_response__one_link_exists__cbor_correct_oc_pars
 void test_nexus_channel_link_manager_index_to_nv_block__cases_8_9_return_true(
     void)
 {
-    struct nx_core_nv_block_meta* tmp_block_meta = 0;
+    struct nx_common_nv_block_meta* tmp_block_meta = 0;
     bool result =
         _nexus_channel_link_manager_index_to_nv_block(8, &tmp_block_meta);
     TEST_ASSERT_TRUE(result);
@@ -755,7 +752,7 @@ void test_nexus_channel_link_manager_index_to_nv_block__cases_8_9_return_true(
 void test_nexus_channel_link_manager_index_to_nv_block__cases_out_of_range__returns_false(
     void)
 {
-    struct nx_core_nv_block_meta* tmp_block_meta = 0;
+    struct nx_common_nv_block_meta* tmp_block_meta = 0;
     bool result =
         _nexus_channel_link_manager_index_to_nv_block(10, &tmp_block_meta);
     TEST_ASSERT_FALSE(result);
@@ -772,7 +769,7 @@ void test_res_link_hs_server_get_response_baseline_query__one_link_exists__cbor_
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -780,9 +777,9 @@ void test_res_link_hs_server_get_response_baseline_query__one_link_exists__cbor_
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     bool link_created = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -863,7 +860,7 @@ void test_link_manager_reset_link_secs_since_active__reset_ok(void)
     linked_id.authority_id = 5921;
     linked_id.device_id = 123456;
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -871,7 +868,7 @@ void test_link_manager_reset_link_secs_since_active__reset_ok(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -884,7 +881,7 @@ void test_link_manager_reset_link_secs_since_active__reset_ok(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -908,7 +905,7 @@ void test_link_manager_reset_link_secs_since_active__reset_ok(void)
         &linked_id, &result_link.linked_device_id, sizeof(struct nx_id));
     TEST_ASSERT_EQUAL_MEMORY(&link_key,
                              &result_link.security_data.mode0.sym_key,
-                             sizeof(struct nx_core_check_key));
+                             sizeof(struct nx_common_check_key));
     TEST_ASSERT_EQUAL(sec_data.mode0.nonce,
                       result_link.security_data.mode0.nonce);
     TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -933,7 +930,7 @@ void test_link_manager_reset_link_expires__reset_ok(void)
     // initializes with no links present
     struct nx_id linked_id = {5921, 123456};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -941,7 +938,7 @@ void test_link_manager_reset_link_expires__reset_ok(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
     nexus_channel_link_t result_link = {0};
 
@@ -954,7 +951,7 @@ void test_link_manager_reset_link_expires__reset_ok(void)
         _nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
     TEST_ASSERT_FALSE(result);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -978,7 +975,7 @@ void test_link_manager_reset_link_expires__reset_ok(void)
         &linked_id, &result_link.linked_device_id, sizeof(struct nx_id));
     TEST_ASSERT_EQUAL_MEMORY(&link_key,
                              &result_link.security_data.mode0.sym_key,
-                             sizeof(struct nx_core_check_key));
+                             sizeof(struct nx_common_check_key));
     TEST_ASSERT_EQUAL(sec_data.mode0.nonce,
                       result_link.security_data.mode0.nonce);
     TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1014,7 +1011,7 @@ void test_link_manager_operating_mode__single_controller_link__controller_mode(
     enum nexus_channel_link_operating_mode result;
     struct nx_id linked_acc_id = {5921, 123456};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1022,9 +1019,9 @@ void test_link_manager_operating_mode__single_controller_link__controller_mode(
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_acc_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1045,7 +1042,7 @@ void test_link_manager_operating_mode__single_accessory_link__accessory_mode(
     enum nexus_channel_link_operating_mode result;
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1053,9 +1050,9 @@ void test_link_manager_operating_mode__single_accessory_link__accessory_mode(
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -1077,7 +1074,7 @@ void test_link_manager_operating_mode__controller_and_accessory_link__dual_mode_
     struct nx_id linked_cont_id = {5921, 123458};
     struct nx_id linked_acc_id = {5921, 123466};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1085,9 +1082,9 @@ void test_link_manager_operating_mode__controller_and_accessory_link__dual_mode_
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_acc_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
@@ -1098,7 +1095,7 @@ void test_link_manager_operating_mode__controller_and_accessory_link__dual_mode_
         NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
     nexus_channel_link_manager_process(0);
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -1123,7 +1120,7 @@ void test_link_manager_has_linked_controller__controller_present__returns_true(
 {
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -1131,9 +1128,9 @@ void test_link_manager_has_linked_controller__controller_present__returns_true(
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,

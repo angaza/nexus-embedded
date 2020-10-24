@@ -39,7 +39,7 @@ nexus_channel_sm_nexus_resource_method_new(oc_resource_t* resource,
         nexus_sec_res_method->resource = resource;
         nexus_sec_res_method->method = method;
 
-        OC_DBG("Adding method %u to resource at address %x", method, resource);
+        OC_DBG("Adding method %u to resource at address %p", method, resource);
         oc_list_add(nexus_sec_res_methods, nexus_sec_res_method);
     }
     else

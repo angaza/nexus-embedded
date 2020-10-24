@@ -73,7 +73,7 @@ void nexus_keycode_core_init(void)
 
 uint32_t nexus_keycode_core_process(uint32_t seconds_elapsed)
 {
-    uint32_t min_sleep = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+    uint32_t min_sleep = NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 
     // Call any keycode-related modules that require periodic processing
     min_sleep = u32min(min_sleep, nexus_keycode_mas_process(seconds_elapsed));

@@ -1,5 +1,5 @@
 #include "include/nx_channel.h"
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 
 #include "messaging/coap/coap.h"
 #include "messaging/coap/engine.h"
@@ -28,7 +28,7 @@
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -39,14 +39,16 @@
 #include "utils/crc_ccitt.h"
 #include "utils/siphash_24.h"
 
+#include "test/test_platform_app.h"
+
 #include "unity.h"
 
 // Other support libraries
 #include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
+#include <mock_test_platform_app.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -202,15 +204,25 @@ void test_nexus_oc_wrapper__nx_channel_network_receive__invalid_messages__reject
 void test_nexus_oc_wrapper__nx_channel_network_receive__valid_message__no_error(
     void)
 {
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_core_init();
+
     struct nx_id fake_id = {0, 12345678};
     uint8_t dummy_data[10];
     memset(&dummy_data, 0xAB, sizeof(dummy_data));
 
-    nxp_core_request_processing_Expect(); // due to a valid message being
+    nxp_common_request_processing_Expect(); // due to a valid message being
     // received
     nx_channel_error result =
         nx_channel_network_receive(dummy_data, 10, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_NONE, result);
+
+    // process the message to unref the internally-made ref
+    nexus_channel_core_process(1);
 }
 
 void test_nexus_oc_wrapper__oc_send_buffer__expected_calls_to_nxp_channel_network_send(
@@ -461,15 +473,11 @@ void test_nexus_oc_wrapper__nexus_channel_set_request_handler__unknown_method_fa
 {
     // We may tangentially trigger events in security manager tests, ignore
     nxp_channel_notify_event_Ignore();
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
 
     nexus_channel_core_init();
-
-    nexus_channel_link_manager_init();
 
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -494,6 +502,242 @@ void test_nexus_oc_wrapper__nexus_channel_set_request_handler__unknown_method_fa
         NX_CHANNEL_ERROR_METHOD_UNSUPPORTED,
         nexus_channel_set_request_handler(
             res, 5, nexus_channel_res_payg_credit_get_handler, false));
+}
+
+// CLIENT TESTS
+
+void CALLBACK_test_nexus_oc_wrapper__nx_channel_do_get_post_request__callback_handler_check(
+    nx_channel_client_response_t* response, int NumCalls)
+{
+    (void) NumCalls;
+
+    struct nx_id expected_nx_id = {0xFFFF, 0x87654321};
+    const char* context = "context";
+
+    // only expect one element in the rep
+    TEST_ASSERT_EQUAL_UINT(
+        0, strncmp(oc_string(response->payload->name), "th", 2));
+    TEST_ASSERT_EQUAL_UINT(20, response->payload->value.integer);
+    TEST_ASSERT_EQUAL(NULL, response->payload->next);
+
+    TEST_ASSERT_EQUAL_UINT(expected_nx_id.authority_id,
+                           response->source->authority_id);
+    TEST_ASSERT_EQUAL_UINT(expected_nx_id.device_id,
+                           response->source->device_id);
+
+    // 2.05 response code is converted to an oc_status_t
+    TEST_ASSERT_EQUAL_UINT(OC_STATUS_OK, response->code);
+
+    TEST_ASSERT_EQUAL_UINT(0, strncmp(response->request_context, context, 8));
+
+    return;
+}
+
+void test_nexus_oc_wrapper__nx_channel_do_get_request__get_reply_success(void)
+{
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_core_init();
+
+    struct nx_id src_nx_id = {0xFFFF, 0x12345678};
+    struct nx_id dest_nx_id = {0xFFFF, 0x87654321};
+
+    // register resource (server; replies)
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/test",
+        .resource_type = "angaza.test",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // arbitrary request context
+    char* context = "context";
+
+    // query string
+    char* query = "th=15";
+
+    // The request is (same token value due to random value mock above):
+    // 51 01 E2 41 40 B4 74 65 73 74 45 74 68 3D 31 35
+    // version 0x01, TKL 0x01, code 0x01, MID 0xE241, token 0x40, option 0xB4
+    // (uri-path, length 4), option value 0x74657374 (ASCII "test")
+    // option 45 (uri-query, length 5), option value 0x74683D3135 (ASCII
+    // "th=15")
+    uint8_t request_bytes[16] = {0x51,
+                                 0x01,
+                                 0xE2,
+                                 0x41,
+                                 0x40,
+                                 0xB4,
+                                 0x74,
+                                 0x65,
+                                 0x73,
+                                 0x74,
+                                 0x45,
+                                 0x74,
+                                 0x68,
+                                 0x3D,
+                                 0x31,
+                                 0x35};
+
+    // make a request
+    nxp_common_request_processing_Expect();
+    nxp_channel_get_nexus_id_ExpectAndReturn(src_nx_id);
+    nxp_channel_network_send_ExpectAndReturn(request_bytes,
+                                             sizeof(request_bytes),
+                                             &src_nx_id,
+                                             &dest_nx_id,
+                                             false,
+                                             0);
+    TEST_ASSERT_EQUAL(
+        NX_CHANNEL_ERROR_NONE,
+        nx_channel_do_get_request(
+            "test", &dest_nx_id, query, test_platform_get_handler, context));
+
+    // process/send the request; arbitrary uptime
+    nexus_channel_core_process(1);
+
+    // handcraft a reply to route to the the client reply handler:
+    // 51 45 E2 41 40 FF BF 62 74 68 14 FF
+    // version 0x01, TKL 0x01, code 0x45 (2.05), MID 0xE242, token 0x40, payload
+    // 0xBF62746814FF ({"th": 20} from battery resource)
+    const uint8_t reply_bytes[12] = {
+        0x51, 0x45, 0xE2, 0x42, 0x40, 0xFF, 0xBF, 0x62, 0x74, 0x68, 0x14, 0xFF};
+    nxp_common_request_processing_Expect();
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE,
+                      nx_channel_network_receive(
+                          reply_bytes, sizeof(reply_bytes), &dest_nx_id));
+
+    // custom callback to more easily examine the sent message and
+    // confirm the payload is valid/expected.
+    // Newer name is 'func_AddCallback`, but older convention used here
+    // to allow older Ceedling versions in CI to run this test.
+    test_platform_get_handler_ExpectAnyArgs();
+    test_platform_get_handler_StubWithCallback(
+        CALLBACK_test_nexus_oc_wrapper__nx_channel_do_get_post_request__callback_handler_check);
+    nexus_channel_core_process(2);
+}
+
+void test_nexus_oc_wrapper__nx_channel_do_post_request__no_handler_set__fails(
+    void)
+{
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_core_init();
+
+    // register resource (server; replies)
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/test",
+        .resource_type = "angaza.test",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = NULL,
+        .get_secured = false,
+        // arbitrary
+        .post_handler = nexus_channel_res_payg_credit_get_handler,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // make a request -- fails because we did not call
+    // nx_channel_init_post_request
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED,
+                      nx_channel_do_post_request());
+}
+
+void test_nexus_oc_wrapper__nx_channel_do_post_request__get_reply__success(void)
+{
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_core_init();
+
+    struct nx_id src_nx_id = {0xFFFF, 0x12345678};
+    struct nx_id dest_nx_id = {0xFFFF, 0x87654321};
+
+    // register resource (server; replies)
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/test",
+        .resource_type = "angaza.test",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = NULL,
+        .get_secured = false,
+        // arbitrary
+        .post_handler = nexus_channel_res_payg_credit_get_handler,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // arbitrary request context
+    char* context = "context";
+
+    // The request is (same token value due to random value mock above):
+    // 51 01 E2 41 40 B4 74 65 73 74
+    // version 0x01, TKL 0x01, code 0x01, MID 0xE241, token 0x40, option 0xB4
+    // (uri-path, length 4), option value 0x74657374 (ASCII "test")
+    uint8_t request_bytes[10] = {
+        0x51, 0x01, 0xE2, 0x41, 0x40, 0xB4, 0x74, 0x65, 0x73, 0x74};
+
+    // make a request
+    TEST_ASSERT_EQUAL(
+        NX_CHANNEL_ERROR_NONE,
+        nx_channel_init_post_request(
+            "test", &dest_nx_id, NULL, test_platform_post_handler, context));
+
+    nxp_common_request_processing_Expect();
+    nxp_channel_get_nexus_id_ExpectAndReturn(src_nx_id);
+    nxp_channel_network_send_ExpectAndReturn(request_bytes,
+                                             sizeof(request_bytes),
+                                             &src_nx_id,
+                                             &dest_nx_id,
+                                             false,
+                                             0);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, nx_channel_do_post_request());
+
+    // process/send the request; arbitrary uptime
+    nexus_channel_core_process(1);
+
+    // handcraft a reply to route to the the client reply handler:
+    // 51 45 E2 41 40 FF BF 62 74 68 14 FF
+    // version 0x01, TKL 0x01, code 0x45 (2.05), MID 0xE242, token 0x40, payload
+    // 0xBF62746814FF ({"th": 20} from battery resource)
+    const uint8_t reply_bytes[12] = {
+        0x51, 0x45, 0xE2, 0x42, 0x40, 0xFF, 0xBF, 0x62, 0x74, 0x68, 0x14, 0xFF};
+    nxp_common_request_processing_Expect();
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE,
+                      nx_channel_network_receive(
+                          reply_bytes, sizeof(reply_bytes), &dest_nx_id));
+
+    // custom callback to more easily examine the sent message and
+    // confirm the payload is valid/expected.
+    // Newer name is 'func_AddCallback`, but older convention used here
+    // to allow older Ceedling versions in CI to run this test.
+    test_platform_post_handler_ExpectAnyArgs();
+    test_platform_post_handler_StubWithCallback(
+        CALLBACK_test_nexus_oc_wrapper__nx_channel_do_get_post_request__callback_handler_check);
+    nexus_channel_core_process(2);
 }
 
 #pragma GCC diagnostic pop

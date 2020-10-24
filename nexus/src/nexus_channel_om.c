@@ -50,7 +50,7 @@ _nexus_om_stored;
 // Compile time checks
 NEXUS_STATIC_ASSERT(
     sizeof(_nexus_om_stored) ==
-        (NX_CORE_NV_BLOCK_3_LENGTH - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES),
+        (NX_COMMON_NV_BLOCK_3_LENGTH - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES),
     "nexus_channel_om: _nexus_om_stored invalid size for NV block.");
 
 NEXUS_STATIC_ASSERT(NEXUS_CHANNEL_OM_RECEIVE_WINDOW_BEFORE_CENTER_INDEX + 1 ==
@@ -192,7 +192,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_parse_message(
 static uint32_t _nexus_channel_om_ascii_auth_arbitrary_bytes(
     const uint8_t* bytes,
     uint8_t bytes_count,
-    const struct nx_core_check_key* key)
+    const struct nx_common_check_key* key)
 {
     const struct nexus_check_value check_val =
         nexus_check_compute(key, bytes, bytes_count);
@@ -210,7 +210,7 @@ static uint32_t _nexus_channel_om_ascii_auth_arbitrary_bytes(
 
 NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
     struct nexus_channel_om_command_message* message,
-    const struct nx_core_check_key* origin_key)
+    const struct nx_common_check_key* origin_key)
 {
     uint8_t compute_bytes[NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH] = {
         0};
@@ -259,7 +259,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
         // XXX obtain list of nx_ids for devices linked to this controller
         // uint8_t accessory_count = 0;
         // struct nx_id linked_accessory_id =
-        // nexus_core_get_linked_accessory_ids(&number_of-accessories);
+        // nexus_common_get_linked_accessory_ids(&number_of-accessories);
 
         struct nx_id accessories_list[3] = {
             {0x0111, 0x92873891}, // nonsense
@@ -396,7 +396,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
 NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_infer_fields_compute_auth(
     struct nexus_channel_om_command_message* message,
     const struct nexus_window* window,
-    const struct nx_core_check_key* origin_key)
+    const struct nx_common_check_key* origin_key)
 {
     NEXUS_ASSERT(window->center_index - window->flags_below <=
                      window->center_index + window->flags_above,
@@ -433,7 +433,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_infer_fields_compute_auth(
 NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_apply_message(
     struct nexus_channel_om_command_message* message)
 {
-    const struct nx_core_check_key origin_key =
+    const struct nx_common_check_key origin_key =
         nxp_channel_symmetric_origin_key();
 
     (void) nexus_nv_read(NX_NV_BLOCK_CHANNEL_OM, (uint8_t*) &_nexus_om_stored);
@@ -455,15 +455,15 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_apply_message(
         return false;
     }
 
-    // Finally, attempt to send the message to core, return early
+    // Finally, attempt to send the message to Nexus common, return early
     // if we're unable to apply it for any reason
     if (!nexus_channel_core_apply_origin_command(message))
     {
-        PRINT("nx_channel_om: Nexus Core could not apply origin command.\n");
+        PRINT("nx_channel_om: Nexus could not apply origin command.\n");
         return false;
     }
 
-    // If the channel core processed the message, mark it as applied/update NV
+    // If Nexus common processed the message, mark it as applied/update NV
 
     (void) nexus_util_window_set_id_flag(&window, message->computed_command_id);
     NEXUS_ASSERT(message->computed_command_id <= window.center_index,
@@ -527,7 +527,7 @@ _nexus_channel_om_handle_ascii_origin_command(const char* const command_data,
     // - Filling out 'inferred' (not transmitted) message parameters
     // - Computing the authentication for the message
     // - Determining if message is already applied (triggers NV read)
-    // - Calling Core with an appropriate origin command (if valid)
+    // - Calling Nexus common with an appropriate origin command (if valid)
     // - Marking the message as applied (NV update)
     if (!_nexus_channel_om_ascii_apply_message(&message))
     {
@@ -538,54 +538,11 @@ _nexus_channel_om_handle_ascii_origin_command(const char* const command_data,
     // If we completed the sequence and updated NV, return true
     return true;
 }
-    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
-nx_channel_error nx_channel_handle_origin_command(
-    const enum nx_channel_origin_command_bearer_type bearer_type,
-    const void* command_data,
-    const uint32_t command_length)
-{
-    // We include this stubbed function implementation in accessory mode to
-    // simplify the product-facing interface, but this function does nothing
-    // if controller mode is not supported.
-    #if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                     \
-         NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE)
-    bool parsed = false;
-    switch (bearer_type)
-    {
-        case NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS:
-            PRINT("nx_channel_om: Handling origin command (bearer=ASCII "
-                  "digits)\n");
-            parsed = _nexus_channel_om_handle_ascii_origin_command(
-                (const char*) command_data, command_length);
-            break;
-
-        default:
-            NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
-                0, "Unsupported bearer_type - should not reach here.");
-            break;
-    }
-
-    if (parsed)
-    {
-        return NX_CHANNEL_ERROR_NONE;
-    }
-    else
-    {
-        return NX_CHANNEL_ERROR_ACTION_REJECTED;
-    }
-    #else
-    (void) bearer_type;
-    (void) command_data;
-    (void) command_length;
-    return NX_CHANNEL_ERROR_UNSPECIFIED;
-    #endif /* if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&            \
-              NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) */
-}
-
-    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+        #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 // only used in unit tests
-bool _nexus_channel_om_is_command_index_set(uint32_t command_index)
+NEXUS_IMPL_STATIC bool
+_nexus_channel_om_is_command_index_set(uint32_t command_index)
 {
     struct nexus_window window;
     nexus_util_window_init(
@@ -614,5 +571,49 @@ bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index)
     return !((command_index < (window.center_index - window.flags_below)) ||
              (command_index > (window.center_index + window.flags_above)));
 }
-    #endif /* ifdef NEXUS_INTERNAL_IMPL_NON_STATIC */
+        #endif /* NEXUS_INTERNAL_IMPL_NON_STATIC */
+    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 #endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
+
+nx_channel_error nx_channel_handle_origin_command(
+    const enum nx_channel_origin_command_bearer_type bearer_type,
+    const void* command_data,
+    const uint32_t command_length)
+{
+// We include this stubbed function implementation in accessory mode to
+// simplify the product-facing interface, but this function does nothing
+// if controller mode is not supported.
+#if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                         \
+     NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE)
+    bool parsed = false;
+    switch (bearer_type)
+    {
+        case NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS:
+            PRINT("nx_channel_om: Handling origin command (bearer=ASCII "
+                  "digits)\n");
+            parsed = _nexus_channel_om_handle_ascii_origin_command(
+                (const char*) command_data, command_length);
+            break;
+
+        default:
+            NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
+                0, "Unsupported bearer_type - should not reach here.");
+            break;
+    }
+
+    if (parsed)
+    {
+        return NX_CHANNEL_ERROR_NONE;
+    }
+    else
+    {
+        return NX_CHANNEL_ERROR_ACTION_REJECTED;
+    }
+#else
+    (void) bearer_type;
+    (void) command_data;
+    (void) command_length;
+    return NX_CHANNEL_ERROR_UNSPECIFIED;
+#endif /* if (defined(NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) &&                \
+          NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE) */
+}

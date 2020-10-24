@@ -84,7 +84,6 @@ void simulate_message_link_handshake_response_accessory(
         &resp_packet, COAP_TYPE_NON, CREATED_2_01, rcvd_coap_packet->mid);
     coap_set_token(
         &resp_packet, rcvd_coap_packet->token, rcvd_coap_packet->token_len);
-    coap_set_header_accept(&resp_packet, APPLICATION_VND_OCF_CBOR);
 
     if (rcvd_coap_packet->uri_path == NULL ||
         rcvd_coap_packet->uri_path_len == 0)

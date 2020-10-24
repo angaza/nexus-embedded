@@ -1,4 +1,4 @@
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -10,7 +10,7 @@
 
 // Other support libraries
 #include <mock_nexus_channel_core.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
@@ -33,8 +33,8 @@
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
 }
 
 // Teardown (called after any 'test_*' function is called, automatically)

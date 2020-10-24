@@ -130,6 +130,8 @@ void coap_send_transaction(coap_transaction_t* t)
            t->mid,
            (void*) t);
     OC_LOGbytes(t->message->data, t->message->length);
+
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
     bool confirmable = false;
 
     confirmable =
@@ -185,9 +187,9 @@ void coap_send_transaction(coap_transaction_t* t)
             #endif // OC_SERVER
             */
 
-#ifdef OC_CLIENT
+    #ifdef OC_CLIENT
             oc_ri_free_client_cbs_by_mid(t->mid);
-#endif // OC_CLIENT
+    #endif // OC_CLIENT
 
             /*
             #ifdef OC_BLOCK_WISE
@@ -206,12 +208,15 @@ void coap_send_transaction(coap_transaction_t* t)
     }
     else
     {
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
         oc_message_add_ref(t->message);
 
         coap_send_message(t->message);
 
         coap_clear_transaction(t);
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
     }
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 }
 /*---------------------------------------------------------------------------*/
 void coap_clear_transaction(coap_transaction_t* t)

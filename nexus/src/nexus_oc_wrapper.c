@@ -10,11 +10,12 @@
 
 #include "src/nexus_oc_wrapper.h"
 #include "include/nxp_channel.h"
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_buffer.h"
 #include "oc/include/oc_ri.h"
 #include "oc/messaging/coap/transactions.h"
+#include "src/nexus_util.h"
 
 #if NEXUS_CHANNEL_CORE_ENABLED
 
@@ -129,14 +130,9 @@ nexus_channel_set_request_handler(oc_resource_t* resource,
     return NX_CHANNEL_ERROR_NONE;
 }
 
-void oc_random_init(void)
-{
-    nxp_core_random_init();
-}
-
 unsigned int oc_random_value(void)
 {
-    return nxp_core_random_value();
+    return nxp_channel_random_value();
 }
 
 nx_channel_error nx_channel_network_receive(const void* const bytes_received,
@@ -177,7 +173,7 @@ nx_channel_error nx_channel_network_receive(const void* const bytes_received,
     }
 
     // trigger processing so that IoTivity core can receive the message
-    nxp_core_request_processing();
+    nxp_common_request_processing();
     return NX_CHANNEL_ERROR_NONE;
 }
 
@@ -296,11 +292,11 @@ static int _nexus_oc_wrapper_inner_network_send(const oc_message_t* message,
         "Message exceeds max expected limit!");
     if (message->length > NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES)
     {
-        OC_WRN("Cannot send message of length %u", message->length);
+        OC_WRN("Cannot send message of length %zu", message->length);
         return 1;
     }
 
-    PRINT("nx_channel_network: Sending %lu byte message: ", message->length);
+    PRINT("nx_channel_network: Sending %zu byte message: ", message->length);
     PRINTbytes(((uint8_t*) message->data), message->length);
 
     nxp_channel_network_send(message->data,
@@ -327,6 +323,133 @@ int oc_send_buffer(oc_message_t* message)
 void oc_send_discovery_request(oc_message_t* message)
 {
     oc_send_buffer(message);
+}
+
+//
+// CLIENT REQUEST HELPER FUNCTIONS
+//
+
+static nx_channel_response_handler_t _active_client_get_handler = NULL;
+static nx_channel_response_handler_t _active_client_post_handler = NULL;
+
+// WARNING: Does not support simultaneous requests at the same time!
+void _nx_channel_get_response_handler_wrapper(oc_client_response_t* response)
+{
+    // when `oc` calls this function, extract relevant fields from
+    // the response object and call the user's response handler
+
+    static struct nx_id server_nx_id;
+    nexus_oc_wrapper_oc_endpoint_to_nx_id(response->endpoint, &server_nx_id);
+
+    nx_channel_client_response_t wrapped_response;
+    wrapped_response.payload = response->payload;
+    wrapped_response.source = &server_nx_id;
+    wrapped_response.code = response->code;
+    wrapped_response.request_context = response->user_data;
+
+    if (_active_client_get_handler != NULL)
+    {
+        _active_client_get_handler(&wrapped_response);
+    }
+    _active_client_get_handler = NULL;
+}
+
+// WARNING: Does not support simultaneous requests at the same time!
+void _nx_channel_post_response_handler_wrapper(oc_client_response_t* response)
+{
+    // when `oc` calls this function, extract relevant fields from
+    // the response object and call the user's response handler
+
+    static struct nx_id server_nx_id;
+    nexus_oc_wrapper_oc_endpoint_to_nx_id(response->endpoint, &server_nx_id);
+
+    nx_channel_client_response_t wrapped_response;
+    wrapped_response.payload = response->payload;
+    wrapped_response.source = &server_nx_id;
+    wrapped_response.code = response->code;
+    wrapped_response.request_context = response->user_data;
+
+    if (_active_client_post_handler != NULL)
+    {
+        _active_client_post_handler(&wrapped_response);
+    }
+    _active_client_post_handler = NULL;
+}
+
+nx_channel_error
+nx_channel_do_get_request(const char* uri,
+                          const struct nx_id* const server,
+                          const char* query,
+                          nx_channel_response_handler_t handler,
+                          void* request_context)
+{
+    _active_client_get_handler = handler;
+    static oc_endpoint_t server_oc_ep;
+
+    nexus_oc_wrapper_nx_id_to_oc_endpoint(server, &server_oc_ep);
+
+    // will result in a call back to `active_client_get_handler` on response
+    const bool success = oc_do_get(uri,
+                                   &server_oc_ep,
+                                   query,
+                                   &_nx_channel_get_response_handler_wrapper,
+                                   LOW_QOS,
+                                   request_context);
+
+    nxp_common_request_processing();
+
+    if (!success)
+    {
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+nx_channel_error
+nx_channel_init_post_request(const char* uri,
+                             const struct nx_id* const server,
+                             const char* query,
+                             nx_channel_response_handler_t handler,
+                             void* request_context)
+{
+    _active_client_post_handler = handler;
+    static oc_endpoint_t server_oc_ep;
+
+    nexus_oc_wrapper_nx_id_to_oc_endpoint(server, &server_oc_ep);
+
+    // will result in a call back to `active_client_get_handler` on response
+    const bool success =
+        oc_init_post(uri,
+                     &server_oc_ep,
+                     query,
+                     &_nx_channel_post_response_handler_wrapper,
+                     LOW_QOS,
+                     request_context);
+
+    if (!success)
+    {
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+nx_channel_error nx_channel_do_post_request(void)
+{
+    // ensure that a post handler has been set previously by `init_post`
+    if (_active_client_post_handler == NULL)
+    {
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+
+    const bool success = oc_do_post();
+
+    nxp_common_request_processing();
+
+    if (!success)
+    {
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+    return NX_CHANNEL_ERROR_NONE;
 }
 
     #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED

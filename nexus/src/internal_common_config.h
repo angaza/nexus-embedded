@@ -11,7 +11,7 @@
 #ifndef NEXUS__SRC__INTERNAL_COMMON_CONFIG_H_
 #define NEXUS__SRC__INTERNAL_COMMON_CONFIG_H_
 
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 #include "include/shared_oc_config.h"
 
 // Logging macros from 'oc_log' are reused throughout this project.

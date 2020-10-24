@@ -11,16 +11,9 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "nxp_core.h"
+#include "nxp_channel.h"
 
-void nxp_core_random_init(void)
-{
-    // seed the random number generator with the current time
-    srand(time(0));
-    return;
-}
-
-uint32_t nxp_core_random_value(void)
+uint32_t nxp_channel_random_value(void)
 {
     // return (uint32_t) rand();
     // For consistent demonstration, use a fixed random number

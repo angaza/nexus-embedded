@@ -22,7 +22,7 @@
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 
 #include "utils/oc_uuid.h"
-#include "include/nxp_core.h"
+#include "include/nxp_channel.h"
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -126,7 +126,7 @@ oc_gen_uuid(oc_uuid_t *uuid)
   uint32_t r;
 
   for (i = 0; i < 4; i++) {
-    r = nxp_core_random_value();
+    r = nxp_channel_random_value();
     memcpy((uint8_t *)&uuid->id[i * 4], (uint8_t *)&r, sizeof(r));
   }
 

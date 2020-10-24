@@ -48,7 +48,6 @@
     - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
   :test_preprocess:
     - *common_defines
-    - TEST
 
 :cmock:
   :mock_prefix: mock_

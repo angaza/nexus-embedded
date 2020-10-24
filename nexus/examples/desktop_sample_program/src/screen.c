@@ -10,14 +10,14 @@
 
 #include "screen.h"
 #include "nx_channel.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include "nxp_keycode.h"
 #include "payg_state.h"
 #include <stdio.h>
 
 void screen_display_status(void)
 {
-    if (nxp_core_payg_state_get_current() == NXP_CORE_PAYG_STATE_UNLOCKED)
+    if (nxp_common_payg_state_get_current() == NXP_COMMON_PAYG_STATE_UNLOCKED)
     {
         printf("The device is unlocked\n");
     }

@@ -198,13 +198,13 @@ void _oc_free_array(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_array_t *ocarray, pool type);
+  oc_array_t *ocarray, oc_pool type);
 
 void _oc_new_array(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
-  oc_array_t *ocarray, size_t size, pool type);
+  oc_array_t *ocarray, size_t size, oc_pool type);
 void _oc_alloc_string_array(
 #ifdef OC_MEMORY_TRACE
   const char *func,

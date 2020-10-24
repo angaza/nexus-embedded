@@ -9,7 +9,8 @@
 
 /* Time resolution */
 #include <stdint.h>
-#include <time.h>
+// Don't rely on time.h, not available on embedded platforms
+//#include <time.h>
 
 // For shared Nexus Channel propagated includes
 #include "include/shared_oc_config.h"
@@ -27,7 +28,10 @@ extern "C"
 #endif
 
 typedef uint64_t oc_clock_time_t;
-#define OC_CLOCK_CONF_TICKS_PER_SECOND CLOCKS_PER_SEC
+
+// In future, may be able to remove entirely
+#define OC_CLOCK_CONF_TICKS_PER_SECOND NEXUS_OC_CLOCKS_PER_SEC
+
 //#define OC_SPEC_VER_OIC
 // Security Layer
 // Max inactivity timeout before tearing down DTLS connection

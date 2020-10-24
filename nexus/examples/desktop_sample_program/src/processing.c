@@ -10,7 +10,7 @@
 
 #include "processing.h"
 #include "clock.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include "nxp_keycode.h"
 #include "payg_state.h"
 #include <pthread.h>
@@ -46,7 +46,7 @@ void timer_thread(/*union sigval val*/)
 {
     // Reuse existing `port_request_processing` to add a new
     // `nx_keycode_process` deferred call.
-    nxp_core_request_processing();
+    nxp_common_request_processing();
 }
 
 void processing_init(void)
@@ -88,7 +88,7 @@ void processing_execute(void)
     if (_this.nx_processing_requested)
     {
         _this.nx_processing_requested = false;
-        uint32_t max_secs_to_next_call = nx_core_process(cur_uptime);
+        uint32_t max_secs_to_next_call = nx_common_process(cur_uptime);
 
         _this.its.it_value.tv_sec = max_secs_to_next_call;
         _this.its.it_value.tv_nsec = 0;
@@ -115,7 +115,7 @@ void processing_execute(void)
  * before `nx_keycode_process` is called. `port_request_processing` is simply a
  * request to call `nx_keycode_process` during the next program 'idle' time.
  */
-void nxp_core_request_processing(void)
+void nxp_common_request_processing(void)
 {
     _this.nx_processing_requested = true;
 }

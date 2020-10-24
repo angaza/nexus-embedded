@@ -9,7 +9,7 @@
  */
 
 #include "src/nexus_nv.h"
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 #include "src/internal_keycode_config.h"
 #include "utils/crc_ccitt.h"
 
@@ -17,40 +17,40 @@
 #include <stdint.h>
 #include <string.h>
 // block metadata structs
-struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS = {
-    .block_id = 0, .length = NX_CORE_NV_BLOCK_0_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO = {
-    .block_id = 1, .length = NX_CORE_NV_BLOCK_1_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_KEYCODE_MAS = {
+    .block_id = 0, .length = NX_COMMON_NV_BLOCK_0_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_KEYCODE_PRO = {
+    .block_id = 1, .length = NX_COMMON_NV_BLOCK_1_LENGTH};
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY = {
-    .block_id = 2, .length = NX_CORE_NV_BLOCK_2_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_OM = {
-    .block_id = 3, .length = NX_CORE_NV_BLOCK_3_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1 = {
-    .block_id = 4, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2 = {
-    .block_id = 5, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3 = {
-    .block_id = 6, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4 = {
-    .block_id = 7, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5 = {
-    .block_id = 8, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6 = {
-    .block_id = 9, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7 = {
-    .block_id = 10, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8 = {
-    .block_id = 11, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9 = {
-    .block_id = 12, .length = NX_CORE_NV_BLOCK_4_LENGTH};
-struct nx_core_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10 = {
-    .block_id = 13, .length = NX_CORE_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LINK_HS_ACCESSORY = {
+    .block_id = 2, .length = NX_COMMON_NV_BLOCK_2_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_OM = {
+    .block_id = 3, .length = NX_COMMON_NV_BLOCK_3_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_1 = {
+    .block_id = 4, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_2 = {
+    .block_id = 5, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_3 = {
+    .block_id = 6, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_4 = {
+    .block_id = 7, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_5 = {
+    .block_id = 8, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_6 = {
+    .block_id = 9, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_7 = {
+    .block_id = 10, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_8 = {
+    .block_id = 11, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_9 = {
+    .block_id = 12, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
+struct nx_common_nv_block_meta NX_NV_BLOCK_CHANNEL_LM_LINK_10 = {
+    .block_id = 13, .length = NX_COMMON_NV_BLOCK_4_LENGTH};
 #endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 // blocks 4-20 reserved for link related NV
 
 // Used internally to compute CRC given a pointer to start of a full block
-uint16_t nexus_nv_compute_crc(const struct nx_core_nv_block_meta block_meta,
+uint16_t nexus_nv_compute_crc(const struct nx_common_nv_block_meta block_meta,
                               uint8_t* const full_block_data)
 {
     NEXUS_ASSERT(block_meta.length > NEXUS_NV_BLOCK_CRC_WIDTH,
@@ -62,8 +62,8 @@ uint16_t nexus_nv_compute_crc(const struct nx_core_nv_block_meta block_meta,
         (uint8_t)(block_meta.length - NEXUS_NV_BLOCK_CRC_WIDTH));
 }
 
-bool nx_core_nv_block_valid(const struct nx_core_nv_block_meta block_meta,
-                            uint8_t* const full_block_data)
+bool nx_common_nv_block_valid(const struct nx_common_nv_block_meta block_meta,
+                              uint8_t* const full_block_data)
 {
     // check block ID: read first two bytes of `data`
     if (memcmp(&block_meta.block_id,
@@ -89,12 +89,12 @@ bool nx_core_nv_block_valid(const struct nx_core_nv_block_meta block_meta,
     return true;
 }
 
-bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
+bool nexus_nv_update(const struct nx_common_nv_block_meta block_meta,
                      uint8_t* inner_data)
 {
     // read existing block from NV
-    uint8_t existing_block[NX_CORE_NV_MAX_BLOCK_LENGTH] = {0};
-    if (nxp_core_nv_read(block_meta, existing_block))
+    uint8_t existing_block[NX_COMMON_NV_MAX_BLOCK_LENGTH] = {0};
+    if (nxp_common_nv_read(block_meta, existing_block))
     {
         const uint8_t* old_inner_data =
             existing_block + NEXUS_NV_BLOCK_ID_WIDTH;
@@ -110,11 +110,11 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
 
     const uint32_t inner_data_size =
         (uint32_t)(block_meta.length - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES);
-    NEXUS_ASSERT(inner_data_size < NX_CORE_NV_MAX_BLOCK_LENGTH,
+    NEXUS_ASSERT(inner_data_size < NX_COMMON_NV_MAX_BLOCK_LENGTH,
                  "Invalid new block inner data size!");
 
     // compute a new valid "NX NV Block"
-    uint8_t new_block[NX_CORE_NV_MAX_BLOCK_LENGTH] = {0};
+    uint8_t new_block[NX_COMMON_NV_MAX_BLOCK_LENGTH] = {0};
     memcpy(new_block, &block_meta.block_id, NEXUS_NV_BLOCK_ID_WIDTH);
     memcpy(new_block + NEXUS_NV_BLOCK_ID_WIDTH, inner_data, inner_data_size);
 
@@ -128,16 +128,16 @@ bool nexus_nv_update(const struct nx_core_nv_block_meta block_meta,
            NEXUS_NV_BLOCK_CRC_WIDTH);
 
     // overwrite if the new block is valid and distinct
-    return nxp_core_nv_write(block_meta, new_block);
+    return nxp_common_nv_write(block_meta, new_block);
 }
 
-bool nexus_nv_read(const struct nx_core_nv_block_meta block_meta,
+bool nexus_nv_read(const struct nx_common_nv_block_meta block_meta,
                    uint8_t* inner_data)
 {
-    uint8_t block[NX_CORE_NV_MAX_BLOCK_LENGTH] = {0};
+    uint8_t block[NX_COMMON_NV_MAX_BLOCK_LENGTH] = {0};
 
-    nxp_core_nv_read(block_meta, block);
-    if (nx_core_nv_block_valid(block_meta, block))
+    nxp_common_nv_read(block_meta, block);
+    if (nx_common_nv_block_valid(block_meta, block))
     {
         // Copy only the 'inner data', skip the CRC and block ID
         memcpy(
@@ -153,7 +153,7 @@ bool nexus_nv_read(const struct nx_core_nv_block_meta block_meta,
 // uint16_t values are 2 bytes wide.
 NEXUS_STATIC_ASSERT(
     NEXUS_NV_BLOCK_ID_WIDTH ==
-        sizeof(((struct nx_core_nv_block_meta*) 0)->block_id),
+        sizeof(((struct nx_common_nv_block_meta*) 0)->block_id),
     "BLOCK_ID width not same size as block_meta block ID width.");
 NEXUS_STATIC_ASSERT(NEXUS_NV_BLOCK_ID_WIDTH == sizeof(uint16_t),
                     "BLOCK_ID width not same size as uint16_t");

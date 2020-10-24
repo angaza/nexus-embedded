@@ -12,11 +12,11 @@
 #include <string.h>
 
 #include "menu.h"
-// include 'nx_core' to get core, including configuration values
+// include 'nx_common' to get configuration values
 #include "keyboard.h"
 #include "network.h"
 #include "nexus_batt_resource.h"
-#include "nx_core.h"
+#include "nx_common.h"
 #include "processing.h"
 #include "screen.h"
 

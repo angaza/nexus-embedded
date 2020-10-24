@@ -6,7 +6,7 @@
 #include "utils/siphash_24.h"
 
 // Other support libraries
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
@@ -22,14 +22,14 @@
  * PRIVATE DATA
  *******************************************************/
 // valid block 0 read
-uint8_t block_0_valid[NX_CORE_NV_BLOCK_0_LENGTH] = {
+uint8_t block_0_valid[NX_COMMON_NV_BLOCK_0_LENGTH] = {
     0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x89, 0x29};
 
 // block 0 but block ID is incorrect
-uint8_t block_0_bl_id_invalid[NX_CORE_NV_BLOCK_0_LENGTH] = {
+uint8_t block_0_bl_id_invalid[NX_COMMON_NV_BLOCK_0_LENGTH] = {
     0x00, 0x01, 0x06, 0x00, 0x00, 0x00, 0x89, 0x29};
 
-uint8_t block_0_crc_invalid[NX_CORE_NV_BLOCK_0_LENGTH] = {
+uint8_t block_0_crc_invalid[NX_COMMON_NV_BLOCK_0_LENGTH] = {
     0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x90, 0x29};
 /********************************************************
  * PRIVATE FUNCTIONS
@@ -48,39 +48,40 @@ void tearDown(void)
 void test_keycode_nv__block_meta_structs__ok(void)
 {
     TEST_ASSERT_EQUAL(0, NX_NV_BLOCK_KEYCODE_MAS.block_id);
-    TEST_ASSERT_EQUAL(NX_CORE_NV_BLOCK_0_LENGTH,
+    TEST_ASSERT_EQUAL(NX_COMMON_NV_BLOCK_0_LENGTH,
                       NX_NV_BLOCK_KEYCODE_MAS.length);
     TEST_ASSERT_EQUAL(1, NX_NV_BLOCK_KEYCODE_PRO.block_id);
-    TEST_ASSERT_EQUAL(NX_CORE_NV_BLOCK_1_LENGTH,
+    TEST_ASSERT_EQUAL(NX_COMMON_NV_BLOCK_1_LENGTH,
                       NX_NV_BLOCK_KEYCODE_PRO.length);
 }
 
 void test_keycode_nv__validate_block__ok(void)
 {
     TEST_ASSERT_TRUE(
-        nx_core_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS, block_0_valid));
+        nx_common_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS, block_0_valid));
 }
 
 void test_keycode_nv__validate_block__block_id_mismatch_fail(void)
 {
-    TEST_ASSERT_FALSE(
-        nx_core_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS, block_0_bl_id_invalid));
+    TEST_ASSERT_FALSE(nx_common_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS,
+                                               block_0_bl_id_invalid));
 }
 
 void test_keycode_nv__validate_block__block_crc_mismatch_fail(void)
 {
     TEST_ASSERT_FALSE(
-        nx_core_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS, block_0_crc_invalid));
+        nx_common_nv_block_valid(NX_NV_BLOCK_KEYCODE_MAS, block_0_crc_invalid));
 }
 
 void test_keycode_nv__read_block__valid_block_ok(void)
 {
-    uint8_t inner_data[NX_CORE_NV_BLOCK_0_LENGTH -
+    uint8_t inner_data[NX_COMMON_NV_BLOCK_0_LENGTH -
                        NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES] = {0};
 
-    nxp_core_nv_read_ExpectAndReturn(NX_NV_BLOCK_KEYCODE_MAS, inner_data, true);
-    nxp_core_nv_read_ReturnArrayThruPtr_read_buffer(block_0_valid,
-                                                    sizeof(block_0_valid));
+    nxp_common_nv_read_ExpectAndReturn(
+        NX_NV_BLOCK_KEYCODE_MAS, inner_data, true);
+    nxp_common_nv_read_ReturnArrayThruPtr_read_buffer(block_0_valid,
+                                                      sizeof(block_0_valid));
 
     // `nexus_nv_read` only writes 'inner data'
     TEST_ASSERT_TRUE(nexus_nv_read(NX_NV_BLOCK_KEYCODE_MAS, inner_data));
@@ -96,10 +97,10 @@ void test_keycode_nv__read_block__valid_block_ok(void)
 
 void test_keycode_nv__read_block__block_invalid_fails(void)
 {
-    uint8_t data[NX_CORE_NV_BLOCK_0_LENGTH] = {0};
+    uint8_t data[NX_COMMON_NV_BLOCK_0_LENGTH] = {0};
 
-    nxp_core_nv_read_ExpectAndReturn(NX_NV_BLOCK_KEYCODE_MAS, data, true);
-    nxp_core_nv_read_ReturnArrayThruPtr_read_buffer(
+    nxp_common_nv_read_ExpectAndReturn(NX_NV_BLOCK_KEYCODE_MAS, data, true);
+    nxp_common_nv_read_ReturnArrayThruPtr_read_buffer(
         block_0_crc_invalid, sizeof(block_0_crc_invalid));
 
     TEST_ASSERT_FALSE(nexus_nv_read(NX_NV_BLOCK_KEYCODE_MAS, data));
@@ -113,14 +114,14 @@ void test_keycode_nv__read_block__block_invalid_fails(void)
 
 void test_keycode_nv__write_block__update_old_valid_block_ok(void)
 {
-    uint8_t block_0_old_valid[NX_CORE_NV_BLOCK_0_LENGTH] = {
+    uint8_t block_0_old_valid[NX_COMMON_NV_BLOCK_0_LENGTH] = {
         0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x55, 0xB2};
 
-    nxp_core_nv_read_ExpectAnyArgsAndReturn(true);
-    nxp_core_nv_read_ReturnArrayThruPtr_read_buffer(block_0_old_valid,
-                                                    sizeof(block_0_old_valid));
+    nxp_common_nv_read_ExpectAnyArgsAndReturn(true);
+    nxp_common_nv_read_ReturnArrayThruPtr_read_buffer(
+        block_0_old_valid, sizeof(block_0_old_valid));
 
-    nxp_core_nv_write_ExpectAndReturn(
+    nxp_common_nv_write_ExpectAndReturn(
         NX_NV_BLOCK_KEYCODE_MAS, block_0_valid, true);
 
     TEST_ASSERT_TRUE(nexus_nv_update(NX_NV_BLOCK_KEYCODE_MAS, block_0_valid));
@@ -128,11 +129,11 @@ void test_keycode_nv__write_block__update_old_valid_block_ok(void)
 
 void test_keycode_nv__write_block__old_block_identical_no_write(void)
 {
-    nxp_core_nv_read_ExpectAnyArgsAndReturn(true);
-    nxp_core_nv_read_ReturnArrayThruPtr_read_buffer(block_0_valid,
-                                                    sizeof(block_0_valid));
+    nxp_common_nv_read_ExpectAnyArgsAndReturn(true);
+    nxp_common_nv_read_ReturnArrayThruPtr_read_buffer(block_0_valid,
+                                                      sizeof(block_0_valid));
 
-    uint8_t block_0_inner_valid[NX_CORE_NV_BLOCK_0_LENGTH -
+    uint8_t block_0_inner_valid[NX_COMMON_NV_BLOCK_0_LENGTH -
                                 NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES] = {0};
     memcpy(block_0_inner_valid,
            block_0_valid + NEXUS_NV_BLOCK_ID_WIDTH,

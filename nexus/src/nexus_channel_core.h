@@ -1,5 +1,5 @@
 /** \file
- * Nexus Channel Core Module (Header)
+ * Nexus Channel Common Module (Header)
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -26,7 +26,7 @@ extern "C" {
 
 /** Initialize the Nexus Channel module.
  *
- * Called on startup by `nx_core_init()`.
+ * Called on startup by `nx_common_init()`.
  */
 bool nexus_channel_core_init(void);
 
@@ -39,7 +39,7 @@ void nexus_channel_core_shutdown(void);
 
 /**Process any pending activity from Nexus channel submodules.
  *
- * Called inside `nx_core_process()`.
+ * Called inside `nx_common_process()`.
  *
  * \param seconds_elapsed seconds since this function was previously called
  * \return seconds until this function must be called again

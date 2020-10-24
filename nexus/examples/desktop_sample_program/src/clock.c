@@ -65,13 +65,3 @@ uint32_t clock_seconds_elapsed_since(const time_t previous_time_secs)
     }
     return 0;
 }
-
-void oc_clock_init(void)
-{
-    clock_init();
-}
-
-oc_clock_time_t oc_clock_time(void)
-{
-    return clock_read_monotonic_time_seconds();
-}

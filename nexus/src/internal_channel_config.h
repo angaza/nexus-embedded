@@ -28,8 +28,8 @@
 
 // Not externally exposed, configures maximum bytes for any message sent
 // between Nexus Channel devices (excluding any link-layer overhead, just
-// Nexus application layer message size). Required for 'Core' and full
-// Nexus Channel.
+// Nexus application layer message size). Required for Nexus Channel and
+// Nexus Channel Core
 #define NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES 120
 
 // Set up further configuration parameters
@@ -91,7 +91,7 @@ enum nexus_channel_link_operating_mode
 
     #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
 // Shared origin-manager enums and structs (shared by `nexus_channel_om` and
-// `nexus_channel_core`
+// `nexus_channel_core`)
 
 /*! \enum nexus_channel_om_command_type
  *
@@ -168,7 +168,7 @@ struct nexus_channel_om_create_link_body
 
 /*! \union nexus_channel_om_command_body
  *
- * \brief Common 'command body' understood by Channel Core.
+ * \brief Common 'command body' understood by Nexus Channel.
  *
  * See also: `nexus_channel_om_command_message`
  */
@@ -181,7 +181,7 @@ union nexus_channel_om_command_body
 
 /*! \struct nexus_channel_om_command_message
  *
- * \brief Interface between Channel Origin Messaging and Channel Core.
+ * \brief Interface between Channel Origin Messaging and Nexus Channel.
  *
  * This does not represent the actual transmitted contents, but also
  * includes data (possibly in the body, and always in the

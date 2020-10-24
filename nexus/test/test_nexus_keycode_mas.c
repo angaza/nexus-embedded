@@ -1,4 +1,4 @@
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -10,7 +10,7 @@
 
 // Other support libraries
 #include <mock_nexus_channel_core.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
@@ -110,7 +110,7 @@ static void _mas_bookend_push_chars_check_feedback(
     {
         // The order here matters - Cmock will confirm that
         // `port_request_processing` is called before feedback starts.
-        nxp_core_request_processing_Expect();
+        nxp_common_request_processing_Expect();
         nxp_keycode_feedback_start_ExpectAndReturn(scripts[i], true);
 
         if (prevent_rate_limit)
@@ -126,7 +126,7 @@ static void _mas_bookend_push_chars_no_check_feedback(const char* key_chars)
 {
     for (uint16_t i = 0; key_chars[i] != '\0'; ++i)
     {
-        nxp_core_request_processing_Ignore();
+        nxp_common_request_processing_Ignore();
         nxp_keycode_feedback_start_IgnoreAndReturn(true);
 
         nexus_keycode_rate_limit_add_time(
@@ -148,8 +148,8 @@ void setUp(void)
     // Provide a 'dummy' handler and always note message as 'unhandled'
     // before each test
     // override the 'default' in nx_keycode_init with a custom handler
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
     nexus_keycode_mas_init(_test_handle_frame);
     nexus_channel_core_process_IgnoreAndReturn(0);
     _this.handled = false;
@@ -535,7 +535,7 @@ void test_keycode_mas_bookend_push__various_key_sequences_timeout__times_out(
         uint32_t fake_system_uptime;
         for (uint16_t j = 0; scenario.input_chars[j] != '\0'; ++j)
         {
-            nxp_core_request_processing_Ignore();
+            nxp_common_request_processing_Ignore();
             nxp_keycode_feedback_start_IgnoreAndReturn(true);
 
             nexus_keycode_rate_limit_add_time(
@@ -546,24 +546,24 @@ void test_keycode_mas_bookend_push__various_key_sequences_timeout__times_out(
             nexus_keycode_mas_bookend_push(scenario.input_chars[j]);
 
             // Call with 'current' uptime (no time elapsed since last call)
-            // This will cause any internal calls to `nexus_core_uptime`
+            // This will cause any internal calls to `nexus_common_uptime`
             // t will also set `_this_bookend.latest_uptime`
             // to the current uptime.
-            // Note: In this test, core isn't actually initialized, so
+            // Note: In this test, Nexus common isn't actually initialized, so
             // uptime could be almost any value....
-            nx_core_process(nexus_core_uptime() + 0);
+            nx_common_process(nexus_common_uptime() + 0);
 
             // simulate enough time elapsing between calls to exceed timeout
-            fake_system_uptime = nexus_core_uptime() +
+            fake_system_uptime = nexus_common_uptime() +
                                  NEXUS_KEYCODE_PROTOCOL_ENTRY_TIMEOUT_SECONDS +
                                  1;
-            nx_core_process(fake_system_uptime);
+            nx_common_process(fake_system_uptime);
 
             // Called after timeout elapses, next requested call to the
             // process function is at 'idle' value.
             uint32_t next_call_secs = nexus_keycode_mas_bookend_process();
             TEST_ASSERT_EQUAL_UINT(
-                NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
+                NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
                 next_call_secs);
         }
         TEST_ASSERT_FALSE(_this.handled);
@@ -587,7 +587,7 @@ void test_keycode_mas_nx_keycode_handle_complete_keycode__uninitialized_core__ig
 void test_keycode_mas_nx_keycode_handle_single_key__initialized_core__start_key_processed(
     void)
 {
-    nxp_core_request_processing_Ignore();
+    nxp_common_request_processing_Ignore();
     nexus_keycode_core_init();
 
     nexus_keycode_core_process(0); // complete internal init
@@ -601,7 +601,7 @@ void test_keycode_mas_nx_keycode_handle_single_key__initialized_core__start_key_
 void test_keycode_mas_nx_keycode_handle_complete_keycode__initialized_core__keycode_processed(
     void)
 {
-    nxp_core_request_processing_Ignore();
+    nxp_common_request_processing_Ignore();
     nexus_keycode_core_init();
     nexus_keycode_core_process(0); // complete internal init
     struct nx_keycode_complete_code test_code = {.keys = "*123456789#",

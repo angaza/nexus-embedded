@@ -158,7 +158,7 @@ void test_nexus_bitstream_pull_uint16_be__input_provided__pulled_matches_input(
 
 void test_nexus_check_compute__fixed_inputs__outputs_are_expected(void)
 {
-    const struct nx_core_check_key input_keys[] = {
+    const struct nx_common_check_key input_keys[] = {
         {{0x00,
           0x00,
           0x00,

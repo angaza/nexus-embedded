@@ -10,9 +10,9 @@
 
 #include "src/nexus_channel_res_link_hs.h"
 #include "include/nxp_channel.h"
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 #include "src/nexus_channel_res_lm.h" // for link security data
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
@@ -109,7 +109,7 @@ void nexus_channel_res_link_hs_init(void)
 
     // compile time checks
     NEXUS_STATIC_ASSERT(sizeof(_this.stored_accessory) ==
-                            NX_CORE_NV_BLOCK_2_LENGTH -
+                            NX_COMMON_NV_BLOCK_2_LENGTH -
                                 NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES,
                         "link manager: Invalid size for NV block");
 
@@ -199,7 +199,8 @@ _nexus_channel_res_link_hs_get_client_state(uint8_t index)
 
 uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
 {
-    uint32_t next_call_secs = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+    uint32_t next_call_secs =
+        NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
 
     // process pending accessory/server tasks
     #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
@@ -284,7 +285,7 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
 // computation logic. While we have one mode implemented, keep it here for now.
 // Warning: Assumes `salt` is CHALLENGE_MODE_3_SALT_LENGTH_BYTES in length.
 static struct nexus_check_value _res_link_hs_mode0_compute_inverted_salt_mac(
-    const uint8_t* salt, const struct nx_core_check_key* link_key)
+    const uint8_t* salt, const struct nx_common_check_key* link_key)
 {
     uint8_t inverted_salt[CHALLENGE_MODE_3_SALT_LENGTH_BYTES];
     for (uint8_t i = 0; i < CHALLENGE_MODE_3_SALT_LENGTH_BYTES; i++)
@@ -298,12 +299,12 @@ static struct nexus_check_value _res_link_hs_mode0_compute_inverted_salt_mac(
 
 // internal, may branch into separate security manager
 // takes key derivation key and challenge data, returns derived link key
-NEXUS_IMPL_STATIC struct nx_core_check_key
-_res_link_hs_generate_link_key(uint32_t challenge_int,
-                               const uint8_t* salt_bytes,
-                               uint8_t salt_len,
-                               const struct nx_core_check_key* derivation_key_a,
-                               const struct nx_core_check_key* derivation_key_b)
+NEXUS_IMPL_STATIC struct nx_common_check_key _res_link_hs_generate_link_key(
+    uint32_t challenge_int,
+    const uint8_t* salt_bytes,
+    uint8_t salt_len,
+    const struct nx_common_check_key* derivation_key_a,
+    const struct nx_common_check_key* derivation_key_b)
 {
     NEXUS_STATIC_ASSERT(4 == sizeof(uint32_t), "Invalid size for uint32_t!");
     NEXUS_ASSERT(salt_len % 2 == 0, "Invalid salt length, cannot proceed");
@@ -339,7 +340,7 @@ _res_link_hs_generate_link_key(uint32_t challenge_int,
                             key_derivation_material,
                             sizeof(key_derivation_material));
 
-    struct nx_core_check_key derived_link_key;
+    struct nx_common_check_key derived_link_key;
     (void) memcpy(&derived_link_key.bytes[0],
                   &key_part_a,
                   sizeof(struct nexus_check_value));
@@ -379,10 +380,10 @@ NEXUS_IMPL_STATIC bool _nexus_channel_res_link_hs_server_validate_challenge(
     const struct nexus_check_value* rcvd_mac,
     const struct nexus_window* window,
     uint32_t* matched_handshake_index,
-    struct nx_core_check_key* derived_key)
+    struct nx_common_check_key* derived_key)
 {
     // use the key which only the origin and this device know
-    const struct nx_core_check_key origin_key =
+    const struct nx_common_check_key origin_key =
         nxp_channel_symmetric_origin_key();
 
     bool mac_valid = false;
@@ -391,7 +392,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_res_link_hs_server_validate_challenge(
     uint32_t count_le;
     struct nexus_check_value challenge_hash;
     uint32_t six_digit_int_challenge;
-    struct nx_core_check_key computed_link_key;
+    struct nx_common_check_key computed_link_key;
     struct nexus_check_value computed_mac;
 
     // should be true due if window is valid.
@@ -453,10 +454,10 @@ NEXUS_IMPL_STATIC bool _nexus_channel_res_link_hs_server_validate_challenge(
             mac_valid = true;
             memcpy(derived_key,
                    &computed_link_key,
-                   sizeof(struct nx_core_check_key));
+                   sizeof(struct nx_common_check_key));
             nexus_secure_memclr(&computed_link_key,
-                                sizeof(struct nx_core_check_key),
-                                sizeof(struct nx_core_check_key));
+                                sizeof(struct nx_common_check_key),
+                                sizeof(struct nx_common_check_key));
             break;
         }
     }
@@ -714,7 +715,7 @@ NEXUS_IMPL_STATIC void
 _nexus_channel_res_link_hs_server_post_finalize_success_state(
     const uint32_t matched_handshake_index,
     struct nexus_window* window,
-    const struct nx_core_check_key* derived_link_key)
+    const struct nx_common_check_key* derived_link_key)
 {
     // challenge is valid and ID is unused -- respond with the MAC over the
     // inverted salt, and 'use' this ID.
@@ -765,7 +766,7 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
     // Next, see if the payload represents a valid challenge
     bool challenge_validated;
     uint32_t matched_handshake_index;
-    struct nx_core_check_key derived_link_key;
+    struct nx_common_check_key derived_link_key;
     struct nexus_check_value received_mac;
 
     memcpy(&received_mac.bytes[0],
@@ -798,7 +799,7 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
 
     memcpy(&security_data.mode0.sym_key,
            &derived_link_key,
-           sizeof(struct nx_core_check_key));
+           sizeof(struct nx_common_check_key));
 
     struct nx_id controller_id;
     nexus_oc_wrapper_oc_endpoint_to_nx_id(request->origin, &controller_id);
@@ -821,8 +822,8 @@ void nexus_channel_res_link_hs_server_post(oc_request_t* request,
     _nexus_channel_res_link_hs_server_post_finalize_success_state(
         matched_handshake_index, &window, &derived_link_key);
     nexus_secure_memclr(&derived_link_key,
-                        sizeof(struct nx_core_check_key),
-                        sizeof(struct nx_core_check_key));
+                        sizeof(struct nx_common_check_key),
+                        sizeof(struct nx_common_check_key));
     nexus_secure_memclr(&security_data,
                         sizeof(union nexus_channel_link_security_data),
                         sizeof(union nexus_channel_link_security_data));
@@ -905,7 +906,7 @@ bool _nexus_channel_res_link_hs_link_mode_3_send_post(
           client_hs->requested_security_mode);
 
     // request processing for IoTivity core
-    nxp_core_request_processing();
+    nxp_common_request_processing();
     return true;
 }
 
@@ -938,7 +939,7 @@ bool nexus_channel_res_link_hs_link_mode_3(
     {
         // endianness does not matter, the sequence of bytes must be
         // consistent but is arbitrary
-        const uint32_t rand = nxp_core_random_value();
+        const uint32_t rand = nxp_channel_random_value();
         memcpy(&client_hs->salt[i * 4], (const void*) &rand, 4);
     }
     PRINT("res_link_hs: Generating link key using salt: ");
@@ -947,18 +948,18 @@ bool nexus_channel_res_link_hs_link_mode_3(
           om_body->accessory_challenge.six_int_digits);
 
     // Compute link key using salt, copy into local handshake state
-    const struct nx_core_check_key link_key = _res_link_hs_generate_link_key(
+    const struct nx_common_check_key link_key = _res_link_hs_generate_link_key(
         om_body->accessory_challenge.six_int_digits,
         client_hs->salt,
         CHALLENGE_MODE_3_SALT_LENGTH_BYTES,
         &NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1,
         &NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2);
     PRINT("res_link_hs: Generated link key: \n");
-    PRINTbytes(link_key.bytes, sizeof(struct nx_core_check_key));
+    PRINTbytes(link_key.bytes, sizeof(struct nx_common_check_key));
 
     memcpy(&client_hs->link_key.bytes[0],
            &link_key.bytes[0],
-           sizeof(struct nx_core_check_key));
+           sizeof(struct nx_common_check_key));
 
     // Also compute the MAC and store it in the local handshake state
     client_hs->salt_mac = nexus_check_compute(
@@ -998,7 +999,7 @@ bool nexus_channel_res_link_hs_link_mode_3(
 
     // will construct and send POST on next processing loop
     nxp_channel_notify_event(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
-    nxp_core_request_processing();
+    nxp_common_request_processing();
     return true;
 }
 
@@ -1091,7 +1092,7 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
                    sizeof(union nexus_channel_link_security_data));
             memcpy(&security_data.mode0.sym_key,
                    &client_hs->link_key,
-                   sizeof(struct nx_core_check_key));
+                   sizeof(struct nx_common_check_key));
 
             // Attempt to create a new link
             const bool success = nexus_channel_link_manager_create_link(
@@ -1120,7 +1121,7 @@ void nexus_channel_res_link_hs_client_post(oc_client_response_t* data)
         rep = rep->next;
     }
     // request processing for IoTivity core
-    nxp_core_request_processing();
+    nxp_common_request_processing();
 }
 
     #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */

@@ -15,7 +15,7 @@
 #include <string.h>
 
 // Non-secret, publicly known key used to derive key from input material
-const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1 = {
+const struct nx_common_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1 = {
     {0x8A,
      0x5E,
      0xE2,
@@ -33,7 +33,7 @@ const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_1 = {
      0x5B,
      0x25}};
 
-const struct nx_core_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2 = {
+const struct nx_common_check_key NEXUS_CHANNEL_PUBLIC_KEY_DERIVATION_KEY_2 = {
     {0xE2,
      0x6F,
      0xDB,

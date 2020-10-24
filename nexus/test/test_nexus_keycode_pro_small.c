@@ -1,4 +1,4 @@
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -10,7 +10,7 @@
 
 // Other support libraries
 #include <mock_nexus_channel_core.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
@@ -75,8 +75,8 @@ static void _small_fixture_reinit(const char start_char, const char* alphabet)
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
     _small_fixture_reinit('*', "0123");
 }
 
@@ -89,7 +89,7 @@ void tearDown(void)
 void test_nexus_keycode_pro_process__no_message_pending__idle_callback_returned(
     void)
 {
-    TEST_ASSERT_EQUAL_UINT(NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
+    TEST_ASSERT_EQUAL_UINT(NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS,
                            nexus_keycode_pro_process());
 }
 
@@ -142,12 +142,12 @@ void test_nexus_keycode_pro_process__various_messages_pending__messages_applied_
         }
 
         // Enqueue will request processing
-        nxp_core_request_processing_Expect();
+        nxp_common_request_processing_Expect();
         nexus_keycode_pro_enqueue(&frame);
 
         // Not testing credit interaction in this test
-        nxp_core_payg_state_get_current_IgnoreAndReturn(
-            NXP_CORE_PAYG_STATE_ENABLED);
+        nxp_common_payg_state_get_current_IgnoreAndReturn(
+            NXP_COMMON_PAYG_STATE_ENABLED);
         nxp_keycode_payg_credit_add_IgnoreAndReturn(true);
 
         nxp_keycode_feedback_start_ExpectAndReturn(scenario.fb_type, true);
@@ -289,8 +289,8 @@ void test_nexus_keycode_pro_small_apply__valid_non_duplicate__message_is_applied
         0x03ab, // check
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     // Add 6 days
     nxp_keycode_payg_credit_add_ExpectAndReturn(6 * 24 * 3600, true);
 
@@ -310,8 +310,8 @@ void test_nexus_keycode_pro_small_apply__valid_large_inc_id__message_is_applied(
         {{196}}, // increment id
         0x0cd8, // check
     };
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(231 * 24 * 3600, true);
     enum nexus_keycode_pro_response response =
         nexus_keycode_pro_small_apply(&message);
@@ -333,8 +333,8 @@ void test_nexus_keycode_pro_small_apply__valid_duplicate__message_not_applied(
         0x03ab, // check
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(6 * 24 * 3600, true);
     enum nexus_keycode_pro_response response_one =
         nexus_keycode_pro_small_apply(&message);
@@ -360,8 +360,8 @@ void test_nexus_keycode_pro_small_apply__valid_unlock__unit_is_unlocked(void)
     };
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 23);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_unlock_ExpectAndReturn(true);
     enum nexus_keycode_pro_response response =
         nexus_keycode_pro_small_apply(&message);
@@ -404,14 +404,14 @@ void test_nexus_keycode_pro_small_apply__add_credit_after_unlocked__credit_not_a
         0x09ae, // check
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_unlock_ExpectAndReturn(true);
     enum nexus_keycode_pro_response response_a =
         nexus_keycode_pro_small_apply(&unlock_msg);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
     enum nexus_keycode_pro_response response_b =
         nexus_keycode_pro_small_apply(&add_credit_msg);
 
@@ -554,8 +554,8 @@ void test_nexus_keycode_pro_small_process__custom_command_reset_restricted_flag_
     TEST_ASSERT_FALSE(
         nx_keycode_get_custom_flag(NX_KEYCODE_CUSTOM_FLAG_RESTRICTED));
     // Not testing credit interaction in this test
-    nxp_core_payg_state_get_current_IgnoreAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_IgnoreAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_set_IgnoreAndReturn(true);
 
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
@@ -576,7 +576,7 @@ void test_nexus_keycode_pro_small_process__custom_command_reset_restricted_flag_
             scenario.flag_state_before_keycode);
 
         // Enqueue will request processing
-        nxp_core_request_processing_Expect();
+        nxp_common_request_processing_Expect();
         nexus_keycode_pro_enqueue(&frame);
 
         // manually skip checking the scenario where we apply a wipe
@@ -614,7 +614,7 @@ void test_nexus_keycode_pro_apply__update_pd__window_and_pd_ok(void)
         {4294963200, 1, 4294963178, 4294963241},
         {4294963200, 40, 4294963217, 4294963280}};
 
-    struct nx_core_check_key secret_key = nxp_keycode_get_secret_key();
+    struct nx_common_check_key secret_key = nxp_keycode_get_secret_key();
     enum nexus_keycode_pro_response response;
 
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
@@ -638,8 +638,8 @@ void test_nexus_keycode_pro_apply__update_pd__window_and_pd_ok(void)
         min_msg.check =
             nexus_keycode_pro_small_compute_check(&min_msg, &secret_key);
 
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_ENABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_ENABLED);
         nxp_keycode_payg_credit_add_ExpectAndReturn(2 * 24 * 3600, true);
         response = nexus_keycode_pro_small_apply(&min_msg);
         TEST_ASSERT_EQUAL_UINT(response,
@@ -658,8 +658,8 @@ void test_nexus_keycode_pro_apply__update_pd__window_and_pd_ok(void)
         max_msg.check =
             nexus_keycode_pro_small_compute_check(&max_msg, &secret_key);
 
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_ENABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_ENABLED);
         nxp_keycode_payg_credit_add_ExpectAndReturn(2 * 24 * 3600, true);
         response = nexus_keycode_pro_small_apply(&max_msg);
         TEST_ASSERT_EQUAL_UINT(response,
@@ -789,8 +789,8 @@ void test_nexus_keycode_pro_small_apply__set_credit_valid__unlock_lock(void)
         0x0ccb, // check
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(15 * 24 * 3600, true);
     response = nexus_keycode_pro_small_apply(&add_msg);
 
@@ -847,8 +847,8 @@ void test_nexus_keycode_pro_small_apply__wrong_id_same_lsb__message_rejected(
         0x0d34, // check
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(1 * 24 * 3600, true);
     response = nexus_keycode_pro_small_apply(&add_msg_b);
 
@@ -876,8 +876,8 @@ void test_nexus_keycode_pro_small_apply__wrong_id_same_lsb__message_rejected(
         0x0ccb, // check for '78'
     };
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(15 * 24 * 3600, true);
     response = nexus_keycode_pro_small_apply(&add_msg_c);
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
@@ -992,8 +992,8 @@ void test_nexus_keycode_pro_small_apply_unit_high_pd__maintenance_test_messages_
         {{1}}, // increment id (2 days)
         0x0566};
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(3600 * 24 * 2, true);
     enum nexus_keycode_pro_response response =
         nexus_keycode_pro_small_apply(&add_msg_63_id);
@@ -1011,8 +1011,8 @@ void test_nexus_keycode_pro_small_apply_unit_high_pd__maintenance_test_messages_
 
     // apply a test message (should have no impact on message IDs or PD)
     // also, credit should not be affected (as we were already enabled)
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     response = nexus_keycode_pro_small_apply(&test_msg);
     TEST_ASSERT_EQUAL_UINT(response,
                            NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE);
@@ -1070,8 +1070,8 @@ void test_nexus_keycode_pro_small_apply__maintenance_message__wipe_ids_and_credi
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(4), 1);
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 23);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(3600 * 24 * 2, true);
     enum nexus_keycode_pro_response response =
         nexus_keycode_pro_small_apply(&add_msg_24_id);
@@ -1145,8 +1145,8 @@ void test_nexus_keycode_pro_small_apply__maintenance_message__wipe_ids_and_credi
     add_msg_0_id.full_message_id = 0;
 
     // message ID 0 is received (Pd was reset)
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(3600 * 24 * 2, true);
     response = nexus_keycode_pro_small_apply(&add_msg_0_id);
 
@@ -1161,8 +1161,8 @@ void test_nexus_keycode_pro_small_apply__maintenance_message__wipe_ids_and_credi
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 23);
 
     // message ID 24 can  be applied after 0.
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(3600 * 24 * 2, true);
     response = nexus_keycode_pro_small_apply(&add_msg_24_id);
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
@@ -1228,8 +1228,8 @@ void test_nexus_keycode_pro_small_apply__test_message__short_test(void)
 
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(0), 0);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(
         NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS, true);
     nexus_keycode_pro_small_apply(&message);
@@ -1252,8 +1252,8 @@ void test_nexus_keycode_pro_small_apply__test_message__oqc_test_lifetime_limit(
     for (uint8_t i = 1; i <= NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX;
          ++i)
     {
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_ENABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_ENABLED);
 
         nxp_keycode_payg_credit_add_ExpectAndReturn(
             NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS, true);
@@ -1284,8 +1284,8 @@ void test_nexus_keycode_pro_small_apply__test_message__oqc_test_lifetime_limit(
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
     // Disabled due to previous 'wipe'
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(
         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS, true);
     response = nexus_keycode_pro_small_apply(&message);
@@ -1312,8 +1312,8 @@ void test_nexus_keycode_pro_small_apply__test_message__oqc_test_no_relock(void)
 
     enum nexus_keycode_pro_response response;
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
 
     nxp_keycode_payg_credit_unlock_ExpectAndReturn(true);
     response = nexus_keycode_pro_small_apply(&unlock_message);
@@ -1321,8 +1321,8 @@ void test_nexus_keycode_pro_small_apply__test_message__oqc_test_no_relock(void)
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
     // 'unlocked' will prevent QC from being applied.
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
 
     response = nexus_keycode_pro_small_apply(&oqc_message);
     TEST_ASSERT_EQUAL_UINT(response,
@@ -1346,12 +1346,12 @@ void test_nexus_keycode_pro_small_apply__test_message__short_test_lifetime_limit
     for (uint16_t i = 1; i <= 256; ++i)
     {
         // Explicitly re-enable since we call resetTest after each iteration
-        nxp_core_nv_read_IgnoreAndReturn(true);
-        nxp_core_nv_write_IgnoreAndReturn(true);
+        nxp_common_nv_read_IgnoreAndReturn(true);
+        nxp_common_nv_write_IgnoreAndReturn(true);
 
         // must be disabled to apply QC test message
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_DISABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_DISABLED);
         nxp_keycode_payg_credit_add_ExpectAndReturn(
             NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS, true);
         response = nexus_keycode_pro_small_apply(&message);
@@ -1376,8 +1376,8 @@ void test_nexus_keycode_pro_small_apply__test_message_and_add_credit__near_cutof
     test_msg.check = 0x94a;
 
     // test message will only add credit if unit is currently 'disabled'
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
 
     // test message causes unit to enter ENABLED state with SHORT_TEST credit
     nxp_keycode_payg_credit_add_ExpectAndReturn(
@@ -1394,8 +1394,8 @@ void test_nexus_keycode_pro_small_apply__test_message_and_add_credit__near_cutof
     };
 
     // enabled by the previous 'short test' code
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(24 * 60 * 60, true);
 
     response = nexus_keycode_pro_small_apply(&credit_msg);
@@ -1426,7 +1426,7 @@ void test_nexus_keycode_pro_small_compute_check__fixed_inputs__outputs_are_expec
         {5, 0, {{17}}, 0x00},
         {15, 0, {{120}}, 0x00},
     };
-    const struct nx_core_check_key input_keys[] = {
+    const struct nx_common_check_key input_keys[] = {
         {{0x00,
           0x00,
           0x00,

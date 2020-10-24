@@ -1,5 +1,5 @@
 /** \file
- * Nexus Channel Core Module (Implementation)
+ * Nexus Channel Common Module (Implementation)
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -10,8 +10,8 @@
 
 #include "src/nexus_channel_core.h"
 
-// for `NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS`
-#include "src/nexus_core_internal.h"
+// for `NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS`
+#include "src/nexus_common_internal.h"
 
 #if NEXUS_CHANNEL_CORE_ENABLED
 
@@ -82,7 +82,7 @@ bool nexus_channel_core_init(void)
         #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
         nexus_channel_om_init();
         #endif
-        // don't initialize these during unit tests, so we can test core
+        // don't initialize these during unit tests, so we can test Nexus common
         // independently
         #ifndef NEXUS_DEFINED_DURING_TESTING
         nexus_channel_res_link_hs_init();
@@ -108,14 +108,14 @@ void nexus_channel_core_shutdown(void)
 
 /**Process any pending activity from Nexus channel submodules.
  *
- * Called inside `nx_core_process()`.
+ * Called inside `nx_common_process()`.
  *
  * \param seconds_elapsed seconds since this function was previously called
  * \return seconds until this function must be called again
  */
 uint32_t nexus_channel_core_process(uint32_t seconds_elapsed)
 {
-    uint32_t min_sleep = NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
+    uint32_t min_sleep = NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
     // Execute any OC/IoTivity processes until completion
     // oc_clock_time_t is a typecast for uint64_t
     const oc_clock_time_t secs_until_next_oc_process = oc_main_poll();
@@ -208,7 +208,7 @@ nx_channel_register_resource(const struct nx_channel_resource_props* props)
     }
     #else
     NEXUS_ASSERT(
-        !secured,
+        !props->get_secured && !props->post_secured,
         "Security options not compiled in, cannot secure resource method");
     #endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
@@ -253,7 +253,7 @@ static bool _nexus_channel_core_apply_origin_command_generic_controller_action(
     if (action_body->action_type ==
         NEXUS_CHANNEL_ORIGIN_COMMAND_UNLINK_ALL_LINKED_ACCESSORIES)
     {
-        PRINT("nx_channel_core: Processing link command 'Unlink all/clear "
+        PRINT("nx_channel_common: Processing link command 'Unlink all/clear "
               "links'...\n");
         // will assume success (link manager should never fail to delete
         // all links)
@@ -273,8 +273,9 @@ bool nexus_channel_core_apply_origin_command(
     {
 
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3:
-            PRINT("nx_channel_core: Processing link command 'Create Accessory "
-                  "Link Mode 3'...\n");
+            PRINT(
+                "nx_channel_common: Processing link command 'Create Accessory "
+                "Link Mode 3'...\n");
             result = nexus_channel_res_link_hs_link_mode_3(
                 &om_message->body.create_link);
             break;
@@ -313,5 +314,18 @@ bool nexus_channel_core_apply_origin_command(
 }
         #endif // NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
     #endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
+// May be able to entirely remove clock and timer APIs from IoTivity Lite
+// core, as we aren't using observability or confirmable messages currently.
+void oc_clock_init(void)
+{
+    // Do nothing
+}
+
+oc_clock_time_t oc_clock_time(void)
+{
+    // will return value in seconds
+    return (oc_clock_time_t) nexus_common_uptime();
+}
 
 #endif // NEXUS_CHANNEL_CORE_ENABLED

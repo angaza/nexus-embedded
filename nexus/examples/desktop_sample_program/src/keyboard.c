@@ -16,8 +16,8 @@
 #include "keyboard.h"
 #include "nexus_batt_resource.h"
 
-// include 'nx_core' to get core, including configuration values
-#include "nx_core.h"
+// include 'nx_common' to get configuration values
+#include "nx_common.h"
 #include "nx_keycode.h"
 #include "screen.h"
 #if CONFIG_NEXUS_KEYCODE_USE_FULL_KEYCODE_PROTOCOL

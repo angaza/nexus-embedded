@@ -130,7 +130,7 @@ expect_fail_timeout "Please input a new battery threshold (0-20)"
 send -- "10\r"
 send -- "\r"
 
-expect_fail_timeout "Receiving 38 byte message"
+expect_fail_timeout "Receiving 33 byte message"
 send -- "\r"
 
 expect_fail_timeout "Menu"
@@ -141,7 +141,7 @@ expect_fail_timeout "'batterythreshold' : 10"
 expect_fail_timeout "Menu"
 send -- "4\r"
 
-expect_fail_timeout "Receiving 18 byte message"
+expect_fail_timeout "Receiving 13 byte message"
 expect_fail_timeout "Menu"
 send -- "3\r"
 

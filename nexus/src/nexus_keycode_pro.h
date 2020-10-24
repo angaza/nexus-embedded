@@ -175,7 +175,7 @@ enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
 
 uint16_t nexus_keycode_pro_small_compute_check(
     const struct nexus_keycode_pro_small_message* message,
-    const struct nx_core_check_key* key);
+    const struct nx_common_check_key* key);
     #endif
 
 enum nexus_keycode_pro_response nexus_keycode_pro_small_parse_and_apply(
@@ -301,7 +301,7 @@ void nexus_keycode_pro_full_deinterleave(struct nexus_keycode_frame* frame,
                                          const uint32_t check_value);
 uint32_t nexus_keycode_pro_full_compute_check(
     const struct nexus_keycode_pro_full_message* message,
-    const struct nx_core_check_key* key);
+    const struct nx_common_check_key* key);
 
 /* Determine if a given message ID value is within the current receipt
  * window.

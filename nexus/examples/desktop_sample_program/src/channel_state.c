@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// include 'nx_core' to get core, including configuration values
+// include 'nx_common' to get configuration values
 
 void display_channel_status(void)
 {

@@ -28,7 +28,7 @@
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -43,9 +43,8 @@
 // Other support libraries
 #include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <string.h>
 
 /********************************************************
@@ -83,12 +82,9 @@ TEST_FILE("oc/deps/tinycbor/cborparser.c")
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
-    oc_clock_time_IgnoreAndReturn(500);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
     nxp_channel_network_send_IgnoreAndReturn(NX_CHANNEL_ERROR_NONE);
-    nxp_core_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
 
     bool init_success = nexus_channel_core_init();
     TEST_ASSERT_TRUE(init_success);
@@ -103,7 +99,7 @@ void tearDown(void)
     nexus_channel_core_shutdown();
 }
 
-void test_channel_core_init__platform_device_registration_ok(void)
+void test_channel_common_init__platform_device_registration_ok(void)
 {
     oc_platform_info_t* platform_info = oc_core_get_platform_info();
     TEST_ASSERT_EQUAL(0, strcmp("Angaza", platform_info->mfg_name.ptr));
@@ -115,7 +111,7 @@ void test_channel_core_init__platform_device_registration_ok(void)
     TEST_ASSERT_EQUAL(0, strcmp("ocf.res.1.3.0", device_info->dmv.ptr));
 }
 
-void test_channel_core_init__add_device__limit_reached_fails(void)
+void test_channel_common_init__add_device__limit_reached_fails(void)
 {
     int ret = oc_add_device("/oic/test/",
                             "acme.com.widget",
@@ -130,7 +126,7 @@ void test_channel_core_init__add_device__limit_reached_fails(void)
     TEST_ASSERT_TRUE(ret < 0);
 }
 
-void test_channel_core_register_resource_and_handler__ok(void)
+void test_channel_common_register_resource_and_handler__ok(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -149,7 +145,7 @@ void test_channel_core_register_resource_and_handler__ok(void)
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 }
 
-void test_channel_core_register_resource_and_multiple_handlers__ok(void)
+void test_channel_common_register_resource_and_multiple_handlers__ok(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -186,7 +182,7 @@ void test_channel_core_register_resource_and_multiple_handlers__ok(void)
 }
 
 // Attempt to register a duplicate resource
-void test_channel_core_register_resource__uri_exists_fails(void)
+void test_channel_common_register_resource__uri_exists_fails(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -211,7 +207,7 @@ void test_channel_core_register_resource__uri_exists_fails(void)
 }
 
 // Attempt to register a duplicate resource handler
-void test_channel_core_register_resource_handler__handler_exists_fails(void)
+void test_channel_common_register_resource_handler__handler_exists_fails(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -278,7 +274,8 @@ void test_channel_core_register_resource_handler__too_many_secured_methods__fail
 }
 
 // Attempt to register a handler to a resource that doesn't exist
-void test_channel_core_register_resource_handler__resource_undefined_fails(void)
+void test_channel_common_register_resource_handler__resource_undefined_fails(
+    void)
 {
     nx_channel_error handler_reg_result = nx_channel_register_resource_handler(
         "/c", OC_GET, nexus_channel_res_payg_credit_get_handler, false);
@@ -286,7 +283,8 @@ void test_channel_core_register_resource_handler__resource_undefined_fails(void)
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED, handler_reg_result);
 }
 
-void test_channel_core_input_coap_message_passed_to_registered_handler__ok(void)
+void test_channel_common_input_coap_message_passed_to_registered_handler__ok(
+    void)
 {
     // register platform and device
     nexus_channel_core_init();
@@ -330,7 +328,7 @@ void test_channel_core_input_coap_message_passed_to_registered_handler__ok(void)
     oc_message_unref(request_message);
 }
 
-void test_channel_core_input_coap_message__unregistered_resource_fails(void)
+void test_channel_common_input_coap_message__unregistered_resource_fails(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -377,7 +375,7 @@ void test_channel_core_input_coap_message__unregistered_resource_fails(void)
     oc_message_unref(request_message);
 }
 
-void test_channel_core_input_coap_message__unregistered_resource_handler_fails(
+void test_channel_common_input_coap_message__unregistered_resource_handler_fails(
     void)
 {
     // register resource
@@ -426,7 +424,7 @@ void test_channel_core_input_coap_message__unregistered_resource_handler_fails(
     oc_message_unref(request_message);
 }
 
-void test_channel_core_network_layer__receive_event_ok(void)
+void test_channel_common_network_layer__receive_event_ok(void)
 {
     // register resource
     const struct nx_channel_resource_props pc_props = {
@@ -477,7 +475,7 @@ void test_channel_core_network_layer__receive_event_ok(void)
 
     oc_network_event(request_message);
 
-    // `nxp_core_request_processing` would result in a call to
+    // `nxp_common_request_processing` would result in a call to
     // `nexus_channel_core_process`
     nexus_channel_res_payg_credit_get_handler_ExpectAnyArgs();
     nexus_channel_core_process(0);
@@ -485,15 +483,15 @@ void test_channel_core_network_layer__receive_event_ok(void)
     oc_message_unref(request_message);
 }
 
-void test_channel_core__no_iotivity_processes_to_run__returns_idle_time(void)
+void test_channel_common__no_iotivity_processes_to_run__returns_idle_time(void)
 {
     uint32_t next_call = nexus_channel_core_process(0);
     TEST_ASSERT_EQUAL(next_call,
-                      NEXUS_CORE_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS);
+                      NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS);
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
 }
 
-void test_channel_core_apply_origin_command__unsupported_command__returns_false(
+void test_channel_common_apply_origin_command__unsupported_command__returns_false(
     void)
 {
     struct nexus_channel_om_command_message message = {0};
@@ -510,19 +508,19 @@ void test_channel_core_apply_origin_command__unsupported_command__returns_false(
     TEST_ASSERT_FALSE(nexus_channel_core_apply_origin_command(&message));
 }
 
-void test_channel_core_apply_origin_command__supported_command__returns_true(
+void test_channel_common_apply_origin_command__supported_command__returns_true(
     void)
 {
     struct nexus_channel_om_command_message message = {0};
 
     message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3;
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     TEST_ASSERT_TRUE(nexus_channel_core_apply_origin_command(&message));
 
     message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION;
     // clear links is the only generic controller command implemented,
     // which will request main processing time
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     TEST_ASSERT_TRUE(nexus_channel_core_apply_origin_command(&message));
 }

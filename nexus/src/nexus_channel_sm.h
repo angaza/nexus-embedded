@@ -13,7 +13,7 @@
 
 #include "src/internal_channel_config.h"
 
-#if NEXUS_CHANNEL_CORE_ENABLED
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
     #include "oc/include/oc_ri.h"
     #include "oc/messaging/coap/coap.h"
@@ -21,10 +21,9 @@
     #include "src/nexus_channel_res_lm.h"
     #include "src/nexus_util.h"
 
-    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-        #ifdef __cplusplus
+    #ifdef __cplusplus
 extern "C" {
-        #endif
+    #endif
 
 // struct for storing Nexus Channel-secured resource methods
 typedef struct nexus_secured_resource_method_t
@@ -103,8 +102,8 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
     const struct nexus_security_mode0_cose_mac0_t* const received_mac0,
     struct nexus_channel_link_security_mode0_data* const security_data);
 
-        // Expose for unit tests only
-        #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
+    // Expose for unit tests only
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 /** Check if Nexus Channel headers indicate that this CoAP packet is secured
  * with Nexus Channel.
  *
@@ -173,18 +172,16 @@ bool _nexus_channel_sm_parse_cose_mac0(
 void _nexus_channel_sm_repack_no_cose_mac0(
     coap_packet_t* const pkt,
     const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed);
-        #endif
+    #endif
 
-        // Only defined for unit tests
-        #ifdef NEXUS_DEFINED_DURING_TESTING
+    // Only defined for unit tests
+    #ifdef NEXUS_DEFINED_DURING_TESTING
 uint8_t _nexus_channel_sm_secured_resource_methods_count(void);
-        #endif
+    #endif
 
-        #ifdef __cplusplus
+    #ifdef __cplusplus
 }
-        #endif
+    #endif
 
-    #endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-
-#endif /* if NEXUS_CHANNEL_CORE_ENABLED */
+#endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 #endif /* ifdef NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_SM__H */

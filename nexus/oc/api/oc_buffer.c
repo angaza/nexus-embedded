@@ -137,7 +137,7 @@ oc_recv_message(oc_message_t *message)
   if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT],
                       message) == OC_PROCESS_ERR_FULL)
   {
-    PRINT("could not post message; unreffing message\n");
+    OC_WRN("could not post message; unreffing message\n");
     oc_message_unref(message);
   }
   OC_DBG("posted event %#04x to message_buffer_handler process\n", (uint8_t) oc_events[INBOUND_NETWORK_EVENT]);
@@ -179,19 +179,8 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
     OC_DBG("Started buffer handler process with event: %#04x\n", ev);
 
     if (ev == oc_events[INBOUND_NETWORK_EVENT]) {
-      //printf("message buffer handler event: got a decrypted request!\n");
-/*#ifdef OC_SECURITY
-      if (((oc_message_t *)data)->encrypted == 1) {
-        OC_DBG("Inbound network event: encrypted request");
-        oc_process_post(&oc_tls_handler, oc_events[UDP_TO_TLS_EVENT], data);
-      } else {
-        OC_DBG("Inbound network event: decrypted request");
-        oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
-      }
-#else  // OC_SECURITY*/
       OC_DBG("Inbound network event: decrypted request");
       oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
-//#endif // !OC_SECURITY
     } else if (ev == oc_events[OUTBOUND_NETWORK_EVENT]) {
       oc_message_t *message = (oc_message_t *)data;
 
@@ -235,7 +224,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         }
 #endif
         OC_DBG("---------------OC_SEND_BUFFER CALL---------------");
-        OC_DBG("Sending %lu byte message to address (scope %i, port %i)", message->length, message->endpoint.addr.ipv6.scope, message->endpoint.addr.ipv6.port);
+        OC_DBG("Sending %zu byte message to address (scope %i, port %i)", message->length, message->endpoint.addr.ipv6.scope, message->endpoint.addr.ipv6.port);
         OC_LOGbytes(message->endpoint.addr.ipv6.address, 16);
         OC_DBG("Message bytes:");
         OC_LOGbytes(message->data, message->length);

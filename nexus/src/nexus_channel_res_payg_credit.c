@@ -10,7 +10,7 @@
 
 #include "src/nexus_channel_res_payg_credit.h"
 #include "include/nxp_channel.h"
-#include "include/nxp_core.h"
+#include "include/nxp_common.h"
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_oc_wrapper.h"
 #include "utils/oc_list.h"
@@ -75,11 +75,11 @@ static struct
 // update with latest values from implementing product
 static uint32_t _nexus_channel_res_payg_credit_get_latest(void)
 {
-    if (nxp_core_payg_state_get_current() == NXP_CORE_PAYG_STATE_UNLOCKED)
+    if (nxp_common_payg_state_get_current() == NXP_COMMON_PAYG_STATE_UNLOCKED)
     {
         return NXP_CHANNEL_PAYG_CREDIT_REMAINING_UNLOCKED_SENTINEL_VALUE;
     }
-    return nxp_core_payg_credit_get_remaining();
+    return nxp_common_payg_credit_get_remaining();
 }
 
 // handle a change triggered by a POST to this endpoint

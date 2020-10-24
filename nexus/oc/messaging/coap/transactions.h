@@ -57,18 +57,21 @@
 extern "C" {
 #endif
 
-/*
- * Modulo mask (thus +1) for a random number to get the tick number for the
- * random
- * retransmission time between COAP_RESPONSE_TIMEOUT and
- * COAP_RESPONSE_TIMEOUT*COAP_RESPONSE_RANDOM_FACTOR.
- */
-#define COAP_RESPONSE_TIMEOUT_TICKS (OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
-#define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK                                     \
-    (long) ((OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT *                         \
-             ((float) COAP_RESPONSE_RANDOM_FACTOR - 1.0)) +                    \
-            0.5) +                                                             \
-        1
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+    /*
+     * Modulo mask (thus +1) for a random number to get the tick number for the
+     * random
+     * retransmission time between COAP_RESPONSE_TIMEOUT and
+     * COAP_RESPONSE_TIMEOUT*COAP_RESPONSE_RANDOM_FACTOR.
+     */
+    #define COAP_RESPONSE_TIMEOUT_TICKS                                        \
+        (OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
+    #define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK                                 \
+        (long) ((OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT *                     \
+                 ((float) COAP_RESPONSE_RANDOM_FACTOR - 1.0)) +                \
+                0.5) +                                                         \
+            1
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 /* container for transactions with message buffer and retransmission info */
 typedef struct coap_transaction

@@ -25,7 +25,7 @@
 #include "oc/port/oc_log.h"
 
 // includes for simulated responses for demonstration
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 #include "oc/include/oc_buffer.h"
 #include "oc/include/oc_endpoint.h"
 #include "oc/messaging/coap/coap.h"

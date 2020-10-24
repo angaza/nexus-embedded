@@ -10,42 +10,42 @@
 #include "src/nexus_util.h"
 #include "src/internal_common_config.h" // to get siphash/crc
 
-const struct nx_core_check_key NEXUS_INTEGRITY_CHECK_FIXED_00_KEY = {{0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00,
-                                                                      0x00}};
+const struct nx_common_check_key NEXUS_INTEGRITY_CHECK_FIXED_00_KEY = {{0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00,
+                                                                        0x00}};
 
-const struct nx_core_check_key NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY = {{0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF,
-                                                                      0xFF}};
+const struct nx_common_check_key NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY = {{0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF,
+                                                                        0xFF}};
 
 struct nexus_check_value nexus_check_compute(
-    const struct nx_core_check_key* key, const void* data, uint16_t data_size)
+    const struct nx_common_check_key* key, const void* data, uint16_t data_size)
 {
     struct nexus_check_value value;
 
@@ -55,11 +55,12 @@ struct nexus_check_value nexus_check_compute(
     return value;
 }
 
-void nexus_check_compute_pseudorandom_bytes(const struct nx_core_check_key* key,
-                                            const void* seed,
-                                            uint16_t seed_size,
-                                            void* output,
-                                            uint16_t output_size)
+void nexus_check_compute_pseudorandom_bytes(
+    const struct nx_common_check_key* key,
+    const void* seed,
+    uint16_t seed_size,
+    void* output,
+    uint16_t output_size)
 {
     // prepare seed data
     // WARNING: Larger than 5 bytes here (4 bytes of data) is not supported

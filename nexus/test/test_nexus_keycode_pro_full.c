@@ -1,4 +1,4 @@
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -10,7 +10,7 @@
 
 // Other support libraries
 #include <mock_nexus_channel_core.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
 #include <string.h>
 
@@ -48,7 +48,7 @@ struct nexus_keycode_frame nexus_keycode_frame_filled(const char* keys)
 static void _full_fixture_reinit(const char start_char,
                                  const char end_char,
                                  const char* alphabet,
-                                 const struct nx_core_check_key device_key)
+                                 const struct nx_common_check_key device_key)
 {
     const struct nexus_keycode_handling_config full_config = {
         nexus_keycode_pro_full_parse_and_apply,
@@ -69,8 +69,8 @@ static void _full_fixture_reinit(const char start_char,
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
 }
 
 // Teardown (called after any 'test_*' function is called, automatically)
@@ -374,22 +374,22 @@ void test_nexus_keycode_pro_full_apply__various_invalid_inputs__invalid_returned
         {"4064984", NEXUS_KEYCODE_PRO_FULL_FACTORY_ALLOW_TEST, 64984}};
 
     // use a fixed non-default secret key
-    const struct nx_core_check_key key_mixed = {{0x12,
-                                                 0xff,
-                                                 0x00,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xcd,
-                                                 0xff,
-                                                 0xab}};
+    const struct nx_common_check_key key_mixed = {{0x12,
+                                                   0xff,
+                                                   0x00,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xcd,
+                                                   0xff,
+                                                   0xab}};
 
     // run through each scenario
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
@@ -427,7 +427,7 @@ void test_nexus_keycode_pro_full_apply__various_valid_inputs__expected_responses
         const char* interleaved;
         enum nexus_keycode_pro_response expected_response;
         bool expect_payg_state;
-        enum nxp_core_payg_state payg_state_before;
+        enum nxp_common_payg_state payg_state_before;
     };
 
     const struct test_scenario scenarios[] = {
@@ -435,37 +435,37 @@ void test_nexus_keycode_pro_full_apply__various_valid_inputs__expected_responses
         {"4064983",
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
          true,
-         NXP_CORE_PAYG_STATE_DISABLED},
+         NXP_COMMON_PAYG_STATE_DISABLED},
         // add, id = 16, hours=168
         {"13777794160692",
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
          true,
-         NXP_CORE_PAYG_STATE_ENABLED},
+         NXP_COMMON_PAYG_STATE_ENABLED},
         // set, id = 63, hours=168
         {"63530515961148",
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED,
          false,
-         NXP_CORE_PAYG_STATE_ENABLED}, // payg state not examined
+         NXP_COMMON_PAYG_STATE_ENABLED}, // payg state not examined
         // same add as above first valid msg (now below window)
         {"13777794160692",
          NEXUS_KEYCODE_PRO_RESPONSE_INVALID,
          false,
-         NXP_CORE_PAYG_STATE_ENABLED},
+         NXP_COMMON_PAYG_STATE_ENABLED},
         // same set as above
         {"63530515961148",
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE,
          false,
-         NXP_CORE_PAYG_STATE_ENABLED}, // payg state not examined
+         NXP_COMMON_PAYG_STATE_ENABLED}, // payg state not examined
         // factory allow test (duplicate, since we aren't disabled)
         {"4064983",
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE,
          true,
-         NXP_CORE_PAYG_STATE_ENABLED},
+         NXP_COMMON_PAYG_STATE_ENABLED},
         // valid demo code, but generated for different key, so invalid
         {"33579266365784",
          NEXUS_KEYCODE_PRO_RESPONSE_INVALID,
          false,
-         NXP_CORE_PAYG_STATE_ENABLED}, // payg state not examined
+         NXP_COMMON_PAYG_STATE_ENABLED}, // payg state not examined
     };
 
     _full_fixture_reinit(
@@ -490,7 +490,7 @@ void test_nexus_keycode_pro_full_apply__various_valid_inputs__expected_responses
         TEST_ASSERT(parsed);
         if (scenario.expect_payg_state)
         {
-            nxp_core_payg_state_get_current_ExpectAndReturn(
+            nxp_common_payg_state_get_current_ExpectAndReturn(
                 scenario.payg_state_before);
         }
 
@@ -698,28 +698,28 @@ void test_nexus_keycode_pro_full_apply__messages_shift_window__application_corre
          NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED}};
 
     // use a fixed non-default secret key
-    const struct nx_core_check_key key_mixed = {{0x12,
-                                                 0xff,
-                                                 0x00,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xcd,
-                                                 0xff,
-                                                 0xab}};
+    const struct nx_common_check_key key_mixed = {{0x12,
+                                                   0xff,
+                                                   0x00,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xcd,
+                                                   0xff,
+                                                   0xab}};
 
     _full_fixture_reinit('*', '#', "0123456789", key_mixed);
     // Confirm mock has changed to mixed key
-    struct nx_core_check_key test_key = nxp_keycode_get_secret_key();
+    struct nx_common_check_key test_key = nxp_keycode_get_secret_key();
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
-        &test_key.bytes, &key_mixed.bytes, sizeof(struct nx_core_check_key));
+        &test_key.bytes, &key_mixed.bytes, sizeof(struct nx_common_check_key));
 
     // run through each scenario
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
@@ -738,8 +738,8 @@ void test_nexus_keycode_pro_full_apply__messages_shift_window__application_corre
         {
             // Need to return some state, doesn't matter for this test (except
             // that it must not be 'unlocked')
-            nxp_core_payg_state_get_current_ExpectAndReturn(
-                NXP_CORE_PAYG_STATE_ENABLED);
+            nxp_common_payg_state_get_current_ExpectAndReturn(
+                NXP_COMMON_PAYG_STATE_ENABLED);
             nxp_keycode_payg_credit_add_ExpectAndReturn(
                 scenario.expect_add_credit_amount, true);
         }
@@ -791,8 +791,8 @@ void nexus_keycode_pro_full_apply_factory__test_message__short_test_no_lifetime_
     {
         // must be disabled to apply short test message
         // product reports 'disabled' on each loop through this test
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_DISABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_DISABLED);
         nxp_keycode_payg_credit_add_ExpectAndReturn(
             NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS, true);
 
@@ -825,13 +825,13 @@ void test_nexus_keycode_pro_full_apply_factory__qc_test_message__adds_ok(void)
         // confirm that credit may add in both enabled/disabled states
         if (i % 2 == 0)
         {
-            nxp_core_payg_state_get_current_ExpectAndReturn(
-                NXP_CORE_PAYG_STATE_ENABLED);
+            nxp_common_payg_state_get_current_ExpectAndReturn(
+                NXP_COMMON_PAYG_STATE_ENABLED);
         }
         else
         {
-            nxp_core_payg_state_get_current_ExpectAndReturn(
-                NXP_CORE_PAYG_STATE_DISABLED);
+            nxp_common_payg_state_get_current_ExpectAndReturn(
+                NXP_COMMON_PAYG_STATE_DISABLED);
         }
         nxp_keycode_payg_credit_add_ExpectAndReturn(
             NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS, true);
@@ -845,8 +845,8 @@ void test_nexus_keycode_pro_full_apply_factory__qc_test_message__adds_ok(void)
     }
 
     // 11th application here, should fail
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     response = nexus_keycode_pro_full_apply_factory(&qc_test_message);
     TEST_ASSERT_EQUAL_UINT(response,
                            NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE);
@@ -862,8 +862,8 @@ void test_nexus_keycode_pro_full_apply_factory__qc_test_message__adds_ok(void)
 
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(
         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS, true);
 
@@ -890,16 +890,16 @@ void test_nexus_keycode_pro_full_apply_factory__10_minute_oqc__doesnt_stack(
 
     enum nexus_keycode_pro_response response;
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(
         NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS, true);
     response = nexus_keycode_pro_full_apply_factory(&qc_test_message);
 
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     // apply again
     response = nexus_keycode_pro_full_apply_factory(&qc_test_message);
 
@@ -926,8 +926,8 @@ void test_nexus_keycode_pro_full_apply_factory__qc_test_message__no_relock(void)
     enum nexus_keycode_pro_response response;
 
     // unit is 'unlocked' prior to entering this code
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
     response = nexus_keycode_pro_full_apply_factory(&qc_test_message);
 
     TEST_ASSERT_EQUAL_UINT(response,
@@ -940,21 +940,21 @@ void test_nexus_keycode_pro_full_apply_factory__can_unit_accept_qc_code__returns
     _full_fixture_reinit(
         '*', '#', "0123456789", NEXUS_INTEGRITY_CHECK_FIXED_00_KEY);
     // Can't perform short QC when unlocked
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
     TEST_ASSERT_FALSE(nexus_keycode_pro_can_unit_accept_qc_code(
         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS));
 
     // Can't perform short QC when unlocked
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
     TEST_ASSERT_FALSE(nexus_keycode_pro_can_unit_accept_qc_code(
         NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS));
 
     for (int i = 0; i < NEXUS_KEYCODE_PRO_FACTORY_QC_SHORT_LIFETIME_MAX; ++i)
     {
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_DISABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_DISABLED);
         TEST_ASSERT_TRUE(nexus_keycode_pro_can_unit_accept_qc_code(
             NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS));
         nexus_keycode_pro_increment_short_qc_test_message_count();
@@ -962,22 +962,22 @@ void test_nexus_keycode_pro_full_apply_factory__can_unit_accept_qc_code__returns
 
     for (int i = 0; i < NEXUS_KEYCODE_PRO_FACTORY_QC_LONG_LIFETIME_MAX; ++i)
     {
-        nxp_core_payg_state_get_current_ExpectAndReturn(
-            NXP_CORE_PAYG_STATE_DISABLED);
+        nxp_common_payg_state_get_current_ExpectAndReturn(
+            NXP_COMMON_PAYG_STATE_DISABLED);
         TEST_ASSERT_TRUE(nexus_keycode_pro_can_unit_accept_qc_code(
             NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS));
         nexus_keycode_pro_increment_long_qc_test_message_count();
     }
 
     // disabled, but cannot accept due to being over limit
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     TEST_ASSERT_FALSE(nexus_keycode_pro_can_unit_accept_qc_code(
         NEXUS_KEYCODE_PRO_QC_SHORT_TEST_MESSAGE_SECONDS));
 
     // disabled, but cannot accept due to being over limit
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     TEST_ASSERT_FALSE(nexus_keycode_pro_can_unit_accept_qc_code(
         NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS));
 }
@@ -1418,8 +1418,8 @@ void test_nexus_keycode_pro_full_apply_activation__demo_code_accepted__demo_beha
     struct nexus_keycode_pro_full_message message;
     nexus_keycode_pro_full_parse(&frame, &message);
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(60 * 10, true);
 
     // apply the message and verify the result
@@ -1439,8 +1439,8 @@ void test_nexus_keycode_pro_full_apply_activation__demo_code_accepted__demo_beha
     nexus_keycode_pro_full_parse(&frame, &message);
 
     // Demo for 30 minutes
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
     nxp_keycode_payg_credit_add_ExpectAndReturn(60 * 30, true);
     response = nexus_keycode_pro_full_apply(&message);
 
@@ -1524,42 +1524,42 @@ void test_nexus_keycode_pro_full_compute_check__various_inputs__outputs_correct(
     struct test_scenario
     {
         const char* message;
-        const struct nx_core_check_key* key;
+        const struct nx_common_check_key* key;
         uint32_t check;
     };
 
-    const struct nx_core_check_key key_all1s = {{0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff}};
-    const struct nx_core_check_key key_mixed = {{0x12,
-                                                 0xff,
-                                                 0x00,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xff,
-                                                 0xcd,
-                                                 0xff,
-                                                 0xab}};
+    const struct nx_common_check_key key_all1s = {{0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff}};
+    const struct nx_common_check_key key_mixed = {{0x12,
+                                                   0xff,
+                                                   0x00,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xff,
+                                                   0xcd,
+                                                   0xff,
+                                                   0xab}};
     const struct test_scenario scenarios[] = {
         // reference examples generated via Python library
         {"33217306036264", &key_all1s, 36264}, // add; id=1, hours=168
@@ -1600,8 +1600,8 @@ void test_nexus_keycode_pro_full_apply_activation__add_credit_to_unlocked__no_cr
     };
 
     // simulate unlocked device
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
 
     // 'add credit' message ID is not yet set
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(40), 0);

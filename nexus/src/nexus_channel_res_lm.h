@@ -47,7 +47,7 @@ extern const char* L_TIMEOUT_CONFIGURED_SHORT_PROP_NAME;
 NEXUS_PACKED_STRUCT nexus_channel_link_security_mode0_data
 {
     // 128-bit symmetric link key
-    struct nx_core_check_key sym_key;
+    struct nx_common_check_key sym_key;
     uint32_t nonce;
 };
 
@@ -73,7 +73,7 @@ typedef NEXUS_PACKED_STRUCT nexus_channel_link_t
 nexus_channel_link_t;
 
 // Fixed size matters since we persist link state in NV
-// see also `NX_CORE_NV_BLOCK_4_LENGTH`
+// see also `NX_COMMON_NV_BLOCK_4_LENGTH`
 NEXUS_STATIC_ASSERT(
     sizeof(nexus_channel_link_t) == 6 + 1 + 1 + 4 + 4 + 16 + 4, // 36
     "Unexpected size for `nexus_channel_link_t`, NV storage may fail");
@@ -220,7 +220,7 @@ bool nexus_channel_link_manager_reset_link_secs_since_active(
 bool _nexus_channel_link_manager_link_from_nxid(
     const struct nx_id* id, nexus_channel_link_t* retrieved_link);
 bool _nexus_channel_link_manager_index_to_nv_block(
-    uint8_t index, struct nx_core_nv_block_meta** dest_block_meta_ptr);
+    uint8_t index, struct nx_common_nv_block_meta** dest_block_meta_ptr);
     #endif // NEXUS_INTERNAL_IMPL_NON_STATIC
 
 void nexus_channel_res_lm_server_get(oc_request_t* request,

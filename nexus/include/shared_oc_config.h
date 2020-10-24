@@ -8,7 +8,7 @@
  * or substantial portions of the Software.
  */
 
-// These parameters are needed to configure IoTivity core and Nexus Channel.
+// These parameters are needed to configure IoTivity and Nexus Channel.
 // This file is unlikely to be used by the implementing product, and can be
 // ignored (but not deleted or moved...)
 
@@ -42,6 +42,18 @@
     // depending on resource in question
     #define OC_CLIENT 1
     #define OC_SERVER 1
+
+    // Uncomment to enable some untested CoAP functionality beyond the spec
+    // (empty messages)
+    #define NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR 0
+    #define NEXUS_CHANNEL_OC_ENABLE_DUPLICATE_MESSAGE_ID_CHECK 0
+
+    // used only in confirmable messages or observability
+    // (neither implemented currently)
+    #define NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS 0
+
+    // oc does not clock any faster than Nexus currently
+    #define NEXUS_OC_CLOCKS_PER_SEC 1
 
     // Is int64/uint64 supported?
     #ifndef UINT64_MAX
@@ -89,6 +101,9 @@
     // No OC client or server roles if Channel is not in use
     #define OC_CLIENT 0
     #define OC_SERVER 0
+    #define NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS 0
+    #define NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR 0
+    #define NEXUS_CHANNEL_OC_ENABLE_DUPLICATE_MESSAGE_ID_CHECK 0
 
 #endif /* if NEXUS_CHANNEL_CORE_ENABLED */
 

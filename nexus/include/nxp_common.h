@@ -1,5 +1,5 @@
-/** \file nxp_core.h
- * \brief 'Core' common interface required for any Nexus integration
+/** \file nxp_common.h
+ * \brief 'Common' interface required for any Nexus integration
  * \author Angaza
  * \copyright 2020 Angaza, Inc.
  * \license This file is released under the MIT license
@@ -13,42 +13,42 @@
  * All functions beginning in `nxp_*` are ones which the implementing
  * product must implement.
  *
- * All declarations for `nxp_core` functions are included in this single
+ * All declarations for `nxp_common` functions are included in this single
  * header. Implementation is necessarily platform-specific and must be
  * completed by the manufacturer.
  */
 
-#ifndef _NEXUS__INC__NXP_CORE_H_
-#define _NEXUS__INC__NXP_CORE_H_
+#ifndef _NEXUS__INC__NXP_COMMON_H_
+#define _NEXUS__INC__NXP_COMMON_H_
 
-#include "include/nx_core.h"
+#include "include/nx_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //
-// CORE PROCESSING FUNCTIONALITY
+// COMMON PROCESSING FUNCTIONALITY
 //
 
-/** Request to call `nx_core_process` outside of an interrupt context.
+/** Request to call `nx_common_process` outside of an interrupt context.
  *
- * See also: `nx_core.h`.
+ * See also: `nx_common.h`.
  *
  * When this is called by Nexus, the product *must* call
- * `nx_core_process` within 20ms. The product *should not*
- * call `nx_core_process` within the implementation of
- * `nxp_core_request_processing`.
+ * `nx_common_process` within 20ms. The product *should not*
+ * call `nx_common_process` within the implementation of
+ * `nxp_common_request_processing`.
  *
  * Normally, information may be passed into the Nexus modules from
  * an interrupt context (such as a keypress being passed in 'as it
  * is received' from the GPIO). To prevent long-running operations
  * inside interrupts, Nexus will defer long running actions
  * (like writing to NV, or performing cryptographic operations)
- * until `nx_core_process` is called.
+ * until `nx_common_process` is called.
  *
  */
-void nxp_core_request_processing(void);
+void nxp_common_request_processing(void);
 
 //
 // NONVOLATILE MEMORY INTERFACE
@@ -83,10 +83,10 @@ void nxp_core_request_processing(void);
  * \par Example Scenario:
  * (For reference only.  Actual implementation will differ based on
  * platform)
- * -# In this implementation of `nxp_core_nv_write`, platform firmware uses
+ * -# In this implementation of `nxp_common_nv_write`, platform firmware uses
  * its internal NV write function (`nonvol_update_block`)
  *    - @code
- *      bool nxp_core_nv_write(
+ *      bool nxp_common_nv_write(
  *          struct nx_nv_block_meta block_meta,
  *          void* write_buffer)
  *      {
@@ -112,15 +112,15 @@ void nxp_core_request_processing(void);
  * \param write_buffer pointer to memory where data to write begins
  * \return true if data successfully written to NV, false otherwise
  */
-bool nxp_core_nv_write(const struct nx_core_nv_block_meta block_meta,
-                       void* write_buffer);
+bool nxp_common_nv_write(const struct nx_common_nv_block_meta block_meta,
+                         void* write_buffer);
 
 /** Reads the most recent version of Nexus nonvolatile data.
  *
  * \par Example Scenario:
  * (For reference only. Actual implementation will differ based on platform)
  *     - @code
- *       bool nxp_core_nv_read(
+ *       bool nxp_common_nv_read(
  *           struct nx_nv_block_meta block_meta,
  *           void* read_buffer)
  *       {
@@ -138,12 +138,17 @@ bool nxp_core_nv_write(const struct nx_core_nv_block_meta block_meta,
  * \param read_buffer pointer to where the read data should be copied
  * \return true if the read is succcessful, false otherwise
  */
-bool nxp_core_nv_read(const struct nx_core_nv_block_meta block_meta,
-                      void* read_buffer);
+bool nxp_common_nv_read(const struct nx_common_nv_block_meta block_meta,
+                        void* read_buffer);
 
 //
 // Device "PAYG STATUS" READBACK INTERFACE
+// Only used by Nexus Keycode and Nexus Channel (not Nexus Channel Core)
+// configurations
 //
+
+#if defined(CONFIG_NEXUS_KEYCODE_ENABLED) ||                                   \
+    defined(CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE)
 
 /** Determine current PAYG state of the implementing device.
  *
@@ -153,37 +158,37 @@ bool nxp_core_nv_read(const struct nx_core_nv_block_meta block_meta,
  * 'unlocked', before attempting to apply an "ADD_CREDIT" keycode to
  * that unit.
  */
-enum nxp_core_payg_state
+enum nxp_common_payg_state
 {
     /** Unit functionality should be restricted.
      *
      * The unit has not been paid off and its payment period has elapsed.
      * Product functionality should be disabled or otherwise restricted.
      */
-    NXP_CORE_PAYG_STATE_DISABLED,
+    NXP_COMMON_PAYG_STATE_DISABLED,
 
     /** Unit functionality should be unrestricted.
      *
      * The unit has not yet been fully paid off, so eventually it will
-     * return to NXP_CORE_PAYG_STATE_DISABLED state.
+     * return to NXP_COMMON_PAYG_STATE_DISABLED state.
      */
-    NXP_CORE_PAYG_STATE_ENABLED,
+    NXP_COMMON_PAYG_STATE_ENABLED,
 
     /** Unit functionality should be unrestricted.
      *
      * The unit has been fully paid off, so will never become
-     * NXP_CORE_PAYG_STATE_DISABLED. Alternatively, this value may be
+     * NXP_COMMON_PAYG_STATE_DISABLED. Alternatively, this value may be
      * returned for a device which does not implement any PAYG
      * functionality (and is always enabled).
      */
-    NXP_CORE_PAYG_STATE_UNLOCKED
+    NXP_COMMON_PAYG_STATE_UNLOCKED
 };
 
 /** Report current PAYG state of the device.
  *
  * \return current PAYG state of the device
  */
-enum nxp_core_payg_state nxp_core_payg_state_get_current(void);
+enum nxp_common_payg_state nxp_common_payg_state_get_current(void);
 
 /* Retrieve the current remaining PAYG credit of this device.
  *
@@ -192,27 +197,13 @@ enum nxp_core_payg_state nxp_core_payg_state_get_current(void);
  *
  * \return value of credit remaining
  */
-uint32_t nxp_core_payg_credit_get_remaining(void);
+uint32_t nxp_common_payg_credit_get_remaining(void);
 
-//
-// PSEUDORANDOM NUMBER GENERATION INTERFACE
-//
-
-/*
- * Initialize the pseudo-random generator.
- *
- */
-void nxp_core_random_init(void);
-
-/*
- * Calculate a pseudo-random number.
- *
- * \return A pseudo-random number.
- */
-uint32_t nxp_core_random_value(void);
+#endif // defined(CONFIG_NEXUS_KEYCODE_ENABLED) ||
+       // defined(CONFIG_NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* end of include guard: _NEXUS__INC__NXP_CORE_H_ */
+#endif /* end of include guard: _NEXUS__INC__NXP_COMMON_H_ */

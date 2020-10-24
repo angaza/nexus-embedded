@@ -29,7 +29,7 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
-#include "src/nexus_core_internal.h"
+#include "src/nexus_common_internal.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -43,9 +43,8 @@
 
 // Other support libraries
 #include <mock_nxp_channel.h>
-#include <mock_nxp_core.h>
+#include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
-#include <mock_oc_clock.h>
 #include <string.h>
 
 /********************************************************
@@ -181,11 +180,9 @@ void _initialize_oc_rep_pool(void)
 // Setup (called before any 'test_*' function is called, automatically)
 void setUp(void)
 {
-    nxp_core_nv_read_IgnoreAndReturn(true);
-    nxp_core_nv_write_IgnoreAndReturn(true);
-    nxp_core_random_init_Ignore();
-    nxp_core_random_value_IgnoreAndReturn(123456);
-    oc_clock_init_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
     // register platform and device
     nexus_channel_core_init();
 
@@ -198,9 +195,9 @@ void setUp(void)
     nexus_channel_link_manager_init();
 
     // initialize in 'disabled' state
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
-    nxp_core_payg_credit_get_remaining_ExpectAndReturn(0);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
+    nxp_common_payg_credit_get_remaining_ExpectAndReturn(0);
     nexus_channel_res_payg_credit_init();
 
     // confirm that the initialized resource is valid/present
@@ -278,7 +275,7 @@ void test_payg_credit_init__is_an_accessory__initializes_with_no_credit(void)
 
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -286,9 +283,9 @@ void test_payg_credit_init__is_an_accessory__initializes_with_no_credit(void)
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -301,9 +298,9 @@ void test_payg_credit_init__is_an_accessory__initializes_with_no_credit(void)
     // re-initialize payg credit, should detect that it is an accessory, and
     // enter dependent mode. Should retrieve the remaining credit from the
     // product
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
-    nxp_core_payg_credit_get_remaining_ExpectAndReturn(54021);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
+    nxp_common_payg_credit_get_remaining_ExpectAndReturn(54021);
     nexus_channel_res_payg_credit_init();
 
     TEST_ASSERT_EQUAL(54021, _nexus_channel_payg_credit_remaining_credit());
@@ -327,8 +324,8 @@ void test_payg_credit_init__is_an_unlinked_unlocked_accessory__initializes_unloc
 
     // re-initialize payg credit, should detect that it is an accessory, and
     // has no link but is unlocked.
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
     nexus_channel_res_payg_credit_init();
 
     TEST_ASSERT_EQUAL(UINT32_MAX,
@@ -369,9 +366,9 @@ void test_payg_credit_get_response__default_with_baseline__cbor_data_model_corre
 
     OC_DBG("Requesting GET to '/c' URI with baseline");
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_DISABLED);
-    nxp_core_payg_credit_get_remaining_ExpectAndReturn(86437);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_DISABLED);
+    nxp_common_payg_credit_get_remaining_ExpectAndReturn(86437);
     bool handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                     &response_packet,
                                                     (void*) &RESP_BUFFER,
@@ -420,7 +417,7 @@ void test_payg_credit_server_get_response__no_baseline_accessory_mode__shows_dep
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -428,9 +425,9 @@ void test_payg_credit_server_get_response__no_baseline_accessory_mode__shows_dep
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -456,9 +453,9 @@ void test_payg_credit_server_get_response__no_baseline_accessory_mode__shows_dep
 
     OC_DBG("Requesting GET to '/c' URI with no baseline interface");
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_ENABLED);
-    nxp_core_payg_credit_get_remaining_ExpectAndReturn(1209600);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_ENABLED);
+    nxp_common_payg_credit_get_remaining_ExpectAndReturn(1209600);
     bool handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                     &response_packet,
                                                     (void*) &RESP_BUFFER,
@@ -500,7 +497,7 @@ void test_payg_credit_server_post_from_linked_controller__re_parameter_missing__
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -508,9 +505,9 @@ void test_payg_credit_server_post_from_linked_controller__re_parameter_missing__
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -558,7 +555,7 @@ void test_payg_credit_server_post_from_linked_controller__credit_not_integer__re
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -566,9 +563,9 @@ void test_payg_credit_server_post_from_linked_controller__credit_not_integer__re
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -616,7 +613,7 @@ void test_payg_credit_server_post_from_linked_controller__credit_out_of_range__r
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -624,9 +621,9 @@ void test_payg_credit_server_post_from_linked_controller__credit_out_of_range__r
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -685,7 +682,7 @@ void test_payg_credit_server_post_from_linked_controller__accepted_credit_update
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -693,9 +690,9 @@ void test_payg_credit_server_post_from_linked_controller__accepted_credit_update
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -763,7 +760,7 @@ void test_payg_credit_server_post_from_linked_controller__unlock_credit__device_
     // set up a link to another device which is controlling this one
     struct nx_id linked_cont_id = {5921, 123458};
 
-    struct nx_core_check_key link_key;
+    struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
     union nexus_channel_link_security_data sec_data;
@@ -771,9 +768,9 @@ void test_payg_credit_server_post_from_linked_controller__unlock_credit__device_
 
     sec_data.mode0.nonce = 5;
     memcpy(
-        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_core_check_key));
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_core_request_processing_Expect();
+    nxp_common_request_processing_Expect();
     nexus_channel_link_manager_create_link(
         &linked_cont_id,
         CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
@@ -839,8 +836,8 @@ void test_payg_credit_server_post_from_linked_controller__unlock_credit__device_
 
     OC_DBG("Requesting GET to '/c' URI with no baseline interface");
 
-    nxp_core_payg_state_get_current_ExpectAndReturn(
-        NXP_CORE_PAYG_STATE_UNLOCKED);
+    nxp_common_payg_state_get_current_ExpectAndReturn(
+        NXP_COMMON_PAYG_STATE_UNLOCKED);
 
     handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                &response_packet,

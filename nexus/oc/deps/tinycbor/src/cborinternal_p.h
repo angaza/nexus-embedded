@@ -30,19 +30,21 @@
 #pragma GCC diagnostic ignored "-Wconversion"
 
 #include "compilersupport_p.h"
+#include "include/shared_oc_config.h"
 
-#ifndef CBOR_NO_FLOATING_POINT
-    #include <float.h>
-    #include <math.h>
-#else
-    #ifndef CBOR_NO_HALF_FLOAT_TYPE
-        #define CBOR_NO_HALF_FLOAT_TYPE 1
+#if NEXUS_CHANNEL_OC_SUPPORT_DOUBLES
+    #ifndef CBOR_NO_FLOATING_POINT
+        #include <float.h>
+        #include <math.h>
+    #else
+        #ifndef CBOR_NO_HALF_FLOAT_TYPE
+            #define CBOR_NO_HALF_FLOAT_TYPE 1
+        #endif
     #endif
-#endif
 
-#ifndef CBOR_NO_HALF_FLOAT_TYPE
-    #ifdef __F16C__
-        #include <immintrin.h>
+    #ifndef CBOR_NO_HALF_FLOAT_TYPE
+        #ifdef __F16C__
+            #include <immintrin.h>
 static inline unsigned short encode_half(double val)
 {
     return _cvtss_sh((float) val, 3);
@@ -51,7 +53,7 @@ static inline double decode_half(unsigned short half)
 {
     return _cvtsh_ss(half);
 }
-    #else
+        #else
 /* software implementation of float-to-fp16 conversions */
 static inline unsigned short encode_half(double val)
 {
@@ -111,8 +113,9 @@ static inline double decode_half(unsigned short half)
         val = mant == 0 ? INFINITY : NAN;
     return half & 0x8000 ? -val : val;
 }
-    #endif
-#endif /* CBOR_NO_HALF_FLOAT_TYPE */
+        #endif
+    #endif /* CBOR_NO_HALF_FLOAT_TYPE */
+#endif /* NEXUS_CHANNEL_OC_SUPPORT_DOUBLES */
 
 #ifndef CBOR_INTERNAL_API
     #define CBOR_INTERNAL_API

@@ -12,7 +12,7 @@
 #include "nonvol.h"
 #include "nx_keycode.h"
 #include "nxp_channel.h"
-#include "nxp_core.h"
+#include "nxp_common.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,12 +33,12 @@ struct nx_id nxp_channel_get_nexus_id(void)
     return my_id;
 }
 
-struct nx_core_check_key nxp_keycode_get_secret_key(void)
+struct nx_common_check_key nxp_keycode_get_secret_key(void)
 {
     return _this.secret_key;
 }
 
-struct nx_core_check_key nxp_channel_symmetric_origin_key(void)
+struct nx_common_check_key nxp_channel_symmetric_origin_key(void)
 {
     // In a real system, different keys are used for keycode validation and
     // Nexus Channel 'origin' authentication, but we use the same key in this
