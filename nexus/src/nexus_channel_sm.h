@@ -37,9 +37,12 @@ typedef struct nexus_secured_resource_method_t
 // Mode 0 specification
 typedef struct nexus_security_mode0_cose_mac0_t
 {
-    uint8_t protected_header; // currently one byte
+    // PROTECTED HEADER ELEMENTS
+    uint8_t protected_header_method; // 1 byte
+    uint32_t protected_header_nonce;
+    // XXX TODO URI (maybe implicit?)
+
     uint32_t kid;
-    uint32_t nonce;
     uint8_t* payload;
     uint8_t payload_len;
     struct nexus_check_value* mac;

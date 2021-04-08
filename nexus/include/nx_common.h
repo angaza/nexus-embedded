@@ -50,7 +50,7 @@ extern "C" {
     // Blocks IDs 4-19 are reserved for established link data.
     // One block for each link present.
     // Always at least one present (block 4)
-    #define NX_COMMON_NV_BLOCK_4_LENGTH 36 // 1 link
+    #define NX_COMMON_NV_BLOCK_4_LENGTH 40 // 1 link
     #if (CONFIG_NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS > 1) // 2 links
         #define NX_COMMON_NV_BLOCK_5_LENGTH NX_COMMON_NV_BLOCK_4_LENGTH
     #endif

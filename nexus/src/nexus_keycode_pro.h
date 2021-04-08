@@ -38,6 +38,7 @@ extern "C" {
 //
 extern const uint32_t NEXUS_KEYCODE_PRO_QC_LONG_TEST_MESSAGE_SECONDS;
 extern const uint8_t NEXUS_KEYCODE_PRO_UNIVERSAL_SHORT_TEST_SECONDS;
+extern const uint32_t NEXUS_KEYCODE_PRO_SECONDS_IN_DAY;
 
 //
 // **Small* Protocol constants
@@ -75,20 +76,6 @@ extern const uint8_t NEXUS_KEYCODE_PRO_FULL_DEVICE_ID_MAX_CHARACTER_COUNT;
 // KEYCODE PROTOCOLS CORE
 //
 
-enum nexus_keycode_pro_response
-{
-    NEXUS_KEYCODE_PRO_RESPONSE_INVALID, // message does not authenticate
-    NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE, // valid applicable message,
-    // previously applied
-    NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED, // valid applicable message,
-                                              // newly
-    // applied
-    NEXUS_KEYCODE_PRO_RESPONSE_DISPLAY_DEVICE_ID, // display the units PAYG
-                                                  // ID
-    NEXUS_KEYCODE_PRO_RESPONSE_NONE, // No feedback, used for passthrough
-                                     // msgs
-};
-
 // A function that takes a keycode frame, and returns a
 // `nexus_keycode_pro_response`
 typedef enum nexus_keycode_pro_response (*nexus_keycode_pro_parse_and_apply)(
@@ -111,8 +98,10 @@ uint32_t nexus_keycode_pro_process(void);
 enum nexus_keycode_pro_small_type_codes
 {
     NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_ADD_CREDIT_TYPE = 0,
-    // Type 1 reserved
-    NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_TYPE_RESERVED = 1,
+    // small passthrough not processed directly by `nexus_keycode_pro`, passed
+    // to another handler (after deobfuscating/unscrambling transmitted
+    // content)
+    NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH = 1,
     NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_SET_CREDIT_TYPE = 2,
     NEXUS_KEYCODE_PRO_SMALL_MAINTENANCE_OR_TEST_TYPE = 3,
 };
@@ -157,6 +146,12 @@ enum nexus_keycode_pro_small_test_functions
 
 void nexus_keycode_pro_small_init(const char* alphabet);
 
+// return the current state of the underlying message ID window in a modifiable
+// format (used to allow keycode_pro_extended functions to iterate through
+// current windowed IDs)
+void nexus_keycode_pro_get_current_message_id_window(
+    struct nexus_window* window);
+
     #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 bool nexus_keycode_pro_small_parse(
     const struct nexus_keycode_frame* frame,
@@ -177,6 +172,10 @@ uint16_t nexus_keycode_pro_small_compute_check(
     const struct nexus_keycode_pro_small_message* message,
     const struct nx_common_check_key* key);
     #endif
+
+// exposed for keycode_pro_extended
+uint16_t
+nexus_keycode_pro_small_get_set_credit_increment_days(uint8_t increment_id);
 
 enum nexus_keycode_pro_response nexus_keycode_pro_small_parse_and_apply(
     const struct nexus_keycode_frame* frame);
@@ -302,6 +301,66 @@ void nexus_keycode_pro_full_deinterleave(struct nexus_keycode_frame* frame,
 uint32_t nexus_keycode_pro_full_compute_check(
     const struct nexus_keycode_pro_full_message* message,
     const struct nx_common_check_key* key);
+
+/* Passthrough raw bits received in a small protocol passthrough message.
+ *
+ * Currently internal-only API to pipe certain messages from small protocol
+ * to Nexus Channel origin command manager for handling.
+ *
+ * Will fully process (or copy and defer processing) contents of
+ * `passthrough_bitstream` before returning.
+ *
+ * \param passthrough_bitstream bits to passthrough from smallpad protocol
+ * \return error if problem occurred processing passthrough bitstream
+ */
+enum nxp_keycode_passthrough_error
+nexus_keycode_pro_small_internal_bitstream_passthrough(
+    struct nexus_bitstream* passthrough_bitstream);
+
+/* Take input bitstream and PRNG bitstream, create 'obfuscated' output bitstream
+ *
+ * XORs each bit of `input_bitstream` with `prng_bitstream` up to
+ * `obfuscation_bit_count` and writes the result to `output_bitstream`.
+ *
+ * If there are any remaining bits in `input_bitstream` to consume, they are
+ * copied directly (not obfuscated) to `output_bitstream`.
+ *
+ * Calling this function twice in a row, where `input_bitstream` of the
+ * *second* execution is the `output_bitstream` of the *first* execution,
+ * will result in a final `output_bitstream` equal to the first
+ * `input_bitstream`.
+ *
+ * That is, this function performs a reversible obfuscation.
+ *
+ * `output_bitstream` must be at least as large as `input_bitstream`.
+ *
+ * \param input_bitstream input bitstream to obscure
+ * \param output_bitstream output bitstream to write to
+ * \param prng_bitstream bits used to 'obscure' input bitstream (via bitwise XOR)
+ * \param obfuscation_bit_count number of bits of `input_bitstream` to XOR with `prng_bitstream`
+ */
+void nexus_keycode_pro_small_reversibly_obfuscate(
+    struct nexus_bitstream* input_bitstream,
+    struct nexus_bitstream* output_bitstream,
+    struct nexus_bitstream* prng_bitstream,
+    uint8_t obfuscation_bit_count);
+
+/* Take input bitstream of 28 bits extract 26 bit passthrough message
+ *
+ * Assumes that type ID of `input_message_bitstream` has already been checked
+ * and is a passthrough (small protocol) message. Assumes that the input
+ * has already been deobscured.
+ *
+ * Only 26 of the 28 bits from the input bitstream will be copied to the output
+ * bitstream (eliding the smallpad type ID).
+ *
+ * \param passthrough_bitstream bitstream to populate (at least 26 bits in size)
+ * \param deobscured_bitstream input to extract passthrough message from
+ *
+ */
+void _nexus_keycode_pro_small_internal_extract_passthrough_message(
+    struct nexus_bitstream* passthrough_bitstream,
+    struct nexus_bitstream* deobscured_bitstream);
 
 /* Determine if a given message ID value is within the current receipt
  * window.

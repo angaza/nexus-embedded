@@ -9,6 +9,7 @@
  */
 
 #include "src/nexus_keycode_pro.h"
+#include "src/nexus_keycode_pro_extended.h"
 
 #if NEXUS_KEYCODE_ENABLED
 
@@ -58,6 +59,10 @@ const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_LOCK_INCREMENT_ID = 254;
 const uint8_t NEXUS_KEYCODE_PRO_SMALL_SET_UNLOCK_INCREMENT_ID = 255;
 const uint16_t NEXUS_KEYCODE_PRO_SMALL_UNLOCK_INCREMENT = UINT16_MAX;
 const uint8_t NEXUS_KEYCODE_PRO_SMALL_ALPHABET_LENGTH = 4;
+// first 16 bits are obfuscated
+const uint8_t NEXUS_KEYCODE_PRO_SMALL_OBFUSCATED_MESSAGE_BITS_COUNT = 16;
+// MAC bits are not obfuscated
+const uint8_t NEXUS_KEYCODE_PRO_SMALL_MAC_BITS_COUNT = 12;
 
 //
 // Full protocol
@@ -200,10 +205,6 @@ nexus_keycode_pro_increment_long_qc_test_message_count(void);
 static uint16_t
 nexus_keycode_pro_small_get_add_credit_increment_days(uint8_t increment_id);
 
-// INTERNAL declaration
-static uint16_t
-nexus_keycode_pro_small_get_set_credit_increment_days(uint8_t increment_id);
-
 void nexus_keycode_pro_init(nexus_keycode_pro_parse_and_apply parse_and_apply,
                             nexus_keycode_pro_protocol_init protocol_init,
                             const char* alphabet)
@@ -286,7 +287,15 @@ uint32_t nexus_keycode_pro_process(void)
             NEXUS_ASSERT(false, "unrecognized protocol response");
     };
 
-    (void) nxp_keycode_feedback_start(feedback);
+    // Don't call the product-side API to trigger feedback if we don't have
+    // any to display. This might occur, for instance, when processing
+    // a "passthrough" keycode - the actual feedback is generated
+    // elsewhere, but we still want to enter this `process` function to
+    // set `_this_core.pending` to false.
+    if (feedback != NXP_KEYCODE_FEEDBACK_TYPE_NONE)
+    {
+        (void) nxp_keycode_feedback_start(feedback);
+    }
 
     _this_core.pending = false;
 
@@ -336,6 +345,21 @@ nexus_keycode_pro_infer_full_message_id(const uint8_t compressed_message_id,
         cur_id++;
     }
     return cur_id;
+}
+
+void nexus_keycode_pro_get_current_message_id_window(
+    struct nexus_window* window)
+{
+    nexus_util_window_init(
+        window,
+        &_nexus_keycode_stored.flags_0_23.received_flags[0],
+        3, // only flags 0-23 are used currently (2 free bytes)
+        _nexus_keycode_stored.code_counts.pd_index,
+        23, // 23 before index
+        40); // 40 after index
+
+    NEXUS_ASSERT(_nexus_keycode_stored.code_counts.pd_index >= 23,
+                 "Center of window too small");
 }
 
 // Used to update "Pd" (window 'center') value
@@ -394,6 +418,112 @@ NEXUS_IMPL_STATIC void nexus_keycode_pro_increase_pd_and_shift_window_right(
     _update_keycode_pro_nv_blocks();
 }
 
+// Assumes `passthrough_bitstream` position is 0
+NEXUS_IMPL_STATIC enum nxp_keycode_passthrough_error
+nexus_keycode_pro_small_internal_bitstream_passthrough(
+    struct nexus_bitstream* passthrough_bitstream)
+{
+    // first bit is 'passthrough application ID', 1 for smallpad is 'extended
+    // keycode', zero represents arbitrary data sent to another application
+    if (nexus_bitstream_pull_bit(passthrough_bitstream) !=
+        NEXUS_KEYCODE_PRO_EXTENDED_SMALL_PASSTHROUGH_BIT_ID_EXTENDED_KEYCODE)
+    {
+        return NXP_KEYCODE_PASSTHROUGH_ERROR_DATA_UNRECOGNIZED;
+    }
+
+    // Delegate any further keycode handling to the 'extended' protocol,
+    // including credit modifications and keycode feedback.
+    (void) nexus_keycode_pro_extended_small_parse_and_apply_keycode(
+        passthrough_bitstream);
+
+    return NXP_KEYCODE_PASSTHROUGH_ERROR_NONE;
+}
+
+NEXUS_IMPL_STATIC void nexus_keycode_pro_small_reversibly_obfuscate(
+    struct nexus_bitstream* input_bitstream,
+    struct nexus_bitstream* output_bitstream,
+    struct nexus_bitstream* prng_bitstream,
+    uint8_t obfuscation_bit_count)
+{
+    // GCOVR_EXCL_START
+    NEXUS_ASSERT(output_bitstream->capacity >= input_bitstream->capacity,
+                 "Output bitstream too small to hold passthrough message");
+    NEXUS_ASSERT(obfuscation_bit_count <= prng_bitstream->length,
+                 "Cannot obfuscate more bits than contained in PRNG bitstream");
+    NEXUS_ASSERT(
+        obfuscation_bit_count <= input_bitstream->length,
+        "Cannot obfuscate more bits than are available in input bitstream.");
+    // GCOVR_EXCL_STOP
+
+    // reset stream position for all bitstreams
+    nexus_bitstream_set_bit_position(output_bitstream, 0);
+    nexus_bitstream_set_bit_position(input_bitstream, 0);
+    nexus_bitstream_set_bit_position(prng_bitstream, 0);
+
+    for (uint8_t i = 0; i < obfuscation_bit_count; ++i)
+    {
+        const bool deobscured_bit = nexus_bitstream_pull_bit(input_bitstream) ^
+                                    nexus_bitstream_pull_bit(prng_bitstream);
+        nexus_bitstream_push_bit(output_bitstream, deobscured_bit);
+    }
+    // copy remaining input bits 'deobscured' into output bitstream
+    for (uint16_t i = input_bitstream->position; i < input_bitstream->length;
+         ++i)
+    {
+        nexus_bitstream_push_bit(output_bitstream,
+                                 nexus_bitstream_pull_bit(input_bitstream));
+    }
+
+    // GCOVR_EXCL_START
+    NEXUS_ASSERT(prng_bitstream->position == obfuscation_bit_count,
+                 "PRNG bitstream position unexpectedly not equal to "
+                 "obfuscation_bit_count");
+    NEXUS_ASSERT(
+        output_bitstream->position == input_bitstream->position,
+        "Not all input bits have been transferred to output bitstream");
+    // GCOVR_EXCL_STOP
+}
+
+NEXUS_IMPL_STATIC void
+_nexus_keycode_pro_small_internal_extract_passthrough_message(
+    struct nexus_bitstream* passthrough_bitstream,
+    struct nexus_bitstream* deobscured_bitstream)
+{
+    // GCOVR_EXCL_START
+    NEXUS_ASSERT(passthrough_bitstream->capacity >= 26,
+                 "Output bitstream too small to hold passthrough message");
+    // GCOVR_EXCL_STOP
+
+    // reset stream position for all bitstreams
+    nexus_bitstream_set_bit_position(deobscured_bitstream, 0);
+    nexus_bitstream_set_bit_position(passthrough_bitstream, 0);
+
+    // read bits 0-5 inclusive before type ID
+    for (uint8_t i = 0; i < 6; ++i)
+    {
+        nexus_bitstream_push_bit(
+            passthrough_bitstream,
+            nexus_bitstream_pull_bit(deobscured_bitstream));
+    }
+
+    // skip over type ID bits (bits 6 and 7)
+    nexus_bitstream_set_bit_position(deobscured_bitstream, 8);
+    // read remaining 20 bits for a total of 26
+    for (uint8_t i = 0; i < 20; ++i)
+    {
+        nexus_bitstream_push_bit(
+            passthrough_bitstream,
+            nexus_bitstream_pull_bit(deobscured_bitstream));
+    }
+
+    // GCOVR_EXCL_START
+    NEXUS_ASSERT(deobscured_bitstream->position == 28,
+                 "Input Message bitstream unexpectedly not 28 bits");
+    NEXUS_ASSERT(passthrough_bitstream->position == 26,
+                 "Resulting passthrough bitstream not 26 bits in length");
+    // GCOVR_EXCL_STOP
+}
+
 NEXUS_IMPL_STATIC bool
 nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
                               struct nexus_keycode_pro_small_message* message)
@@ -436,16 +566,22 @@ nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
     #ifdef NEXUS_USE_DEFAULT_ASSERT
     const uint32_t message_bits_length =
         nexus_bitstream_length_in_bits(&message_bitstream);
-    NEXUS_ASSERT(message_bits_length == 28,
+    NEXUS_ASSERT(message_bits_length ==
+                     NEXUS_KEYCODE_PRO_SMALL_OBFUSCATED_MESSAGE_BITS_COUNT +
+                         NEXUS_KEYCODE_PRO_SMALL_MAC_BITS_COUNT,
                  "failed to obtain the expected message length");
     #endif
 
     // pull the check field from the bitstream, first, so that we can
     // deinterleave
-    nexus_bitstream_set_bit_position(&message_bitstream,
-                                     16); // position of the check bits
+    nexus_bitstream_set_bit_position(
+        &message_bitstream,
+        NEXUS_KEYCODE_PRO_SMALL_OBFUSCATED_MESSAGE_BITS_COUNT); // position of
+                                                                // the check
+                                                                // bits
 
-    message->check = nexus_bitstream_pull_uint16_be(&message_bitstream, 12);
+    message->check = nexus_bitstream_pull_uint16_be(
+        &message_bitstream, NEXUS_KEYCODE_PRO_SMALL_MAC_BITS_COUNT);
 
     // compute pseudorandom bytes for deinterleaving
     uint8_t prng_bytes[sizeof(message_bytes)];
@@ -468,23 +604,36 @@ nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
                          prng_bytes,
                          sizeof(prng_bytes) * 8,
                          sizeof(prng_bytes) * 8);
-    nexus_bitstream_set_bit_position(&message_bitstream, 0);
 
+    uint8_t deobfuscated_bytes[sizeof(message_bytes)];
+    struct nexus_bitstream deobfuscated_bitstream;
+    nexus_bitstream_init(&deobfuscated_bitstream,
+                         deobfuscated_bytes,
+                         sizeof(deobfuscated_bytes) * 8,
+                         0);
+
+    // bit position is set to 0 in all streams inside fxn
+    nexus_keycode_pro_small_reversibly_obfuscate(
+        &message_bitstream,
+        &deobfuscated_bitstream,
+        &prng_bitstream,
+        NEXUS_KEYCODE_PRO_SMALL_OBFUSCATED_MESSAGE_BITS_COUNT);
+
+    nexus_bitstream_set_bit_position(&deobfuscated_bitstream, 0);
     // only populate the lower 6 bits of the message ID
     const uint8_t received_message_id =
-        nexus_bitstream_pull_uint8(&message_bitstream, 6) ^
-        nexus_bitstream_pull_uint8(&prng_bitstream, 6);
+        nexus_bitstream_pull_uint8(&deobfuscated_bitstream, 6);
 
-    message->type_code = nexus_bitstream_pull_uint8(&message_bitstream, 2) ^
-                         nexus_bitstream_pull_uint8(&prng_bitstream, 2);
+    message->type_code = nexus_bitstream_pull_uint8(&deobfuscated_bitstream, 2);
 
     message->body.activation.increment_id =
-        nexus_bitstream_pull_uint8(&message_bitstream, 8) ^
-        nexus_bitstream_pull_uint8(&prng_bitstream, 8);
+        nexus_bitstream_pull_uint8(&deobfuscated_bitstream, 8);
 
-    // Don't infer ID for maintenance/test messages - it is sent as '0'.
-    if (message->type_code <
-        (uint8_t) NEXUS_KEYCODE_PRO_SMALL_MAINTENANCE_OR_TEST_TYPE)
+    // only infer 'full' message ID for ADD/SET credit messages
+    if (message->type_code ==
+            (uint8_t) NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_ADD_CREDIT_TYPE ||
+        message->type_code ==
+            (uint8_t) NEXUS_KEYCODE_PRO_SMALL_ACTIVATION_SET_CREDIT_TYPE)
     {
         // Fill out the remaining 24 bits in the message ID.
         message->full_message_id = nexus_keycode_pro_infer_full_message_id(
@@ -493,9 +642,41 @@ nexus_keycode_pro_small_parse(const struct nexus_keycode_frame* frame,
             NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_BEFORE_PD,
             NEXUS_KEYCODE_PRO_RECEIVE_WINDOW_AFTER_PD);
     }
+    // don't infer message ID for maintenance and passthrough messages
     else
     {
         message->full_message_id = received_message_id;
+    }
+
+    // if passthrough message, extract raw ordered bits (excluding type ID)
+    // and pass the bits to the appropriate passthrough handler.
+    // Message is considered 'parsed' but is effectively a no-op in
+    // `keycode_pro` `apply` logic.
+    if (message->type_code == NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH)
+    {
+        uint8_t passthrough_bitstream_bytes[4];
+        struct nexus_bitstream passthrough_bitstream;
+        nexus_bitstream_init(&passthrough_bitstream,
+                             passthrough_bitstream_bytes,
+                             sizeof(passthrough_bitstream_bytes) * 8,
+                             0);
+
+        // take the unobscured input bitstream and extract all bits
+        // except for the type ID bits. Both streams position set to 0 inside
+        // the `extract_passthrough` function.
+        _nexus_keycode_pro_small_internal_extract_passthrough_message(
+            &passthrough_bitstream, &deobfuscated_bitstream);
+
+        // prepare reading from first bit of passthrough bitstream
+        nexus_bitstream_set_bit_position(&passthrough_bitstream, 0);
+        enum nxp_keycode_passthrough_error result =
+            nexus_keycode_pro_small_internal_bitstream_passthrough(
+                &passthrough_bitstream);
+
+        if (result != NXP_KEYCODE_PASSTHROUGH_ERROR_NONE)
+        {
+            return false;
+        }
     }
 
     return true;
@@ -508,6 +689,9 @@ NEXUS_IMPL_STATIC enum nexus_keycode_pro_response nexus_keycode_pro_small_apply(
     const struct nx_common_check_key secret_key = nxp_keycode_get_secret_key();
 
     uint16_t check_expected;
+
+    NEXUS_ASSERT(message->type_code != NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH,
+                 "Unexpectedly attempted to apply 'passthrough' message.");
 
     // only use default key to check test messages
     if (message->type_code ==
@@ -715,13 +899,20 @@ nexus_keycode_pro_small_parse_and_apply(const struct nexus_keycode_frame* frame)
     memset(&pro_message, 0x00, sizeof(struct nexus_keycode_pro_small_message));
     const bool parsed = nexus_keycode_pro_small_parse(frame, &pro_message);
 
-    if (parsed)
+    if (!parsed)
     {
-        return nexus_keycode_pro_small_apply(&pro_message);
+        return NEXUS_KEYCODE_PRO_RESPONSE_INVALID;
+    }
+    else if (pro_message.type_code ==
+             (uint8_t) NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH)
+    {
+        // short circuit - these messages are handled (application and feedback)
+        // within `small_parse`
+        return NEXUS_KEYCODE_PRO_RESPONSE_NONE;
     }
     else
     {
-        return NEXUS_KEYCODE_PRO_RESPONSE_INVALID;
+        return nexus_keycode_pro_small_apply(&pro_message);
     }
 }
 
@@ -777,6 +968,15 @@ nexus_keycode_pro_small_get_set_credit_increment_days(uint8_t increment_id)
     else if (increment_id < 240)
     {
         return (uint16_t)((increment_id - 224) * 16 + 720); // 721-960 days
+    }
+    else if (increment_id == 254)
+    {
+        // 0 days == 254
+        return 0;
+    }
+    else if (increment_id == 255)
+    {
+        return NEXUS_KEYCODE_PRO_SMALL_UNLOCK_INCREMENT;
     }
     NEXUS_ASSERT(0, "Unreachable code reached...");
     return 0;

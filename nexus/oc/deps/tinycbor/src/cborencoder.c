@@ -285,8 +285,13 @@ append_to_buffer(CborEncoder* encoder, const void* data, size_t len)
         return CborErrorOutOfMemory;
     }
 
-    memcpy(encoder->data.ptr, data, len);
-    encoder->data.ptr += len;
+    // Allow for zero-length bytestrings
+    if (len > 0)
+    {
+        memcpy(encoder->data.ptr, data, len);
+        encoder->data.ptr += len;
+    }
+
     return CborNoError;
 }
 

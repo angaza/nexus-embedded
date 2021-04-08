@@ -65,8 +65,7 @@ extern "C" {
  */
 enum nexus_channel_link_security_mode
 {
-    // No encryption, 128-bit symmetric key, COSE MAC0 computed w/ Siphash
-    // 2-4
+    // No encryption, 128-bit symmetric key, COSE MAC0 computed w/ Siphash 2-4
     NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24 = 0,
     // 1-3 reserved
 };

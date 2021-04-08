@@ -116,6 +116,10 @@ static bool _nexus_channel_sm_requested_method_is_secured(coap_packet_t* pkt)
     // determine if resource method is secured by Nexus Channel
     const char* href;
     const size_t href_len = coap_get_header_uri_path((void*) pkt, &href);
+    if (href_len == 0)
+    {
+        return false;
+    }
     const oc_resource_t* const resource = oc_ri_get_app_resource_by_uri(
         href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
     const oc_method_t method = (oc_method_t) pkt->code;
@@ -155,9 +159,10 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
                         "Unexpected check value size..");
     uint8_t final_input[FINAL_INPUT_ARRAY_SIZE];
     // bytes 0-3 = nonce
-    memcpy(final_input, &received_mac0->nonce, sizeof(uint32_t));
+    memcpy(
+        final_input, &received_mac0->protected_header_nonce, sizeof(uint32_t));
     // byte 4 = coap type
-    final_input[4] = (uint8_t) received_mac0->protected_header;
+    final_input[4] = (uint8_t) received_mac0->protected_header_method;
     // bytes 5-12 = previous check result (note nexus_check_value is packed
     // struct)
     memcpy(&final_input[5],
@@ -175,8 +180,10 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
     return final_computed_check;
 }
 
-static bool _nexus_channel_sm_parse_cose_mac0_protected(const oc_rep_t* rep,
-                                                        uint8_t* protected_out)
+static bool
+_nexus_channel_sm_parse_cose_mac0_protected(const oc_rep_t* rep,
+                                            uint8_t* protected_header_method,
+                                            uint32_t* protected_header_nonce)
 {
     // XXX parsing here expects strict COSE array ordering, e.g.,
     // if 'protected' is not the first element, the parsing will fail.
@@ -186,21 +193,29 @@ static bool _nexus_channel_sm_parse_cose_mac0_protected(const oc_rep_t* rep,
     {
         return false;
     }
-    // we have the protected bucket, expect a length-1 bytestring
-    // for now, we expect a single byte in the protected bucket
-    if (oc_string_len(rep->value.string) != 1)
+    // we have the protected bucket, expect a length-5 bytestring
+    // for now, we have a method + nonce in there
+    if (oc_string_len(rep->value.string) != 5)
     {
         return false;
     }
-    *protected_out = *(oc_cast(rep->value.string, uint8_t));
+    // 5 bytes (length confirmed above)
+    uint8_t rep_cpy[5];
+    memcpy(rep_cpy, rep->value.string.ptr, 5);
+
+    // Will be replaced with bstr wrapping/unwrapping when moving to COSE
+    // compliant struct
+    *protected_header_method = rep_cpy[0];
+    uint32_t protected_nonce_val = 0;
+    memcpy(&protected_nonce_val, &rep_cpy[1], sizeof(uint32_t));
+    *protected_header_nonce = protected_nonce_val;
     return true;
 }
 
 static bool _nexus_channel_sm_parse_cose_mac0_unprotected(const oc_rep_t* rep,
-                                                          uint32_t* kid,
-                                                          uint32_t* nonce)
+                                                          uint32_t* kid)
 {
-    // parse two items expected in the unprotected bucket (expect an object
+    // parse single item expected in the unprotected bucket (expect an object
     // with name 'u')
     if ((rep->type != OC_REP_OBJECT) ||
         (strncmp(oc_string(rep->name), "u", 1) != 0))
@@ -221,17 +236,6 @@ static bool _nexus_channel_sm_parse_cose_mac0_unprotected(const oc_rep_t* rep,
     oc_rep_value val = u_rep->value;
     *kid = (uint32_t) val.integer;
     OC_DBG("key ID value is %d", (uint32_t) val.integer);
-    u_rep = u_rep->next;
-
-    // next value should be an integer with key "5" (nonce)
-    if (u_rep == NULL || u_rep->type != OC_REP_INT ||
-        (strncmp(oc_string(u_rep->name), "5", 1) != 0))
-    {
-        return false;
-    }
-    val = u_rep->value;
-    *nonce = (uint32_t) val.integer;
-    OC_DBG("nonce value is %d", (uint32_t) val.integer);
 
     // expect no more elements in the map
     const bool expected_length = (u_rep->next == NULL);
@@ -315,11 +319,11 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_parse_cose_mac0(
         return false;
     }
 
-    bool success = false;
-
     // attempt to parse protected header ('p')
-    success = _nexus_channel_sm_parse_cose_mac0_protected(
-        rep, &cose_mac0_parsed->protected_header);
+    bool success = _nexus_channel_sm_parse_cose_mac0_protected(
+        rep,
+        &cose_mac0_parsed->protected_header_method,
+        &cose_mac0_parsed->protected_header_nonce);
     rep = rep->next;
     if (!success || rep == NULL)
     {
@@ -328,7 +332,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_parse_cose_mac0(
 
     // attempt to parse unprotected header ('u')
     success = _nexus_channel_sm_parse_cose_mac0_unprotected(
-        rep, &cose_mac0_parsed->kid, &cose_mac0_parsed->nonce);
+        rep, &cose_mac0_parsed->kid);
     rep = rep->next;
     if (!success || rep == NULL)
     {
@@ -412,6 +416,20 @@ NEXUS_IMPL_STATIC bool _nexus_channel_sm_get_cose_mac0_data(
     const uint8_t payload_len = (uint8_t) coap_get_payload(pkt, &payload);
 
     bool success = false;
+
+    // XXX have to add this section or we get segfaults after calling
+    // `oc_parse_rep` on response messages and attempting to access
+    // `rep_iterator`.
+    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
+    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
+    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
+    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
+    struct oc_memb rep_objects = {sizeof(oc_rep_t),
+                                  OC_MAX_NUM_REP_OBJECTS,
+                                  rep_objects_alloc,
+                                  (void*) rep_objects_pool,
+                                  0};
+    oc_rep_set_pool(&rep_objects);
 
     // attempt to parse the rep
     if (oc_parse_rep(payload, payload_len, &rep) == 0)
@@ -516,6 +534,7 @@ nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
         memset(&cur_mode0_sec_data,
                0x00,
                sizeof(struct nexus_channel_link_security_mode0_data));
+
         if (!nexus_channel_link_manager_security_data_from_nxid(
                 &nexus_id, &cur_mode0_sec_data))
         {
@@ -525,7 +544,7 @@ nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
 
         // received nonce should be greater than current nonce
         // XXX: overflow risk
-        if (cur_mode0_sec_data.nonce > cose_mac0_parsed.nonce)
+        if (cur_mode0_sec_data.nonce > cose_mac0_parsed.protected_header_nonce)
         {
             // clear sensitive security info
             nexus_secure_memclr(
@@ -550,7 +569,7 @@ nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
 
         // if authenticated, update nonce value and indicate link is active
         nexus_channel_link_manager_set_security_data_auth_nonce(
-            &nexus_id, cose_mac0_parsed.nonce);
+            &nexus_id, cose_mac0_parsed.protected_header_nonce);
         nexus_channel_link_manager_reset_link_secs_since_active(&nexus_id);
         nexus_secure_memclr(
             &cur_mode0_sec_data,

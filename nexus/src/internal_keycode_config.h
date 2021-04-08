@@ -24,10 +24,21 @@
 #else
     #define NEXUS_KEYCODE_ENABLED 1
 
-    // In most cases, there is no need to modify the values of this file.
+enum nexus_keycode_pro_response
+{
+    NEXUS_KEYCODE_PRO_RESPONSE_INVALID, // message does not authenticate
+    NEXUS_KEYCODE_PRO_RESPONSE_VALID_DUPLICATE, // valid applicable message,
+    // previously applied
+    NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED, // valid applicable message,
+                                              // newly
+    // applied
+    NEXUS_KEYCODE_PRO_RESPONSE_DISPLAY_DEVICE_ID, // display the units PAYG
+                                                  // ID
+    NEXUS_KEYCODE_PRO_RESPONSE_NONE, // No feedback, used for passthrough
+                                     // msgs
+};
 
-    // Identifies the Nexus keycode protocol public 'release version'.
-    #define NEXUS_KEYCODE_RELEASE_VERSION_COUNT 1
+    // In most cases, there is no need to modify the values of this file.
 
     #define NEXUS_KEYCODE_PROTOCOL_NO_STOP_LENGTH UINT8_MAX
     #define NEXUS_KEYCODE_UNDEFINED_END_CHAR '?'

@@ -15,10 +15,11 @@
 #include "src/nexus_util.h"
 
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
     // Origin commands are only relevant for a Channel Controller
     #if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE
         #define NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH 20
-        #define NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH 15
+        #define NEXUS_CHANNEL_OM_COMMAND_BEARER_MAX_BYTES_TO_AUTH 15
         #define NEXUS_CHANNEL_OM_INVALID_COMMAND_COUNT 0xFFFFFFFF // sentinel
 
         #ifdef __cplusplus
@@ -92,10 +93,10 @@ bool _nexus_channel_om_handle_ascii_origin_command(
     const char* command_data, const uint32_t command_length);
 
 bool _nexus_channel_om_is_command_index_set(uint32_t command_index);
+
 bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index);
 
         #endif /* NEXUS_INTERNAL_IMPL_NON_STATIC */
-
     #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 
     #ifdef __cplusplus
@@ -103,4 +104,5 @@ bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index);
     #endif
 
 #endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
+
 #endif /* end of include guard: NEXUS__SRC__CHANNEL__CHANNEL_OM_H_ */

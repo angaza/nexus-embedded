@@ -212,7 +212,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
     struct nexus_channel_om_command_message* message,
     const struct nx_common_check_key* origin_key)
 {
-    uint8_t compute_bytes[NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH] = {
+    uint8_t compute_bytes[NEXUS_CHANNEL_OM_COMMAND_BEARER_MAX_BYTES_TO_AUTH] = {
         0};
     bool success = false;
     uint32_t computed_check;
@@ -384,7 +384,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
     }
     // sanity check for tests
     NEXUS_ASSERT(bytes_count <=
-                     NEXUS_CHANNEL_OM_COMMAND_ASCII_MAX_BYTES_TO_AUTH,
+                     NEXUS_CHANNEL_OM_COMMAND_BEARER_MAX_BYTES_TO_AUTH,
                  "too many bytes to auth!");
 
     return success;
@@ -557,7 +557,8 @@ _nexus_channel_om_is_command_index_set(uint32_t command_index)
 }
 
 // only used in unit tests
-bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index)
+NEXUS_IMPL_STATIC bool
+_nexus_channel_om_is_command_index_in_window(uint32_t command_index)
 {
     struct nexus_window window;
     nexus_util_window_init(
@@ -572,12 +573,12 @@ bool _nexus_channel_om_is_command_index_in_window(uint32_t command_index)
              (command_index > (window.center_index + window.flags_above)));
 }
         #endif /* NEXUS_INTERNAL_IMPL_NON_STATIC */
-    #endif /* NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
+    #endif /* if NEXUS_CHANNEL_SUPPORT_CONTROLLER_MODE */
 #endif /* if NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 
 nx_channel_error nx_channel_handle_origin_command(
     const enum nx_channel_origin_command_bearer_type bearer_type,
-    const void* command_data,
+    const void* const command_data,
     const uint32_t command_length)
 {
 // We include this stubbed function implementation in accessory mode to
@@ -588,6 +589,8 @@ nx_channel_error nx_channel_handle_origin_command(
     bool parsed = false;
     switch (bearer_type)
     {
+
+        // ASCII bearer may be used outside of Nexus Keycode context
         case NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS:
             PRINT("nx_channel_om: Handling origin command (bearer=ASCII "
                   "digits)\n");

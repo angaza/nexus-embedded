@@ -889,7 +889,8 @@ bool _nexus_channel_res_link_hs_link_mode_3_send_post(
     oc_rep_end_root_object();
 
     OC_DBG("Sending Nexus Channel Handshake POST");
-    if (!oc_do_post())
+    // 'false' as handshakes are unsecured
+    if (!oc_do_post(false))
     {
         OC_WRN("Error: Unable to perform POST");
         return false;

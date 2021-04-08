@@ -33,6 +33,7 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
+#include "src/nexus_keycode_pro_extended.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
@@ -1065,6 +1066,90 @@ void test_link_manager_operating_mode__single_accessory_link__accessory_mode(
 
     result = nexus_channel_link_manager_operating_mode();
     TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_ACCESSORY, result);
+}
+
+bool CALLBACK_test_link_manager_nonce_increment_of_accessory__nxp_common_nv_write_handler(
+    const struct nx_common_nv_block_meta block_meta,
+    void* write_buffer,
+    int NumCalls)
+{
+    (void) NumCalls;
+
+    // same ID as used in test that triggers this callback
+    struct nx_id linked_cont_id = {5921, 123458};
+
+    // Expect one link stored at the first NV block (block 4)
+    struct nx_common_nv_block_meta expected_meta = {
+        4, NX_COMMON_NV_BLOCK_4_LENGTH};
+    struct nexus_channel_link_t expected_link = {0};
+
+    (void) _nexus_channel_link_manager_link_from_nxid(&linked_cont_id,
+                                                      &expected_link);
+
+    // convert link data to the data that will be persisted to NV
+    // (block 4 is the first link related block)
+    uint8_t nv_block_data[NX_COMMON_NV_BLOCK_4_LENGTH] = {0};
+    memcpy(nv_block_data, &expected_meta.block_id, NEXUS_NV_BLOCK_ID_WIDTH);
+    memcpy(&nv_block_data[0] + NEXUS_NV_BLOCK_ID_WIDTH,
+           &expected_link,
+           sizeof(expected_link));
+
+    // compute and append CRC
+    const uint16_t crc = compute_crc_ccitt(
+        nv_block_data,
+        (uint8_t)(expected_meta.length - NEXUS_NV_BLOCK_CRC_WIDTH));
+    memcpy(nv_block_data + NEXUS_NV_BLOCK_ID_WIDTH + sizeof(expected_link),
+           &crc,
+           NEXUS_NV_BLOCK_CRC_WIDTH);
+
+    // Note: block_meta is not a packed struct.
+    TEST_ASSERT_EQUAL_INT(expected_meta.block_id, block_meta.block_id);
+    TEST_ASSERT_EQUAL_INT(expected_meta.length, block_meta.length);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(
+        nv_block_data, write_buffer, sizeof(nv_block_data));
+
+    return true;
+}
+
+void test_link_manager_nonce_increment_of_accessory__single_link__nv_update_called(
+    void)
+{
+    enum nexus_channel_link_operating_mode result;
+    struct nx_id linked_cont_id = {5921, 123458};
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    nxp_common_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_cont_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_link_manager_process(0);
+
+    result = nexus_channel_link_manager_operating_mode();
+    TEST_ASSERT_EQUAL(CHANNEL_LINK_OPERATING_MODE_ACCESSORY, result);
+
+    nexus_channel_link_manager_set_security_data_auth_nonce(
+        &linked_cont_id,
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT);
+
+    nxp_common_nv_write_StopIgnore();
+    nxp_common_nv_write_ExpectAnyArgsAndReturn(true);
+    nxp_common_nv_write_StubWithCallback(
+        CALLBACK_test_link_manager_nonce_increment_of_accessory__nxp_common_nv_write_handler);
+    nexus_channel_link_manager_process(10);
 }
 
 void test_link_manager_operating_mode__controller_and_accessory_link__dual_mode_active(

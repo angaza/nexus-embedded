@@ -96,8 +96,7 @@ void nexus_bitstream_init(struct nexus_bitstream* stream,
     stream->position = 0;
 }
 
-static void nexus_bitstream_push_bit(struct nexus_bitstream* stream,
-                                     bool pushed)
+void nexus_bitstream_push_bit(struct nexus_bitstream* stream, bool pushed)
 {
     NEXUS_ASSERT(stream->position < stream->capacity,
                  "attempt to overflow bitstream");
@@ -118,6 +117,8 @@ static void nexus_bitstream_push_bit(struct nexus_bitstream* stream,
                      "stream position invariant failed");
 
         ++stream->length;
+        NEXUS_ASSERT(stream->capacity >= stream->length,
+                     "stream length exceeds capacity");
     }
 }
 
@@ -139,7 +140,7 @@ void nexus_bitstream_push_uint8(struct nexus_bitstream* stream,
     }
 }
 
-static bool nexus_bitstream_pull_bit(struct nexus_bitstream* stream)
+bool nexus_bitstream_pull_bit(struct nexus_bitstream* stream)
 {
     NEXUS_ASSERT(stream->position < stream->length,
                  "attempt to overflow bitstream");

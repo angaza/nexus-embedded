@@ -19,6 +19,29 @@ Where any code from the same major version should be backwards-compatible
 with other code of the same major version, but is *not* compatible with
 different major version codes.
 
+## Embedded Module Version 1.2.0
+
+Compatible with NEXUS_VERSION/NEXUS_GLOBAL_VERSION >= 2.2.0
+
+* Add handler for small keycode protocol 'passthrough' message types
+
+* Add 'extended' small protocol, which provides a new "SET CREDIT + WIPE RESTRICTED FLAG"
+keycode (also implemented in the `nexus-python` server-side encoder.
+
+This 'extended' protocol is implemented as small protocol "Passthrough"
+application ID 1.
+
+The remaining 25 bits of the passthrough message are:
+
+* 3 bits = Extended message Type ID
+* 10 bits = Extended message body (varies based on type ID)
+* 12 bits = Extended message MAC (same MAC/auth length as standard keycodes)
+
+Unlike standard small protocol keycodes, there is no explicit 6-bit message
+ID transmitted in every message, which adds significant complexity to the
+encoder logic, and makes detecting duplicate messages much more difficult
+(impossible in some cases).
+
 ## Embedded Module Version 1.0.0
 
 Compatible with NEXUS_VERSION >= 2.1

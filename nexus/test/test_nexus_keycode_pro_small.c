@@ -2,6 +2,7 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
+#include "src/nexus_keycode_pro_extended.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_util.h"
 #include "unity.h"
@@ -128,6 +129,15 @@ void test_nexus_keycode_pro_process__various_messages_pending__messages_applied_
         {false,
          "30123220313102",
          NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED}, // 14
+        {
+
+            // secret_key = b"\x00" * 16
+            // In [3]: ExtendedSmallMessage(id_=22, days=0,
+            // type_=ExtendedSmallMessageType.SET_CREDIT_WIPE_RESTRICTED_FLAG,
+            // secret_key=secret_key).to_keycode() Out[3]: '125 445 442 542 542'
+            false,
+            "03223220320320",
+            NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED},
     };
 
     for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
@@ -149,6 +159,8 @@ void test_nexus_keycode_pro_process__various_messages_pending__messages_applied_
         nxp_common_payg_state_get_current_IgnoreAndReturn(
             NXP_COMMON_PAYG_STATE_ENABLED);
         nxp_keycode_payg_credit_add_IgnoreAndReturn(true);
+        nxp_keycode_payg_credit_set_IgnoreAndReturn(true);
+        nxp_keycode_notify_custom_flag_changed_Ignore();
 
         nxp_keycode_feedback_start_ExpectAndReturn(scenario.fb_type, true);
         nexus_keycode_pro_process();
@@ -242,6 +254,85 @@ void test_nexus_keycode_pro_small_parse__valid_maintenance_test_messages__result
         TEST_ASSERT_EQUAL_UINT(message.body.maintenance_test.function_id,
                                scenario.function_id);
         TEST_ASSERT_EQUAL_UINT(message.check, scenario.check);
+    }
+}
+
+void test_nexus_keycode_pro_small_parse__valid_passthrough_messages__considered_valid(
+    void)
+{
+    struct test_scenario
+    {
+        const char* frame_body;
+        enum nexus_keycode_pro_small_type_codes type_code;
+        enum nxp_keycode_feedback_type expected_fb;
+        bool parseable;
+        const char* alphabet;
+    };
+
+    const struct test_scenario scenarios[] = {
+        {
+            // obfuscated = 0xd6782100
+            "31121320020100",
+            NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH,
+            NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID,
+            true,
+            "0123",
+        },
+        // passthrough with invalid app ID (not '1' for extended small)
+        // '145 445 442 542 542'
+        {
+            "23223220320320",
+            NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH,
+            NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID,
+            false,
+            "0123",
+        },
+        {
+            // secret_key = b"\x00" * 16
+            // In [3]: ExtendedSmallMessage(id_=22, days=0,
+            // type_=ExtendedSmallMessageType.SET_CREDIT_WIPE_RESTRICTED_FLAG,
+            // secret_key=secret_key).to_keycode() Out[3]: '125 445 442 542 542'
+            "03223220320320",
+            NEXUS_KEYCODE_PRO_SMALL_TYPE_PASSTHROUGH,
+            NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED,
+            true,
+            "0123",
+        },
+    };
+
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // some passthrough messages (SET CREDIT + WIPE RESTRICTED)
+        // will modify keycode state
+        // initialize the scenario
+        const struct test_scenario scenario = scenarios[i];
+
+        _small_fixture_reinit('*', scenario.alphabet);
+
+        // execute it and verify outcome
+        struct nexus_keycode_frame frame =
+            nexus_keycode_frame_filled(scenario.frame_body);
+        struct nexus_keycode_pro_small_message message;
+
+        if (!scenario.parseable)
+        {
+            TEST_ASSERT_FALSE(nexus_keycode_pro_small_parse(&frame, &message));
+            continue;
+        }
+
+        if (scenario.expected_fb == NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_APPLIED)
+        {
+            nxp_keycode_payg_credit_set_ExpectAndReturn(0, true);
+            nxp_keycode_notify_custom_flag_changed_Expect(
+                NX_KEYCODE_CUSTOM_FLAG_RESTRICTED, false);
+        }
+        nxp_keycode_feedback_start_ExpectAndReturn(scenario.expected_fb, true);
+
+        // will call nx_channel_handle_origin_command which will return true
+        const bool parsed = nexus_keycode_pro_small_parse(&frame, &message);
+
+        TEST_ASSERT_TRUE(parsed);
+        TEST_ASSERT_EQUAL_UINT(message.type_code, scenario.type_code);
     }
 }
 
@@ -671,6 +762,268 @@ void test_nexus_keycode_pro_apply__update_pd__window_and_pd_ok(void)
     }
 }
 
+void test_nexus_keycode_pro_small_internal_bitstream_passthrough__unsupported_app_id_rejected(
+    void)
+{
+    // all bits set to '0'
+    uint8_t bitstream_bytes[4] = {0};
+    struct nexus_bitstream test_bitstream;
+    nexus_bitstream_init(
+        &test_bitstream, bitstream_bytes, sizeof(bitstream_bytes) * 8, 26);
+
+    // app ID 0 not handled
+    enum nxp_keycode_passthrough_error result =
+        nexus_keycode_pro_small_internal_bitstream_passthrough(&test_bitstream);
+
+    TEST_ASSERT_EQUAL_UINT(result,
+                           NXP_KEYCODE_PASSTHROUGH_ERROR_DATA_UNRECOGNIZED);
+}
+
+void test_nexus_keycode_pro_small_internal_bitstream_passthrough__supported_app_id_valid_message_accepted(
+    void)
+{
+    // all bits set to '0' except first bit
+    uint8_t bitstream_bytes[4] = {0x80, 0x00, 0x00, 0x00};
+    struct nexus_bitstream test_bitstream;
+    nexus_bitstream_init(
+        &test_bitstream, bitstream_bytes, sizeof(bitstream_bytes) * 8, 26);
+
+    // will be accepted as a passthrough command, but is an invalid
+    // extended message, so will trigger invalid feedback
+    nxp_keycode_feedback_start_ExpectAndReturn(
+        NXP_KEYCODE_FEEDBACK_TYPE_MESSAGE_INVALID, true);
+
+    // app ID 1 handled (extended small protocol message)
+    enum nxp_keycode_passthrough_error result =
+        nexus_keycode_pro_small_internal_bitstream_passthrough(&test_bitstream);
+
+    TEST_ASSERT_EQUAL_UINT(result, NXP_KEYCODE_PASSTHROUGH_ERROR_NONE);
+}
+
+void test_nexus_keycode_pro_small_reversibly_obfuscate__various_inputs__output_is_reversible(
+    void)
+{
+    uint8_t input_bytes[4];
+    uint8_t output_bytes_a[4];
+    uint8_t output_bytes_b[4];
+    uint8_t prng_bytes[4];
+
+    struct test_scenario
+    {
+        uint32_t input_bits_to_set;
+        uint8_t input_bits_count;
+        uint8_t bits_count_to_obfuscate;
+    };
+
+    // all bits not explicitly set are left at 0
+    const struct test_scenario scenarios[] = {
+        {// empty input bytes
+         0x00,
+         28,
+         16},
+        {// input bits (before obfuscation)
+         0x00 | (0x01 << 27 // passthrough app ID (NXC)
+                 ),
+         28,
+         16},
+        {0x00 | (0x01 << 27 | // passthrough app ID (NXC)
+                 0x01 << 20 | // smallpad 'type ID' for passthrough (ID = 1)
+                              // other bits ( << 9 and << 4 are MAC bits, won't
+                              // be modified in obfuscation)
+                 0x01 << 15 | 0x01 << 9 | 0x01 << 4),
+         28,
+         16},
+        {// nonsense bits
+         0xfabcdef0,
+         28,
+         16},
+        {0xfabcdef0, 20, 8},
+        {
+            0xfabcdef0,
+            8,
+            1,
+        }
+
+    };
+    // test:
+    //
+    // 1) output of first step is not equal (bytewise/memcmp) to original
+    // input (obfuscation changed contents)
+    // 2) output of second step is equal (bytewise/memcmp) to original
+    // input (obfuscation was reversible)
+
+    struct nexus_bitstream input_bitstream;
+    struct nexus_bitstream prng_bitstream;
+    struct nexus_bitstream output_bitstream_a;
+    struct nexus_bitstream output_bitstream_b;
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // initialize the scenario
+        const struct test_scenario scenario = scenarios[i];
+        memset(input_bytes, 0x00, sizeof(input_bytes));
+        memset(prng_bytes, 0x00, sizeof(prng_bytes));
+        memset(output_bytes_a, 0x00, sizeof(output_bytes_a));
+        memset(output_bytes_b, 0x00, sizeof(output_bytes_b));
+
+        nexus_bitstream_init(&input_bitstream,
+                             input_bytes,
+                             sizeof(input_bytes) * 8,
+                             scenario.input_bits_count);
+
+        // obfuscated input will be stored here
+        nexus_bitstream_init(
+            &output_bitstream_a, output_bytes_a, sizeof(output_bytes_a) * 8, 0);
+        // scenario.input_bits_count);
+
+        // second round - should be equal to original 'input bytes'
+        nexus_bitstream_init(
+            &output_bitstream_b, output_bytes_b, sizeof(output_bytes_b) * 8, 0);
+        // scenario.input_bits_count);
+
+        nexus_bitstream_set_bit_position(&input_bitstream, 0);
+        // all scenarios are 28 bits in length (smallpad message size)
+        for (uint8_t j = 1; j <= scenario.input_bits_count; j++)
+        {
+            // push in bits from left to right (leftmost bit in scenario input
+            // is 0th bit to set. Set bits 0-27 inclusive.
+            const bool should_set_bit =
+                (scenario.input_bits_to_set &
+                 (0x01 << (scenario.input_bits_count - j))) > 0;
+            nexus_bitstream_push_bit(&input_bitstream, should_set_bit);
+        }
+
+        nexus_bitstream_set_bit_position(&input_bitstream,
+                                         scenario.bits_count_to_obfuscate);
+        uint16_t check_bytes = nexus_bitstream_pull_uint16_be(
+            &input_bitstream,
+            scenario.input_bits_count - scenario.bits_count_to_obfuscate);
+        check_bytes = nexus_endian_htobe16(check_bytes);
+        nexus_check_compute_pseudorandom_bytes(
+            &NEXUS_INTEGRITY_CHECK_FIXED_00_KEY,
+            (const void*) &check_bytes,
+            sizeof(check_bytes),
+            (void*) prng_bytes,
+            sizeof(prng_bytes));
+
+        // initialize PRNG bitstream to calculated PRNG bytes
+        nexus_bitstream_init(&prng_bitstream,
+                             prng_bytes,
+                             sizeof(prng_bytes) * 8,
+                             scenario.bits_count_to_obfuscate);
+
+        nexus_keycode_pro_small_reversibly_obfuscate(
+            &input_bitstream,
+            &output_bitstream_a,
+            &prng_bitstream,
+            scenario.bits_count_to_obfuscate);
+
+        // 'reversibly_obfuscate' will reset PRNG bitstream position to 0
+        nexus_keycode_pro_small_reversibly_obfuscate(
+            &output_bitstream_a,
+            &output_bitstream_b,
+            &prng_bitstream,
+            scenario.bits_count_to_obfuscate);
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            input_bytes, output_bytes_b, sizeof(output_bytes_b));
+    }
+}
+
+void test_nexus_keycode_pro_small_internal_extract_passthrough_message__various_scenarios__passed_through_no_error(
+    void)
+{
+    uint8_t input_bytes[4];
+    uint8_t expected_output_bytes[4];
+    uint8_t actual_output_bytes[4];
+
+    struct test_scenario
+    {
+        uint32_t deobscured_input_bits;
+        uint32_t expected_output_bits;
+    };
+
+    // all bits not explicitly set are left at 0
+    const struct test_scenario scenarios[] = {
+        // 'empty' scenario (all 0 input bits except for application type)
+        {
+            // input bits (before obfuscation)
+            0x00 | (0x01 << 27 | // passthrough app ID (NXC)
+                    0x01 << 21 | // smallpad 'type ID' for passthrough (ignored)
+                    // various MAC bits
+                    0x01 << 15 | 0x01 << 9 | 0x01 << 4),
+
+            // expected output
+            0x00 | (0x01 << 25 | // passthrough app ID (NXC)
+                    0x01 << 15 | 0x01 << 9 | 0x01 << 4),
+        },
+        {
+            // input bits (before obfuscation)
+            0x00 | (0x01 << 27 | // passthrough app ID (NXC)
+                    0x01 << 22 | 0x01 << 21 | // smallpad 'type ID' (ignored)
+                    0x01 << 20 | // smallpad 'type ID' (ignored)
+                    0x01 << 19 |
+                    // various MAC bits
+                    0x01 << 15 | 0x01 << 9 | 0x01 << 4),
+
+            // expected output
+            0x00 |
+                (0x01 << 25 | // passthrough app ID (NXC)
+                 0x01 << 20 | 0x01 << 19 | 0x01 << 15 | 0x01 << 9 | 0x01 << 4),
+        }
+
+    };
+
+    struct nexus_bitstream input_bitstream;
+    struct nexus_bitstream expected_output_bitstream;
+    struct nexus_bitstream actual_output_bitstream;
+    for (uint8_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); ++i)
+    {
+        // initialize the scenario
+        const struct test_scenario scenario = scenarios[i];
+        memset(input_bytes, 0x00, sizeof(input_bytes));
+        memset(expected_output_bytes, 0x00, sizeof(expected_output_bytes));
+        memset(actual_output_bytes, 0x00, sizeof(actual_output_bytes));
+
+        nexus_bitstream_init(&actual_output_bitstream,
+                             actual_output_bytes,
+                             sizeof(actual_output_bytes) * 8,
+                             0);
+
+        nexus_bitstream_init(
+            &input_bitstream, input_bytes, sizeof(input_bytes) * 8, 0);
+
+        for (uint8_t j = 1; j <= 28; ++j)
+        {
+            nexus_bitstream_push_bit(&input_bitstream,
+                                     scenario.deobscured_input_bits &
+                                         (0x01 << (28 - j)));
+        }
+
+        nexus_bitstream_init(&expected_output_bitstream,
+                             expected_output_bytes,
+                             sizeof(expected_output_bytes) * 8,
+                             0);
+
+        for (uint8_t j = 1; j <= 26; ++j)
+        {
+            nexus_bitstream_push_bit(&expected_output_bitstream,
+                                     scenario.expected_output_bits &
+                                         (0x01 << (26 - j)));
+        }
+
+        TEST_ASSERT_EQUAL_UINT(0, actual_output_bitstream.position);
+
+        _nexus_keycode_pro_small_internal_extract_passthrough_message(
+            &actual_output_bitstream, &input_bitstream);
+
+        TEST_ASSERT_EQUAL_UINT(26, actual_output_bitstream.position);
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_output_bytes,
+                                      actual_output_bytes,
+                                      sizeof(actual_output_bytes));
+    }
+}
+
 void test_nexus_keycode_pro_small_parse__infer_full_message_id__infer_ok(void)
 {
     struct test_scenario
@@ -796,9 +1149,17 @@ void test_nexus_keycode_pro_small_apply__set_credit_valid__unlock_lock(void)
 
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
+    struct nexus_window window;
+    nexus_keycode_pro_get_current_message_id_window(&window);
+    TEST_ASSERT_FALSE(nexus_util_window_id_within_window(&window, 78 - 24));
+    TEST_ASSERT_TRUE(nexus_util_window_id_within_window(&window, 78 - 23));
+    TEST_ASSERT_TRUE(nexus_util_window_id_within_window(&window, 78 + 40));
+    TEST_ASSERT_FALSE(nexus_util_window_id_within_window(&window, 78 + 41));
+
     // all IDs below window are shown as 'not set'.
     for (uint8_t i = 0; i < 78 - 23; i++)
     {
+        TEST_ASSERT_FALSE(nexus_util_window_id_flag_already_set(&window, i));
         TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(i),
                                0);
     }
@@ -806,6 +1167,7 @@ void test_nexus_keycode_pro_small_apply__set_credit_valid__unlock_lock(void)
     // everything is still set up to 63; from before.
     for (uint8_t i = 78 - 23; i <= 63; i++)
     {
+        TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, i));
         TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_full_message_id_flag(i),
                                1);
     }
@@ -1167,6 +1529,13 @@ void test_nexus_keycode_pro_small_apply__maintenance_message__wipe_ids_and_credi
     response = nexus_keycode_pro_small_apply(&add_msg_24_id);
     TEST_ASSERT_EQUAL_UINT(response, NEXUS_KEYCODE_PRO_RESPONSE_VALID_APPLIED);
 
+    // check that windowed representation is also correct
+    struct nexus_window window;
+    nexus_keycode_pro_get_current_message_id_window(&window);
+    TEST_ASSERT_FALSE(nexus_util_window_id_within_window(&window, 0));
+    TEST_ASSERT_TRUE(nexus_util_window_id_within_window(&window, 1));
+    TEST_ASSERT_TRUE(nexus_util_window_id_within_window(&window, 64));
+
     for (uint8_t i = 0; i <= 63; i++)
     {
         // 0 is now outside of window, and will show as 'not set'.
@@ -1174,11 +1543,15 @@ void test_nexus_keycode_pro_small_apply__maintenance_message__wipe_ids_and_credi
         {
             TEST_ASSERT_EQUAL_UINT(
                 nexus_keycode_pro_get_full_message_id_flag(i), 0);
+
+            TEST_ASSERT_FALSE(
+                nexus_util_window_id_flag_already_set(&window, i));
         }
         else
         {
             TEST_ASSERT_EQUAL_UINT(
                 nexus_keycode_pro_get_full_message_id_flag(i), 1);
+            TEST_ASSERT_TRUE(nexus_util_window_id_flag_already_set(&window, i));
         }
     }
     TEST_ASSERT_EQUAL_UINT(nexus_keycode_pro_get_current_pd_index(), 24);

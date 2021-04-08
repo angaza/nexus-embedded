@@ -47,17 +47,6 @@ coap_status_t
 nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
                                    coap_packet_t* const pkt);
 
-/** Send Nexus Channel nonce sync message. Used in secure Nexus Channel
- * messaging.
- *
- * \param existing_pkt pointer to `coap_packet_t` that contains the messaging
- * parameters needed to construct a nonce sync message
- * \param desired_nonce desired nonce that the receiver of the message
- * should sync to
- */
-void nexus_channel_send_nonce_reset_message(coap_packet_t* existing_pkt,
-                                            uint32_t desired_nonce);
-
     #ifdef __cplusplus
 }
     #endif

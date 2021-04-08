@@ -171,9 +171,13 @@ nexus_bitstream_set_bit_position(struct nexus_bitstream* stream,
     stream->position = position;
 }
 
+void nexus_bitstream_push_bit(struct nexus_bitstream* stream, bool pushed);
+
 void nexus_bitstream_push_uint8(struct nexus_bitstream* bitstream,
                                 uint8_t data,
                                 uint8_t bits);
+
+bool nexus_bitstream_pull_bit(struct nexus_bitstream* stream);
 
 uint8_t nexus_bitstream_pull_uint8(struct nexus_bitstream* bitstream,
                                    uint8_t bits);

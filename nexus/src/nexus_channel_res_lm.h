@@ -15,6 +15,7 @@
 // link manager and handshake manager. This prevents circular dependencies
 // between link manager and handshake manager.
 #include "src/internal_channel_config.h"
+#include "src/nexus_nv.h"
 
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
@@ -35,6 +36,10 @@ extern const char* L_TIMEOUT_CONFIGURED_SHORT_PROP_NAME;
     #ifndef NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS
         #error "NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS must be defined."
     #endif
+
+    // How many secured messages must be exchanged before the nonce is persisted
+    // to nonvolatile storage
+    #define NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT 32
 
 /* Security data for link mode 0.
  *
@@ -76,6 +81,11 @@ nexus_channel_link_t;
 // see also `NX_COMMON_NV_BLOCK_4_LENGTH`
 NEXUS_STATIC_ASSERT(
     sizeof(nexus_channel_link_t) == 6 + 1 + 1 + 4 + 4 + 16 + 4, // 36
+    "Unexpected size for `nexus_channel_link_t`, NV storage may fail");
+
+NEXUS_STATIC_ASSERT(
+    sizeof(nexus_channel_link_t) ==
+        NX_COMMON_NV_BLOCK_4_LENGTH - NEXUS_NV_BLOCK_WRAPPER_SIZE_BYTES,
     "Unexpected size for `nexus_channel_link_t`, NV storage may fail");
 
 /* Initialize the Nexus Channel Link module.

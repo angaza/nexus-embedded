@@ -470,7 +470,8 @@ static coap_status_t coap_parse_token_option(void* packet,
                 coap_pkt->content_format = (uint16_t) coap_parse_int_option(
                     current_option, option_length);
                 OC_DBG("  Content-Format [%u]", coap_pkt->content_format);
-                if (coap_pkt->content_format != APPLICATION_VND_OCF_CBOR)
+                if (coap_pkt->content_format != APPLICATION_VND_OCF_CBOR &&
+                    coap_pkt->content_format != APPLICATION_COSE_MAC0)
                 {
                     return UNSUPPORTED_MEDIA_TYPE_4_15;
                 }

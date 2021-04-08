@@ -271,7 +271,6 @@ bool nexus_channel_core_apply_origin_command(
     bool result = false;
     switch (om_message->type)
     {
-
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3:
             PRINT(
                 "nx_channel_common: Processing link command 'Create Accessory "

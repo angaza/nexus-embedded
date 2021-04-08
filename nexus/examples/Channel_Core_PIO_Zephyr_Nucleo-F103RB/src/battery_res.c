@@ -14,7 +14,7 @@
 #include "oc/include/oc_ri.h"
 
 // Zephyr API for random number generation
-#include <zephyr.h>
+#include <random/rand32.h>
 // Zephyr logging for easier demonstration purposes
 #include <logging/log.h>
 LOG_MODULE_REGISTER(battery_res);

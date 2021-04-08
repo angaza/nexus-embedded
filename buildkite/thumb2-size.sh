@@ -76,7 +76,6 @@ echo "--- Computing summary size..."
 arm-none-eabi-size build/release/analyzed_nexus.out
 popd
 
-
 echo "--- Building stub 'controller only' configuration"
 # CONTROLLER
 # Manually overwrite Kconfig generated config
@@ -135,4 +134,3 @@ echo "--- Computing summary size..."
 
 arm-none-eabi-size build/release/analyzed_nexus.out
 popd
-

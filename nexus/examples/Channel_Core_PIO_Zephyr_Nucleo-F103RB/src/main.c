@@ -17,6 +17,7 @@
 #include <device.h>
 #include <devicetree.h>
 #include <drivers/gpio.h>
+#include <random/rand32.h>
 #include <string.h>
 #include <zephyr.h>
 
@@ -151,7 +152,7 @@ void main(void)
     LOG_INF("---Nexus Channel Core Demonstration---\n"
             "Valid options are 'get', 'post20', or 'post35'\n");
 
-    struct device* dev;
+    const struct device* dev;
     int ret = 0;
 
     dev = device_get_binding(LED0);
@@ -244,7 +245,7 @@ void main(void)
  */
 void get_input_from_user(void)
 {
-    struct device* dev = device_get_binding(LED0);
+    const struct device* dev = device_get_binding(LED0);
 
     while (1)
     {

@@ -32,6 +32,7 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
+#include "src/nexus_keycode_pro_extended.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
@@ -321,7 +322,7 @@ void test_channel_common_input_coap_message_passed_to_registered_handler__ok(
     // pass the request message to the CoAP parser, which should route to the
     // correct handler
     nexus_channel_res_payg_credit_get_handler_ExpectAnyArgs();
-    int result = coap_receive(request_message);
+    int result = coap_receive(request_message, false);
 
     TEST_ASSERT_EQUAL(COAP_NO_ERROR, result);
 

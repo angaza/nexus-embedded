@@ -107,11 +107,40 @@ void nexus_oc_wrapper_oc_endpoint_to_nx_id(
 /** Repack a CBOR-encoded payload with Nexus Channel security.
  *
  * \param buffer pointer to buffer to repack with Nexus Channel security
+ * \param buffer_size size of buffer to repack
  * \param cose_mac0 pointer to COSE_MAC0 data to use in creating the
  * security primitives
+ * \return new size of the COSE_MAC0 packed buffer
  */
-void nexus_oc_wrapper_repack_buffer_secured(
-    uint8_t* buffer, nexus_security_mode0_cose_mac0_t* cose_mac0);
+uint8_t nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* buffer,
+    uint8_t buffer_size,
+    nexus_security_mode0_cose_mac0_t* cose_mac0);
+
+/** Repack a CBOR-encoded payload *without* Nexus Channel security.
+ *
+ * Takes a payload that has been previously secured via
+ * `nexus_oc_wrapper_repack_buffer_secured` and unwraps it, extracting
+ * the embedded payload only. No validation of security is performed
+ * by this function.
+ *
+ * Makes a local copy of contents in `buffer`, and will copy the
+ * 'unsecured' payload back into the original `payload_buffer`,
+ * destructively overwriting the original secured content.
+ *
+ * If this function returns false, `payload_buffer` and
+ * `unsecured_payload_size` are unmodified.
+ *
+ * \param payload_buffer pointer to COSE_MAC0 payload to extract from
+ * \param secured_payload_size number of secured message bytes in `payload_buffer`
+ * \param unsecured_payload_size Final 'unsecured' message size
+ * \return true if unpacked successfully, false otherwise
+ */
+bool nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
+    uint8_t* payload_buffer,
+    uint8_t secured_payload_size,
+    uint8_t* unsecured_payload_size);
+
     #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 
     #ifdef __cplusplus

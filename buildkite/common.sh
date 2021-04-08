@@ -39,7 +39,7 @@ function za-install-sonar-scanner {
 
     # Get SonarCloud scanner binary, add to path
     # https://sonarcloud.io/documentation/analysis/scan/sonarscanner/
-    SCANNER_VERSION="4.1.0.1829-linux"
+    SCANNER_VERSION="4.4.0.2170-linux"
 
     wget -nc "https://angaza-misc.s3.amazonaws.com/sonarcloud/sonar-scanner-cli-$SCANNER_VERSION.zip"
     unzip -n "sonar-scanner-cli-$SCANNER_VERSION.zip"

@@ -35,15 +35,10 @@
 #pragma GCC diagnostic ignored "-Wcomment"
 
 #include "messaging/coap/oc_coap.h"
-/*
-#include "oc_buffer_settings.h"
-#include "oc_cloud.h"
-*/
+
 #include "oc_rep.h"
 #include "oc_ri.h"
 #include "oc_signal_event_loop.h"
-
-//#include "port/oc_storage.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -89,7 +84,7 @@ typedef struct
   int (*init)(void);
   void (*signal_event_loop)(void);
 
-//#ifdef OC_SERVER
+#ifdef OC_SERVER
   /**
    * Resource registration callback.
    *
@@ -131,9 +126,9 @@ typedef struct
    * @see oc_add_resource
    */
   void (*register_resources)(void);
-//#endif /* OC_SERVER */
+#endif /* OC_SERVER */
 
-//#ifdef OC_CLIENT
+#ifdef OC_CLIENT
   /**
    * Callback invoked when the stack is ready to issue discovery requests.
    *
@@ -154,7 +149,7 @@ typedef struct
    * @see oc_do_realm_local_ipv6_discovery
    */
   void (*requests_entry)(void);
-//#endif /* OC_CLIENT */
+#endif /* OC_CLIENT */
 } oc_handler_t;
 
 /**
@@ -463,58 +458,6 @@ int oc_init_platform(const char *mfg_name,
 //  oc_rep_set_text_string(root, prop, value)
 
 /**
- * Callback invoked when an onboarding client requests device ownership via the
- * Random PIN Ownership Transfer Method (OTM).  The purpose of the callback is
- * to allow the device to display the random PIN to the user onboarding the
- * device.
- *
- * Example:
- * ```
- * #ifdef OC_SECURITY
- * void random_pin_cb(const unsigned char *pin, size_t pin_len, void *data)
- * {
- *  (void)data;
- *  PRINT("\n\nRandom PIN: %.*s\n\n", (int)pin_len, pin);
- * }
- * #endif // OC_SECURITY
- *
- * int main(void) {
- *   ...
- * #ifdef OC_SECURITY
- *   oc_storage_config("./server_creds");
- *   oc_set_random_pin_callback(random_pin_cb, NULL);
- * #endif // OC_SECURITY
- *   // handler code omitted from example code see oc_main_init
- *   oc_main_init(&handler)
- *   ...
- *   return 0;
- * }
- * ```
- *
- * @param[in] data context pointer that comes from the oc_init_platform()
- *                 function
- *
- * @see oc_set_random_pin_callback
- */
-//typedef void (*oc_random_pin_cb_t)(const unsigned char *pin, size_t pin_len,
-//                                   void *data);
-
-/**
- * Set the random pin callback for Random PIN Ownership Transfer Method (OTM)
- *
- * @note This should be set before invoking oc_main_init().
- *
- * @param[in] cb callback function invoked when client requests Random PIN OTM
- * @param[in] data context pointer that is passed to the oc_random_pin_cb_t the
- *                 context pointer must be a valid pointer as long as the device
- *                 is in 'Ready For Ownership Transfer Method' (RFOTM) state.
- *
- * @see oc_random_pin_cb_t
- * @see oc_main_init
- */
-//void oc_set_random_pin_callback(oc_random_pin_cb_t cb, void *data);
-
-/**
  * Returns whether the oic.wk.con resource is advertised.
  *
  * @return
@@ -534,39 +477,6 @@ bool oc_get_con_res_announced(void);
   @see oc_set_con_write_cb
 */
 void oc_set_con_res_announced(bool announce);
-
-/**
- * Reset all logical devices to the RFOTM state
- *
- * All devices will be placed in the 'Ready For Ownership Transfer Mode'
- * (RFOTM). This is the initial startup state for for all devices that have not
- * yet been onboarded.  After this call all devices will need to be onboarded
- * and provisioned again.
- *
- * @note The function oc_reset() deals only with security and provisioning it
- *       does not reset any other device settings.
- *
- * @note Use of this function requires building with OC_SECURITY defined.
- */
-//void oc_reset();
-
-/**
- * Reset logical device to the RFOTM state
- *
- * The device will be placed in the 'Ready For Ownership Transfer Mode' (RFOTM).
- * This is the initial state startup state for for all devices that have not yet
- * been onboarded.  After this call the device will need to be onboarded and
- * provisioned again.
- *
- * @note The function oc_reset_device() deals only with security and
- *       provisioning it does not reset any other device settings.
- *
- * @note Use of this function requires building the stack with OC_SECURITY
- *       defined.
- *
- * @param[in] device index of the logical device to reset
- */
-//void oc_reset_device(size_t device);
 
 /* Server side */
 /**
@@ -1117,120 +1027,24 @@ int oc_notify_observers(oc_resource_t *resource);
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*
-bool oc_do_site_local_ipv6_discovery(const char *rt,
-                                     oc_discovery_handler_t handler,
-                                     void *user_data);
 
-bool oc_do_site_local_ipv6_discovery_all(oc_discovery_all_handler_t handler,
-                                         void *user_data);
-
-bool oc_do_realm_local_ipv6_discovery(const char *rt,
-                                      oc_discovery_handler_t handler,
-                                      void *user_data);
-
-bool oc_do_realm_local_ipv6_discovery_all(oc_discovery_all_handler_t handler,
-                                          void *user_data);
-
-bool oc_do_ip_discovery(const char *rt, oc_discovery_handler_t handler,
-                        void *user_data);
-
-bool oc_do_ip_discovery_all(oc_discovery_all_handler_t handler,
-                            void *user_data);
-*/
-
-/**
-  @brief  Discover resources in specific endpoint.
-  @param  rt         Resource type query to discover.
-  @param  handler    The callback for discovered resources. Must not be NULL.
-  @param  endpoint   Endpoint at which to discover resources. Must not be NULL.
-  @param  user_data  Callback parameter for user defined value.
-  @return Returns true if it successfully makes and dispatches a coap packet.
-*/
-/*
-bool oc_do_ip_discovery_at_endpoint(const char *rt,
-                                    oc_discovery_handler_t handler,
-                                    oc_endpoint_t *endpoint, void *user_data);
-
-bool oc_do_ip_discovery_all_at_endpoint(oc_discovery_all_handler_t handler,
-                                        oc_endpoint_t *endpoint,
-                                        void *user_data);
-*/
-bool oc_do_get(const char *uri, oc_endpoint_t *endpoint, const char *query,
+bool oc_do_get(const char *uri, bool nx_secure_request, oc_endpoint_t *endpoint, const char *query,
                oc_response_handler_t handler, oc_qos_t qos, void *user_data);
-
-/*
-bool oc_do_delete(const char *uri, oc_endpoint_t *endpoint, const char *query,
-                  oc_response_handler_t handler, oc_qos_t qos, void *user_data);
-
-bool oc_init_put(const char *uri, oc_endpoint_t *endpoint, const char *query,
-                 oc_response_handler_t handler, oc_qos_t qos, void *user_data);
-
-bool oc_do_put(void);
-*/
 
 bool oc_init_post(const char *uri, oc_endpoint_t *endpoint, const char *query,
                   oc_response_handler_t handler, oc_qos_t qos, void *user_data);
 
-bool oc_do_post(void);
+bool oc_do_post(bool nx_secure_request);
 
-/*
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 bool oc_do_observe(const char *uri, oc_endpoint_t *endpoint, const char *query,
                    oc_response_handler_t handler, oc_qos_t qos,
                    void *user_data);
 
 bool oc_stop_observe(const char *uri, oc_endpoint_t *endpoint);
-
-bool oc_do_ip_multicast(const char *uri, const char *query,
-                        oc_response_handler_t handler, void *user_data);
-
-bool oc_do_realm_local_ipv6_multicast(const char *uri, const char *query,
-                                      oc_response_handler_t handler,
-                                      void *user_data);
-
-bool oc_do_site_local_ipv6_multicast(const char *uri, const char *query,
-                                     oc_response_handler_t handler,
-                                     void *user_data);
-
-void oc_stop_multicast(oc_client_response_t *response);
-
-void oc_free_server_endpoints(oc_endpoint_t *endpoint);
-
-void oc_close_session(oc_endpoint_t *endpoint);
-*/
+#endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 /**
-  @defgroup doc_module_tag_asserting_roles Asserting roles
-  Asserting roles support functions
-  @{
-*/
-/*
-typedef struct oc_role_t
-{
-  struct oc_role_t *next;
-  oc_string_t role;
-  oc_string_t authority;
-} oc_role_t;
-
-oc_role_t *oc_get_all_roles(void);
-
-bool oc_assert_role(const char *role, const char *authority,
-                    oc_endpoint_t *endpoint, oc_response_handler_t handler,
-                    void *user_data);
-void oc_auto_assert_roles(bool auto_assert);
-
-void oc_assert_all_roles(oc_endpoint_t *endpoint, oc_response_handler_t handler,
-                         void *user_data);
-*/
-/** @} */ // end of doc_module_tag_asserting_roles
-//#ifdef OC_TCP
-//bool oc_send_ping(bool custody, oc_endpoint_t *endpoint,
-//                  uint16_t timeout_seconds, oc_response_handler_t handler,
-//                  void *user_data);
-//#endif    /* OC_TCP */
-/** @} */ // end of doc_module_tag_client_state
-
-/**  */
 /**
   @defgroup doc_module_tag_common_operations Common operations
   @{

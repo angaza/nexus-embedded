@@ -12,7 +12,6 @@
 #include "include/nxp_channel.h"
 #include "include/nxp_common.h"
 #include "src/nexus_common_internal.h"
-#include "src/nexus_nv.h"
 #include "src/nexus_security.h"
 #include "src/nexus_util.h"
 
@@ -182,6 +181,28 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
             // absent (since we define timeout as 'time since any successful
             // communication with other party on this link).
             _nexus_channel_link_manager_clear_link_internal(i);
+        }
+        else if (
+            (enum nexus_channel_link_security_mode) cur_link->security_mode ==
+            NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24)
+        {
+            // Persist updated nonce to NV periodically
+            if (cur_link->security_data.mode0.nonce %
+                    NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT ==
+                0)
+            {
+                // increment to avoid updating again on next `process` call
+                cur_link->security_data.mode0.nonce++;
+
+                // Write the update to NV, clearing this link block. On the next
+                // read, if the block is all 0x00, it will be considered a
+                // meaningless link and ignored.
+                struct nx_common_nv_block_meta* tmp_block_meta = 0;
+                (void) _nexus_channel_link_manager_index_to_nv_block(
+                    i, &tmp_block_meta);
+                NEXUS_ASSERT(tmp_block_meta != 0, "Block ID not found");
+                nexus_nv_update(*tmp_block_meta, (uint8_t*) cur_link);
+            }
         }
     }
     if (_this.pending_add_link)

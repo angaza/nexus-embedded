@@ -33,6 +33,7 @@
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
+#include "src/nexus_keycode_pro_extended.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"

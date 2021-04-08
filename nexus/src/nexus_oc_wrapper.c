@@ -333,10 +333,14 @@ static nx_channel_response_handler_t _active_client_get_handler = NULL;
 static nx_channel_response_handler_t _active_client_post_handler = NULL;
 
 // WARNING: Does not support simultaneous requests at the same time!
-void _nx_channel_get_response_handler_wrapper(oc_client_response_t* response)
+static void
+_nx_channel_get_response_handler_wrapper(oc_client_response_t* response)
 {
     // when `oc` calls this function, extract relevant fields from
     // the response object and call the user's response handler
+
+    // here, if we response is a nonce sync, intercept and resend the original
+    // message
 
     static struct nx_id server_nx_id;
     nexus_oc_wrapper_oc_endpoint_to_nx_id(response->endpoint, &server_nx_id);
@@ -355,10 +359,14 @@ void _nx_channel_get_response_handler_wrapper(oc_client_response_t* response)
 }
 
 // WARNING: Does not support simultaneous requests at the same time!
-void _nx_channel_post_response_handler_wrapper(oc_client_response_t* response)
+static void
+_nx_channel_post_response_handler_wrapper(oc_client_response_t* response)
 {
     // when `oc` calls this function, extract relevant fields from
     // the response object and call the user's response handler
+
+    // here, if we response is a nonce sync, intercept and resend the original
+    // message
 
     static struct nx_id server_nx_id;
     nexus_oc_wrapper_oc_endpoint_to_nx_id(response->endpoint, &server_nx_id);
@@ -376,20 +384,32 @@ void _nx_channel_post_response_handler_wrapper(oc_client_response_t* response)
     _active_client_post_handler = NULL;
 }
 
-nx_channel_error
-nx_channel_do_get_request(const char* uri,
-                          const struct nx_id* const server,
-                          const char* query,
-                          nx_channel_response_handler_t handler,
-                          void* request_context)
+// Sets active client handlers and returns the server endpoint (via pointer) for
+// destination server
+static void
+_nx_channel_do_get_request_common(nx_channel_response_handler_t handler,
+                                  const struct nx_id* const server,
+                                  oc_endpoint_t* server_oc_ep)
 {
     _active_client_get_handler = handler;
-    static oc_endpoint_t server_oc_ep;
+    nexus_oc_wrapper_nx_id_to_oc_endpoint(server, server_oc_ep);
+}
 
-    nexus_oc_wrapper_nx_id_to_oc_endpoint(server, &server_oc_ep);
+    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
+nx_channel_error
+nx_channel_do_get_request_secured(const char* uri,
+                                  const struct nx_id* const server,
+                                  const char* query,
+                                  nx_channel_response_handler_t handler,
+                                  void* request_context)
+{
+    oc_endpoint_t server_oc_ep;
+    _nx_channel_do_get_request_common(handler, server, &server_oc_ep);
 
     // will result in a call back to `active_client_get_handler` on response
     const bool success = oc_do_get(uri,
+                                   true,
                                    &server_oc_ep,
                                    query,
                                    &_nx_channel_get_response_handler_wrapper,
@@ -400,6 +420,39 @@ nx_channel_do_get_request(const char* uri,
 
     if (!success)
     {
+        _active_client_get_handler = NULL;
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+    #endif // #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
+nx_channel_error
+nx_channel_do_get_request(const char* uri,
+                          const struct nx_id* const server,
+                          const char* query,
+                          nx_channel_response_handler_t handler,
+                          void* request_context)
+{
+
+    oc_endpoint_t server_oc_ep;
+    _nx_channel_do_get_request_common(handler, server, &server_oc_ep);
+
+    // will result in a call back to `active_client_get_handler` on response
+    const bool success = oc_do_get(uri,
+                                   false,
+                                   &server_oc_ep,
+                                   query,
+                                   &_nx_channel_get_response_handler_wrapper,
+                                   LOW_QOS,
+                                   request_context);
+
+    nxp_common_request_processing();
+
+    if (!success)
+    {
+        _active_client_get_handler = NULL;
         return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
     return NX_CHANNEL_ERROR_NONE;
@@ -413,6 +466,7 @@ nx_channel_init_post_request(const char* uri,
                              void* request_context)
 {
     _active_client_post_handler = handler;
+
     static oc_endpoint_t server_oc_ep;
 
     nexus_oc_wrapper_nx_id_to_oc_endpoint(server, &server_oc_ep);
@@ -428,6 +482,7 @@ nx_channel_init_post_request(const char* uri,
 
     if (!success)
     {
+        _active_client_post_handler = NULL;
         return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
     return NX_CHANNEL_ERROR_NONE;
@@ -441,47 +496,169 @@ nx_channel_error nx_channel_do_post_request(void)
         return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
 
-    const bool success = oc_do_post();
+    const bool success = oc_do_post(false);
 
     nxp_common_request_processing();
 
     if (!success)
     {
+        _active_client_post_handler = NULL;
         return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
     return NX_CHANNEL_ERROR_NONE;
 }
 
     #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-void nexus_oc_wrapper_repack_buffer_secured(
-    uint8_t* buffer, nexus_security_mode0_cose_mac0_t* cose_mac0)
+
+nx_channel_error nx_channel_do_post_request_secured(void)
 {
+    // ensure that a post handler has been set previously by `init_post`
+    if (_active_client_post_handler == NULL)
+    {
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+
+    const bool success = oc_do_post(true);
+
+    nxp_common_request_processing();
+
+    if (!success)
+    {
+        _active_client_post_handler = NULL;
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
+    }
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// ASCL for Frama_C
+/*@
+    requires \valid(payload_buffer);
+    requires \valid(&(payload_buffer[0..secured_payload_size]));
+    requires \valid(unsecured_payload_size);
+
+    behavior FailsToUnpack:
+        assigns \nothing;
+
+        ensures \result == false;
+    behavior SuccessfullyUnpacks:
+        assigns *unsecured_payload_size;
+
+        ensures \result == true;
+        ensures *unsecured_payload_size <= secured_payload_size;
+
+    complete behaviors;
+    disjoint behaviors;
+*/
+bool nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
+    uint8_t* payload_buffer,
+    uint8_t secured_payload_size,
+    uint8_t* unsecured_payload_size)
+{
+    // hacky, relies on the fact that our 'pseudo COSE MAC0' message
+    // has 17 bytes prior to the payload value (starting with "BF")
+    if (secured_payload_size < 19)
+    {
+        return false;
+    }
+    // key 'd'
+    const uint8_t payload_key = payload_buffer[17];
+    // MSB 3 bits indicate bytestring, LSB 5 bits indicate length of payload
+    const uint8_t payload_type_length = payload_buffer[18];
+    // 0x1f == 0b11111 (LSB 5 bits)
+    const uint8_t payload_length_designator = payload_type_length & 0x1f;
+    uint8_t payload_length;
+    const uint8_t* payload_pointer;
+    // Major type 2 == bytestring
+    if (payload_key != 'd' || ((payload_type_length >> 5) != 0x02))
+    {
+        return false;
+    }
+
+    // CBOR spec: https://www.rfc-editor.org/rfc/rfc8949.html#section-3
+    // use the length directly
+    if (payload_length_designator < 24)
+    {
+        // 0-23 inclusive
+        payload_length = payload_length_designator;
+        payload_pointer = &payload_buffer[19];
+    }
+    else if (payload_length_designator == 24)
+    {
+        // length is stored in the next single byte
+        payload_length = payload_buffer[19];
+        payload_pointer = &payload_buffer[20];
+    }
+    else
+    {
+        // dont currently handle 2, 4, and 8 byte length fields (25, 26, 27)
+        // don't handle reserved values (28, 29, 30)
+        // don't allow indefinite length payload fieldS (31)
+        return false;
+    }
+
+    if (payload_length > secured_payload_size)
+    {
+        NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
+            0, "Unsecured payload larger than original secured payload");
+        return false;
+    }
+
+    NEXUS_ASSERT(secured_payload_size <= OC_BLOCK_SIZE,
+                 "Provide larger tmp buffer");
+    uint8_t tmp_unsecured_buffer[OC_BLOCK_SIZE];
+    memcpy(tmp_unsecured_buffer, payload_pointer, payload_length);
+    memcpy(payload_buffer, tmp_unsecured_buffer, payload_length);
+    *unsecured_payload_size = payload_length;
+
+    return true;
+}
+
+uint8_t nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* buffer,
+    uint8_t buffer_size,
+    nexus_security_mode0_cose_mac0_t* cose_mac0)
+{
+    // if buffer not large enough to hold maximum payload size, then return
+    // early
+    if (buffer_size < OC_BLOCK_SIZE)
+    {
+        return 0;
+    }
+
     // first, set up a new OC rep allowing us to encode our 'new message'
     // into a payload. This buffer temporarily exists within this packing step
-    uint8_t payload_buffer[OC_BLOCK_SIZE];
-    oc_rep_new(payload_buffer, OC_BLOCK_SIZE);
-    oc_rep_begin_root_object();
+    uint8_t secured_buffer[OC_BLOCK_SIZE] = {0};
     // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, (uint8_t*) &cose_mac0->protected_header, 1);
+    // CODE (1 byte) + NONCE (4 bytes) = 5 bytes total
+    uint8_t protected_header_bytes[5];
+    protected_header_bytes[0] = cose_mac0->protected_header_method;
+    memcpy(&protected_header_bytes[1],
+           &cose_mac0->protected_header_nonce,
+           sizeof(uint32_t));
+    // XXX SHOULD INCLUDE URI IN PROTECTED (implicit or explicit?)
+
+    oc_rep_new(secured_buffer, sizeof(secured_buffer));
+    oc_rep_begin_root_object();
+    oc_rep_set_byte_string(
+        root, p, protected_header_bytes, sizeof(protected_header_bytes));
     // 'unprotected' elements as a map of length 2
     oc_rep_open_object(root, u);
     oc_rep_set_uint(u, 4, cose_mac0->kid);
-    oc_rep_set_uint(u, 5, cose_mac0->nonce);
     oc_rep_close_object(root, u);
-    // 'payload' in a bstr
     oc_rep_set_byte_string(root, d, cose_mac0->payload, cose_mac0->payload_len);
     // 'tag' in a bstr
     oc_rep_set_byte_string(
         root, m, (uint8_t*) cose_mac0->mac, sizeof(struct nexus_check_value));
     oc_rep_end_root_object();
 
-    // New payload size, after packing as a COSE MAC0 object
-    // Required for downstream logic which will set the CoAP packet payload
-    // length fields
-    size_t payload_size = (size_t) oc_rep_get_encoded_payload_size();
+    // new payload size after packing as a COSE MAC0 object
+    const uint8_t payload_size = (uint8_t) oc_rep_get_encoded_payload_size();
 
-    // now, copy back the packed buffer back over the packed application data
-    memcpy(buffer, payload_buffer, payload_size);
+    NEXUS_ASSERT(buffer_size >= OC_BLOCK_SIZE,
+                 "buffer too small to ensure safe copy");
+    memcpy(buffer, secured_buffer, payload_size);
+
+    return payload_size;
 }
     #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 

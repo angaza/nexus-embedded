@@ -154,6 +154,33 @@ nx_channel_do_get_request(const char* uri,
                           nx_channel_response_handler_t handler,
                           void* request_context);
 
+#ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+/** Make a SECURED GET request to the resource at `uri` on device `server`.
+ * Same parameters and behavior as `nx_channel_do_get_request`, except that
+ * the request will be secured (if possible) using the existing Nexus Channel
+ * Link to device `server`.
+ *
+ * This will fail if there is no secured Nexus Channel Link established with
+ * `server`.
+ *
+ * \sa nx_channel_do_get_request
+ *
+ * \param uri C string representing the URI of the resource
+ * \param server Nexus ID of the device which is hosting `uri`
+ * \param query C string representing query string
+ * \param handler function to call once a response is received
+ * \param request_context additional data required to process the response
+ * to the request. See `nx_channel_client_response_t`
+ * \return `nx_channel_error` detailing success or failure
+ */
+nx_channel_error
+nx_channel_do_get_request_secured(const char* uri,
+                                  const struct nx_id* const server,
+                                  const char* query,
+                                  nx_channel_response_handler_t handler,
+                                  void* request_context);
+#endif // #ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+
 /** Prepare a POST (update) request to the resource at `uri` on device `server`.
  *
  * Given the Nexus ID of a device hosting a resource (a 'server'), prepare
@@ -197,9 +224,27 @@ nx_channel_init_post_request(const char* uri,
  *
  * Requires `nx_channel_init_post_request` to be called first.
  *
+ * \sa nx_channel_do_post_request
+ *
  * \return `nx_channel_error` detailing success or failure
  */
 nx_channel_error nx_channel_do_post_request(void);
+
+#ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+/** Make A SECURED POST request to the resource at `uri` on device `server`.
+ * Same behavior as `nx_channel_do_post_request`, except tat te
+ * request will be secured (if possible) using the existing Nexus Channel
+ * Link to device `server`.
+ *
+ * This will fail if there is no secured nexus Channel Link established with
+ * `server.`
+ *
+ * Requires `nx_channel_init_post_request` to be called first.
+ *
+ * \return `nx_channel_error` detailing success or failure
+ */
+nx_channel_error nx_channel_do_post_request_secured(void);
+#endif // #ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 /*! \brief Nexus Channel origin command encoding/bearer type.
  *
@@ -210,7 +255,7 @@ nx_channel_error nx_channel_do_post_request(void);
 enum nx_channel_origin_command_bearer_type
 {
     /** Nexus Channel origin command is carried in ASCII digits, such as
-     * a command embedded in a passthrough keycode.
+     * a command embedded in a fullpad keycode passthrough keycode.
      */
     NX_CHANNEL_ORIGIN_COMMAND_BEARER_TYPE_ASCII_DIGITS = 0,
 };
@@ -230,7 +275,7 @@ enum nx_channel_origin_command_bearer_type
  */
 nx_channel_error nx_channel_handle_origin_command(
     const enum nx_channel_origin_command_bearer_type bearer_type,
-    const void* command_data,
+    const void* const command_data,
     const uint32_t command_length);
 
 /*! \brief Handle incoming Nexus Channel application packet
