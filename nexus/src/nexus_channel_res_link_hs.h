@@ -33,6 +33,8 @@ extern "C" {
     #define NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_TIMEOUT_SECONDS 3600
 
     // retry every 5 seconds until getting a response
+    // Note: Must be less than the time between clearing
+    // request messages in OC (`OC_NON_LIFETIME`)
     #define NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_RETRY_SECONDS 5
 
     // Must fit in a uint8_t (< 256)
@@ -207,9 +209,6 @@ bool _nexus_channel_res_link_hs_server_validate_challenge(
     uint32_t* matched_handshake_index,
     struct nx_common_check_key* derived_key);
 
-// used in unit tests to programmatically set resource state
-// (as accessory)
-void _nexus_channel_res_link_hs_reset_server_state(void);
 void _nexus_channel_res_link_hs_set_server_state(
     const nexus_link_hs_accessory_t* server_state);
 
@@ -223,6 +222,8 @@ void _nexus_channel_res_link_hs_set_client_state(
     const nexus_link_hs_controller_t* client_state, uint8_t index);
 nexus_link_hs_controller_t*
 _nexus_channel_res_link_hs_get_client_state(uint8_t index);
+// Used internally to reset accessories
+void _nexus_channel_res_link_hs_reset_server_state(void);
     #endif /* ifdef NEXUS_INTERNAL_IMPL_NON_STATIC */
 
 NEXUS_STATIC_ASSERT(

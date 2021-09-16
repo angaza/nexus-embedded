@@ -34,7 +34,14 @@ sleep 5
 send -- "1\r"
 
 expect_fail_timeout "Please input a Full keycode"
-send -- "*8192798211668986#\r\r"
+
+#    message = FactoryFullMessage.passthrough_channel_origin_command(
+#    ChannelOriginAction.LINK_ACCESSORY_MODE_3,
+#    controller_command_count=15,
+#    accessory_command_count=2,
+#    accessory_sym_key=b'\xc4\xb8@H\xcf\x04$\xa2]\xc5\xe9\xd3\xf0g@6',
+#    controller_sym_key=b"\xde\xad\xbe\xef\x10\x20\x30\x40\x04\x03\x02\x01\xfe\xeb\xda\xed")
+send -- "*814263468067164#\r\r"
 
 expect_fail_timeout "Generating link key using salt"
 expect_fail_timeout "Beginning link handshake"
@@ -55,7 +62,7 @@ expect_fail_timeout "Menu"
 send -- "1\r"
 
 expect_fail_timeout "Please input a Full keycode"
-send -- "*8192798211668986#\r"
+send -- "*814263468067164#\r"
 send -- "\r"
 
 expect_fail_timeout "Handling origin command"
@@ -83,7 +90,8 @@ expect_fail_timeout "Menu"
 send -- "1\r"
 
 expect_fail_timeout "Please input a Full keycode"
-send -- "*81000856304#\r"
+# controller ID = 16
+send -- "*81495337460#\r"
 send -- "\r"
 
 expect_fail_timeout "Unlink all/clear links"
@@ -118,9 +126,9 @@ expect_fail_timeout "Menu"
 send -- "3\r"
 
 expect_fail_timeout "Begin get_batt: interface"
-expect_fail_timeout "batterythreshold"
+expect_fail_timeout "th"
 expect_fail_timeout "20"
-expect_fail_timeout "capacity"
+expect_fail_timeout "ca"
 expect_fail_timeout "3000"
 expect_fail_timeout "End get_batt"
 expect_fail_timeout "Menu"
@@ -130,14 +138,19 @@ expect_fail_timeout "Please input a new battery threshold (0-20)"
 send -- "10\r"
 send -- "\r"
 
-expect_fail_timeout "Receiving 33 byte message"
+expect_fail_timeout "Receiving 19 byte message"
 send -- "\r"
 
 expect_fail_timeout "Menu"
 send -- "3\r"
 
+# Sleep to allow pending transaction slots to time out (10 seconds)
+# Don't need this as only NX *secured* transactions are buffered, and the
+# GET and POST in this example are not secured messages
+# sleep 11
+
 expect_fail_timeout "Begin post_batt"
-expect_fail_timeout "'batterythreshold' : 10"
+expect_fail_timeout "'th' : 10"
 expect_fail_timeout "Menu"
 send -- "4\r"
 
@@ -146,9 +159,9 @@ expect_fail_timeout "Menu"
 send -- "3\r"
 
 expect_fail_timeout "Begin get_batt: interface"
-expect_fail_timeout "batterythreshold"
+expect_fail_timeout "th"
 expect_fail_timeout "10"
-expect_fail_timeout "capacity"
+expect_fail_timeout "ca"
 expect_fail_timeout "3000"
 expect_fail_timeout "End get_batt"
 

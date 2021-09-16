@@ -17,7 +17,6 @@
 #include "oc/util/oc_process.h"
 #include "oc/util/oc_timer.h"
 
-// XXX do we need these?
 #include "util/oc_memb.h"
 #include "utils/oc_list.h"
 #include "utils/oc_uuid.h"
@@ -29,6 +28,9 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_common_internal.h"
+#include "src/nexus_cose_mac0_common.h"
+#include "src/nexus_cose_mac0_sign.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -86,6 +88,7 @@ void setUp(void)
     nxp_channel_random_value_IgnoreAndReturn(123456);
     nxp_channel_network_send_IgnoreAndReturn(NX_CHANNEL_ERROR_NONE);
     nxp_common_nv_read_IgnoreAndReturn(true);
+    nexus_channel_res_payg_credit_process_IgnoreAndReturn(UINT32_MAX);
 
     bool init_success = nexus_channel_core_init();
     TEST_ASSERT_TRUE(init_success);
@@ -322,7 +325,7 @@ void test_channel_common_input_coap_message_passed_to_registered_handler__ok(
     // pass the request message to the CoAP parser, which should route to the
     // correct handler
     nexus_channel_res_payg_credit_get_handler_ExpectAnyArgs();
-    int result = coap_receive(request_message, false);
+    int result = coap_receive(request_message);
 
     TEST_ASSERT_EQUAL(COAP_NO_ERROR, result);
 

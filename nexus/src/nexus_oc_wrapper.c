@@ -19,6 +19,9 @@
 
 #if NEXUS_CHANNEL_CORE_ENABLED
 
+    #include "src/nexus_cose_mac0_sign.h"
+    #include "src/nexus_cose_mac0_verify.h"
+
 // common define for the multicast OCF address
 // broadcast endpoint, not dynamically allocated
 // 0x02 = 'link local' scope, multicast to directly connected devices
@@ -144,7 +147,7 @@ nx_channel_error nx_channel_network_receive(const void* const bytes_received,
     {
         return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
-    else if (bytes_count > NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES)
+    else if (bytes_count > NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE)
     {
         return NX_CHANNEL_ERROR_MESSAGE_TOO_LARGE;
     }
@@ -155,22 +158,27 @@ nx_channel_error nx_channel_network_receive(const void* const bytes_received,
     // memory use does not increase by calling this function.
     oc_message_t* message = oc_allocate_message();
 
-    if (message)
+    // might happen if `oc_allocate_message` were called multiple times
+    // without calling `oc_network_event` and `nx_common_process` between
+    // each call.
+    if (message == NULL)
     {
-        PRINT("nx_channel_network: Receiving %u byte message: ", bytes_count);
-        PRINTbytes(((uint8_t*) bytes_received), bytes_count);
-        message->length = bytes_count;
-        memcpy(message->data, bytes_received, bytes_count);
-
-        // Convert into oc_endpoint form expected by IoTivity
-        oc_endpoint_t source_endpoint;
-        memset(&source_endpoint, 0x00, sizeof(oc_endpoint_t));
-        nexus_oc_wrapper_nx_id_to_oc_endpoint(source, &source_endpoint);
-        oc_endpoint_copy(&message->endpoint, &source_endpoint);
-
-        // Message will be processed and deallocated during main event loop
-        oc_network_event(message);
+        return NX_CHANNEL_ERROR_UNSPECIFIED;
     }
+
+    PRINT("nx_channel_network: Receiving %u byte message: ", bytes_count);
+    PRINTbytes(((uint8_t*) bytes_received), bytes_count);
+    message->length = bytes_count;
+    memcpy(message->data, bytes_received, bytes_count);
+
+    // Convert into oc_endpoint form expected by IoTivity
+    oc_endpoint_t source_endpoint;
+    memset(&source_endpoint, 0x00, sizeof(oc_endpoint_t));
+    nexus_oc_wrapper_nx_id_to_oc_endpoint(source, &source_endpoint);
+    oc_endpoint_copy(&message->endpoint, &source_endpoint);
+
+    // Message will be processed and deallocated during main event loop
+    oc_network_event(message);
 
     // trigger processing so that IoTivity core can receive the message
     nxp_common_request_processing();
@@ -288,9 +296,9 @@ static int _nexus_oc_wrapper_inner_network_send(const oc_message_t* message,
     }
 
     NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
-        message->length <= NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES,
+        message->length <= NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE,
         "Message exceeds max expected limit!");
-    if (message->length > NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES)
+    if (message->length > NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE)
     {
         OC_WRN("Cannot send message of length %zu", message->length);
         return 1;
@@ -530,135 +538,31 @@ nx_channel_error nx_channel_do_post_request_secured(void)
     return NX_CHANNEL_ERROR_NONE;
 }
 
-// ASCL for Frama_C
-/*@
-    requires \valid(payload_buffer);
-    requires \valid(&(payload_buffer[0..secured_payload_size]));
-    requires \valid(unsecured_payload_size);
-
-    behavior FailsToUnpack:
-        assigns \nothing;
-
-        ensures \result == false;
-    behavior SuccessfullyUnpacks:
-        assigns *unsecured_payload_size;
-
-        ensures \result == true;
-        ensures *unsecured_payload_size <= secured_payload_size;
-
-    complete behaviors;
-    disjoint behaviors;
-*/
-bool nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-    uint8_t* payload_buffer,
-    uint8_t secured_payload_size,
-    uint8_t* unsecured_payload_size)
-{
-    // hacky, relies on the fact that our 'pseudo COSE MAC0' message
-    // has 17 bytes prior to the payload value (starting with "BF")
-    if (secured_payload_size < 19)
-    {
-        return false;
-    }
-    // key 'd'
-    const uint8_t payload_key = payload_buffer[17];
-    // MSB 3 bits indicate bytestring, LSB 5 bits indicate length of payload
-    const uint8_t payload_type_length = payload_buffer[18];
-    // 0x1f == 0b11111 (LSB 5 bits)
-    const uint8_t payload_length_designator = payload_type_length & 0x1f;
-    uint8_t payload_length;
-    const uint8_t* payload_pointer;
-    // Major type 2 == bytestring
-    if (payload_key != 'd' || ((payload_type_length >> 5) != 0x02))
-    {
-        return false;
-    }
-
-    // CBOR spec: https://www.rfc-editor.org/rfc/rfc8949.html#section-3
-    // use the length directly
-    if (payload_length_designator < 24)
-    {
-        // 0-23 inclusive
-        payload_length = payload_length_designator;
-        payload_pointer = &payload_buffer[19];
-    }
-    else if (payload_length_designator == 24)
-    {
-        // length is stored in the next single byte
-        payload_length = payload_buffer[19];
-        payload_pointer = &payload_buffer[20];
-    }
-    else
-    {
-        // dont currently handle 2, 4, and 8 byte length fields (25, 26, 27)
-        // don't handle reserved values (28, 29, 30)
-        // don't allow indefinite length payload fieldS (31)
-        return false;
-    }
-
-    if (payload_length > secured_payload_size)
-    {
-        NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(
-            0, "Unsecured payload larger than original secured payload");
-        return false;
-    }
-
-    NEXUS_ASSERT(secured_payload_size <= OC_BLOCK_SIZE,
-                 "Provide larger tmp buffer");
-    uint8_t tmp_unsecured_buffer[OC_BLOCK_SIZE];
-    memcpy(tmp_unsecured_buffer, payload_pointer, payload_length);
-    memcpy(payload_buffer, tmp_unsecured_buffer, payload_length);
-    *unsecured_payload_size = payload_length;
-
-    return true;
-}
-
-uint8_t nexus_oc_wrapper_repack_buffer_secured(
-    uint8_t* buffer,
-    uint8_t buffer_size,
-    nexus_security_mode0_cose_mac0_t* cose_mac0)
+size_t nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* secured_output,
+    size_t secured_output_size,
+    nexus_cose_mac0_common_macparams_t* mac_params)
 {
     // if buffer not large enough to hold maximum payload size, then return
     // early
-    if (buffer_size < OC_BLOCK_SIZE)
+    if (secured_output_size < NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE)
     {
         return 0;
     }
 
-    // first, set up a new OC rep allowing us to encode our 'new message'
-    // into a payload. This buffer temporarily exists within this packing step
-    uint8_t secured_buffer[OC_BLOCK_SIZE] = {0};
-    // 'protected' in a bstr;
-    // CODE (1 byte) + NONCE (4 bytes) = 5 bytes total
-    uint8_t protected_header_bytes[5];
-    protected_header_bytes[0] = cose_mac0->protected_header_method;
-    memcpy(&protected_header_bytes[1],
-           &cose_mac0->protected_header_nonce,
-           sizeof(uint32_t));
-    // XXX SHOULD INCLUDE URI IN PROTECTED (implicit or explicit?)
+    size_t bytes_encoded;
 
-    oc_rep_new(secured_buffer, sizeof(secured_buffer));
-    oc_rep_begin_root_object();
-    oc_rep_set_byte_string(
-        root, p, protected_header_bytes, sizeof(protected_header_bytes));
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, cose_mac0->kid);
-    oc_rep_close_object(root, u);
-    oc_rep_set_byte_string(root, d, cose_mac0->payload, cose_mac0->payload_len);
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(
-        root, m, (uint8_t*) cose_mac0->mac, sizeof(struct nexus_check_value));
-    oc_rep_end_root_object();
+    const nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        mac_params, secured_output, secured_output_size, &bytes_encoded);
 
-    // new payload size after packing as a COSE MAC0 object
-    const uint8_t payload_size = (uint8_t) oc_rep_get_encoded_payload_size();
+    if (encode_result == NEXUS_COSE_ERROR_NONE)
+    {
 
-    NEXUS_ASSERT(buffer_size >= OC_BLOCK_SIZE,
-                 "buffer too small to ensure safe copy");
-    memcpy(buffer, secured_buffer, payload_size);
+        return bytes_encoded;
+    }
 
-    return payload_size;
+    OC_WRN("Unable to secure message, Nexus Cose Error %d", encode_result);
+    return 0;
 }
     #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 

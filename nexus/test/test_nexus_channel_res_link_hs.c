@@ -27,9 +27,11 @@
 #include "src/nexus_channel_om.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
-#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_common_internal.h"
+#include "src/nexus_cose_mac0_common.h"
+#include "src/nexus_cose_mac0_sign.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -43,6 +45,7 @@
 #include "utils/siphash_24.h"
 
 // Other support libraries
+#include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nxp_channel.h>
 #include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
@@ -262,6 +265,8 @@ void setUp(void)
     nxp_common_nv_read_IgnoreAndReturn(true);
     nxp_common_nv_write_IgnoreAndReturn(true);
     nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_res_payg_credit_process_IgnoreAndReturn(UINT32_MAX);
+
     // register platform and device
     nexus_channel_core_init();
 
@@ -278,9 +283,9 @@ void setUp(void)
     oc_resource_t* resource =
         oc_ri_get_app_resource_by_uri("h", 1, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
     TEST_ASSERT_EQUAL_STRING_LEN("/h", resource->uri.ptr, 2);
-    TEST_ASSERT_EQUAL_STRING_LEN("angaza.com.nexus.link.hs",
+    TEST_ASSERT_EQUAL_STRING_LEN("angaza.com.nx.ln.hs",
                                  resource->types.ptr,
-                                 strlen("angaza.com.nexus.link.hs"));
+                                 strlen("angaza.com.nx.ln.hs"));
 
     // will prepare CoAP engine to send/receive messages
     coap_init_engine();
@@ -586,20 +591,20 @@ void test_res_link_hs_server_get_response__default_with_baseline__cbor_data_mode
 
     PRINT("Raw CBOR Payload bytes follow (1):\n");
     // Print CBOR payload for demonstration
-    // {"rt": ["angaza.com.nexus.link.hs"], "if": ["oic.if.rw",
-    // "oic.if.baseline"], "cD": h'', "rD": h'', "cM": 0, "lS": 0, "st": 0,
-    // "tI": 0, "tT": 300, "sL": [0], "sC": [0]}
+    // {"rt": ["angaza.com.nx.ln.hs"], "if": ["oic.if.rw", "oic.if.baseline"],
+    // "cD": h'', "rD": h'', "cM": 0, "lS": 0, "st": 0, "tI": 0, "tT": 300,
+    // "sL": [0], "sC": [0]}
     //
-    uint8_t expected_payload_bytes[104] = {
-        0xbf, 0x62, 0x72, 0x74, 0x9f, 0x78, 0x18, 0x61, 0x6e, 0x67, 0x61, 0x7a,
-        0x61, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x6e, 0x65, 0x78, 0x75, 0x73, 0x2e,
-        0x6c, 0x69, 0x6e, 0x6b, 0x2e, 0x68, 0x73, 0xff, 0x62, 0x69, 0x66, 0x9f,
-        0x69, 0x6f, 0x69, 0x63, 0x2e, 0x69, 0x66, 0x2e, 0x72, 0x77, 0x6f, 0x6f,
-        0x69, 0x63, 0x2e, 0x69, 0x66, 0x2e, 0x62, 0x61, 0x73, 0x65, 0x6c, 0x69,
-        0x6e, 0x65, 0xff, 0x62, 0x63, 0x44, 0x40, 0x62, 0x72, 0x44, 0x40, 0x62,
-        0x63, 0x4d, 0x0,  0x62, 0x6c, 0x53, 0x0,  0x62, 0x73, 0x74, 0x0,  0x62,
-        0x74, 0x49, 0x0,  0x62, 0x74, 0x54, 0x19, 0x1,  0x2c, 0x62, 0x73, 0x4c,
-        0x81, 0x0,  0x62, 0x73, 0x43, 0x81, 0x0,  0xff};
+    uint8_t expected_payload_bytes[98] = {
+        0xbf, 0x62, 0x72, 0x74, 0x9f, 0x73, 0x61, 0x6e, 0x67, 0x61, 0x7a,
+        0x61, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x6e, 0x78, 0x2e, 0x6c, 0x6e,
+        0x2e, 0x68, 0x73, 0xff, 0x62, 0x69, 0x66, 0x9f, 0x69, 0x6f, 0x69,
+        0x63, 0x2e, 0x69, 0x66, 0x2e, 0x72, 0x77, 0x6f, 0x6f, 0x69, 0x63,
+        0x2e, 0x69, 0x66, 0x2e, 0x62, 0x61, 0x73, 0x65, 0x6c, 0x69, 0x6e,
+        0x65, 0xff, 0x62, 0x63, 0x44, 0x40, 0x62, 0x72, 0x44, 0x40, 0x62,
+        0x63, 0x4d, 0x0,  0x62, 0x6c, 0x53, 0x0,  0x62, 0x73, 0x74, 0x0,
+        0x62, 0x74, 0x49, 0x0,  0x62, 0x74, 0x54, 0x19, 0x1,  0x2c, 0x62,
+        0x73, 0x4c, 0x81, 0x0,  0x62, 0x73, 0x43, 0x81, 0x00, 0xff};
     for (uint8_t i = 0; i < response_packet.payload_len; ++i)
     {
         PRINT("%02x ", (uint8_t) * (response_packet.payload + i));
@@ -610,10 +615,10 @@ void test_res_link_hs_server_get_response__default_with_baseline__cbor_data_mode
 
     // Check response code and content
     // Note: Parsing a message with baseline content does not work
-    // currently, but we can confirm the 111 bytes contain baseline content (rt,
+    // currently, but we can confirm the 98 bytes contain baseline content (rt,
     // if)
     TEST_ASSERT_EQUAL_UINT(CONTENT_2_05, response_packet.code);
-    TEST_ASSERT_EQUAL_UINT(104, response_packet.payload_len);
+    TEST_ASSERT_EQUAL_UINT(98, response_packet.payload_len);
 
     _initialize_oc_rep_pool();
     int success = oc_parse_rep(response_packet.payload, // payload,
@@ -1605,9 +1610,6 @@ void test_res_link_hs_link_mode_3__no_free_callbacks__returns_false(void)
     _nexus_channel_res_link_hs_set_client_state(&CHALLENGE_IN_PROGRESS, 3);
 
     struct nexus_channel_om_create_link_body om_body;
-    // not currently using trunc_acc_id now
-    om_body.trunc_acc_id.digits_count = 0;
-    om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
 
     bool result = nexus_channel_res_link_hs_link_mode_3(&om_body);
@@ -1673,9 +1675,6 @@ void test_res_link_hs_link_mode_3__send_post__sends_message_ok(void)
 {
     // check that `oc_do_post` is called with the right data
     struct nexus_channel_om_create_link_body om_body;
-    // not currently using trunc_acc_id now
-    om_body.trunc_acc_id.digits_count = 0;
-    om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
 
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
@@ -1721,9 +1720,6 @@ void test_res_link_hs_link_mode_3__send_post_another_post_in_progress__fails(
 
     // check that `oc_do_post` is called with the right data
     struct nexus_channel_om_create_link_body om_body;
-    // not currently using trunc_acc_id now
-    om_body.trunc_acc_id.digits_count = 0;
-    om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
 
     nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_HANDSHAKE_STARTED);
@@ -1746,9 +1742,6 @@ void test_res_link_hs_link_mode_3__client_cb_already_registered__attempts_reuse(
 {
     // check that `oc_do_post` is called with the right data
     struct nexus_channel_om_create_link_body om_body;
-    // not currently using trunc_acc_id now
-    om_body.trunc_acc_id.digits_count = 0;
-    om_body.trunc_acc_id.digits_int = 0;
     om_body.accessory_challenge.six_int_digits = 382847;
 
     struct nx_id fake_id = {0, 1234567};
@@ -1833,8 +1826,8 @@ void test_res_link_hs_link_mode_3__retries_post__times_out_eventually(void)
 
     uint32_t next_call_secs = nexus_channel_res_link_hs_process(
         NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_TIMEOUT_SECONDS / 2);
-    TEST_ASSERT_EQUAL_INT(NEXUS_CHANNEL_LINK_HANDSHAKE_CONTROLLER_RETRY_SECONDS,
-                          next_call_secs);
+    // We should call again immediately - trying to send out a handshake
+    TEST_ASSERT_EQUAL_INT(0, next_call_secs);
 
     nexus_link_hs_controller_t* client_hs =
         _nexus_channel_res_link_hs_get_client_state(0);

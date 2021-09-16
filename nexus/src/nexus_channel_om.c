@@ -34,6 +34,9 @@
         // Number of flags stored [32] / CHAR_BIT [8]
         #define NEXUS_CHANNEL_OM_MAX_RECEIVE_FLAG_BYTE 4
 
+        // Fixed number of digits (at end of origin command) for MAC
+        #define NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT 6
+
 static NEXUS_PACKED_STRUCT
 {
     // center 'index' of window of received commands
@@ -119,17 +122,64 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_extract_body_create_link(
     struct nexus_channel_om_create_link_body* body)
 {
     bool underrun = false;
-
-    // contains '1' truncated digit (least significant digit)
-    body->trunc_acc_id.digits_count = 1;
-
-    body->trunc_acc_id.digits_int = nexus_digits_try_pull_uint32(
-        command_digits, body->trunc_acc_id.digits_count, &underrun);
-
     body->accessory_challenge.six_int_digits =
         nexus_digits_try_pull_uint32(command_digits, 6, &underrun);
 
     return !underrun && nexus_digits_remaining(command_digits) > 0;
+}
+
+/** Mathematical mod 10.
+ */
+static uint8_t _mathmod10(int x)
+{
+    while (x < 0)
+    {
+        x += 10;
+    }
+
+    return (uint8_t)(((uint32_t) x) % 10);
+}
+
+static void _nexus_channel_om_deinterleave_digits(
+    const struct nexus_digits* const interleaved_digits,
+    struct nexus_digits* deinterleaved_digits,
+    const uint32_t check_value)
+{
+    // Now we have the MAC as uint32_t, we can use this to deinterleave the
+    // remaining body digits.
+    // deinterleave/deobscure the command digits so that we can extract them
+    // in order.
+    uint8_t prng_bytes[NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH];
+    const uint8_t non_mac_digit_count = (uint8_t)(
+        interleaved_digits->length - NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT);
+
+    NEXUS_ASSERT(interleaved_digits->length <
+                     NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH,
+                 "Too many digits to deinterleave");
+
+    nexus_check_compute_pseudorandom_bytes(&NEXUS_INTEGRITY_CHECK_FIXED_00_KEY,
+                                           (const void*) &check_value,
+                                           sizeof(check_value),
+                                           (void*) prng_bytes,
+                                           non_mac_digit_count);
+
+    for (uint8_t i = 0; i < non_mac_digit_count; ++i)
+    {
+        const char body_char = interleaved_digits->chars[i];
+        NEXUS_ASSERT('0' <= body_char && body_char <= '9',
+                     "body key character not a digit");
+
+        // only deinterleave; always subtract perturbation value
+        const uint8_t perturbation = prng_bytes[i];
+        const uint8_t body_digit = (uint8_t)(body_char - '0');
+        const uint8_t out_digit = _mathmod10(body_digit - perturbation);
+
+        deinterleaved_digits->chars[i] = (char) (out_digit + '0');
+    }
+    // Copy the MAC digits from interleaved to deinterleaved digits
+    memcpy(&deinterleaved_digits->chars[non_mac_digit_count],
+           &interleaved_digits->chars[non_mac_digit_count],
+           NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT);
 }
 
 // Populates a message with all fields transmitted from the command digits.
@@ -140,8 +190,39 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_parse_message(
     bool underrun = false;
     bool parsed = false;
 
+    const uint8_t digits_remaining =
+        (uint8_t) nexus_digits_remaining(command_digits);
+
+    // message must contain at least MAC digits and one body digit
+    if (digits_remaining <= NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT)
+    {
+        return false;
+    }
+    NEXUS_ASSERT(command_digits->position == 0,
+                 "`command_digits` unexpectedly not at 0 position");
+
+    // Pull the MAC digits from the end
+    command_digits->position =
+        command_digits->length - NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT;
+    message->auth.six_int_digits = nexus_digits_try_pull_uint32(
+        command_digits, NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT, &underrun);
+
+    // prepare temporary structure for deinterleaved message
+    struct nexus_digits deinterleaved_digits;
+    char deinterleaved_digit_chars
+        [NEXUS_CHANNEL_OM_COMMAND_ASCII_DIGITS_MAX_LENGTH];
+    nexus_digits_init(&deinterleaved_digits,
+                      deinterleaved_digit_chars,
+                      (uint16_t) command_digits->length);
+
+    _nexus_channel_om_deinterleave_digits(
+        command_digits, &deinterleaved_digits, message->auth.six_int_digits);
+    NEXUS_ASSERT(deinterleaved_digits.position == 0,
+                 "`command_digits` unexpectedly not at 0 position");
+
     // Obtain command type, will be UINT8_MAX and fail validation if pull fails
-    const uint8_t command_type_int = nexus_digits_pull_uint8(command_digits, 1);
+    const uint8_t command_type_int =
+        nexus_digits_pull_uint8(&deinterleaved_digits, 1);
     message->type =
         _nexus_channel_om_ascii_validate_command_type(command_type_int);
 
@@ -150,19 +231,19 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_parse_message(
     {
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_GENERIC_CONTROLLER_ACTION:
             parsed = _nexus_channel_om_ascii_extract_body_controller_action(
-                command_digits, &message->body.controller_action);
+                &deinterleaved_digits, &message->body.controller_action);
             break;
 
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLOCK:
         // intentional fallthrough
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_ACCESSORY_ACTION_UNLINK:
             parsed = _nexus_channel_om_ascii_extract_body_accessory_action(
-                command_digits, &message->body.accessory_action);
+                &deinterleaved_digits, &message->body.accessory_action);
             break;
 
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3:
             parsed = _nexus_channel_om_ascii_extract_body_create_link(
-                command_digits, &message->body.create_link);
+                &deinterleaved_digits, &message->body.create_link);
             break;
 
         case NEXUS_CHANNEL_OM_COMMAND_TYPE_INVALID:
@@ -175,17 +256,10 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_parse_message(
             break;
     }
 
-    // we must have 6 digits remaining for the auth code.
-    if (nexus_digits_remaining(command_digits) != 6)
-    {
-        parsed = false;
-    }
-
-    message->auth.six_int_digits =
-        nexus_digits_try_pull_uint32(command_digits, 6, &underrun);
-
     // we parsed correctly and no digits are remaining to extract
-    return !underrun && parsed && nexus_digits_remaining(command_digits) == 0;
+    return !underrun && parsed &&
+           (nexus_digits_remaining(&deinterleaved_digits) ==
+            NEXUS_CHANNEL_OM_FIXED_MAC_DIGIT_COUNT);
 }
 
 // internal
@@ -353,25 +427,17 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_message_infer_inner_compute_auth(
     else if (message->type ==
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3)
     {
-        NEXUS_ASSERT(message->body.create_link.trunc_acc_id.digits_count <= 2,
-                     "Cannot support this many truncated digits");
-        // Specification indicates truncated accessory ID for link mode 3 is
-        // always 1 byte in size.
-        compute_bytes[5] =
-            (uint8_t)(message->body.create_link.trunc_acc_id.digits_int);
-        bytes_count++;
-
         const uint32_t accessory_challenge_le = nexus_endian_htole32(
             message->body.create_link.accessory_challenge.six_int_digits);
 
-        memcpy(&compute_bytes[6], &accessory_challenge_le, 4);
+        memcpy(&compute_bytes[5], &accessory_challenge_le, 4);
         NEXUS_STATIC_ASSERT(
             sizeof(((union nexus_channel_om_auth_field*) 0)->six_int_digits) ==
                 4,
             "Invalid size for six_int_digits field");
         bytes_count = (uint8_t)(bytes_count + 4);
 
-        NEXUS_ASSERT(bytes_count == 10,
+        NEXUS_ASSERT(bytes_count == 9,
                      "Invalid number of bytes for MAC computation");
 
         computed_check = _nexus_channel_om_ascii_auth_arbitrary_bytes(
@@ -479,7 +545,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_om_ascii_apply_message(
 
 // internal handlers for origin messages passed in from implementing product
 NEXUS_IMPL_STATIC bool
-_nexus_channel_om_handle_ascii_origin_command(const char* const command_data,
+_nexus_channel_om_handle_ascii_origin_command(const char* command_data,
                                               const uint32_t command_length)
 {
     struct nexus_digits command_digits;
@@ -595,7 +661,7 @@ nx_channel_error nx_channel_handle_origin_command(
             PRINT("nx_channel_om: Handling origin command (bearer=ASCII "
                   "digits)\n");
             parsed = _nexus_channel_om_handle_ascii_origin_command(
-                (const char*) command_data, command_length);
+                (char*) command_data, command_length);
             break;
 
         default:

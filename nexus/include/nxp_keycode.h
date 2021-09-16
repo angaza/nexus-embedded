@@ -211,8 +211,9 @@ enum nxp_keycode_passthrough_application_subtype_id
         1,
 
     /* Pass arbitrary ASCII key values to the implementing application.
+     * Used to implement manufacturer-defined commands
      */
-    NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_PROD_ASCII_KEY = 2,
+    NXP_KEYCODE_PASSTHROUGH_APPLICATION_SUBTYPE_ID_PROD_ASCII_KEY = 4,
 };
 
 enum nxp_keycode_passthrough_error

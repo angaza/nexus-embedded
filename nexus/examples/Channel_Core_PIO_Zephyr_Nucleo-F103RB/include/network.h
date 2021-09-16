@@ -8,6 +8,9 @@
  * or substantial portions of the Software.
  */
 
+#ifndef NETWORK__H
+#define NETWORK__H
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,3 +26,4 @@ void receive_data_from_network(void* data,
 #ifdef __cplusplus
 }
 #endif
+#endif // NETWORK__H

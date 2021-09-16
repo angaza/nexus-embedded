@@ -25,6 +25,10 @@
 extern "C" {
     #endif
 
+    // Used when performing a nonce-sync to signal that nonce should be
+    // reset to 0.
+    #define NEXUS_CHANNEL_LINK_SECURITY_RESET_NONCE_SIGNAL_VALUE UINT32_MAX
+
 // struct for storing Nexus Channel-secured resource methods
 typedef struct nexus_secured_resource_method_t
 {
@@ -32,21 +36,6 @@ typedef struct nexus_secured_resource_method_t
     oc_resource_t* resource;
     oc_method_t method;
 } nexus_secured_resource_method_t;
-
-// struct for storing COSE_MAC0 elements according to Nexus Channel Security
-// Mode 0 specification
-typedef struct nexus_security_mode0_cose_mac0_t
-{
-    // PROTECTED HEADER ELEMENTS
-    uint8_t protected_header_method; // 1 byte
-    uint32_t protected_header_nonce;
-    // XXX TODO URI (maybe implicit?)
-
-    uint32_t kid;
-    uint8_t* payload;
-    uint8_t payload_len;
-    struct nexus_check_value* mac;
-} nexus_security_mode0_cose_mac0_t;
 
 /** Initialize the Nexus Channel Security Manager module.
  *
@@ -85,26 +74,6 @@ nexus_channel_sm_nexus_resource_method_new(oc_resource_t* resource,
  */
 void nexus_channel_sm_free_all_nexus_resource_methods(void);
 
-/** Compute MAC value from Nexus message contents as per Nexus Channel
- * security mode 0.
- *
- * MAC is computed over the nonce, payload, and CoAP header type code.
- *
- * The application can rely on the CoAP type code (CREATED, NOT AUTHORIZED,
- * etc) as well as the CBOR payload data to be authenticated. Other data in
- * the header is not secured.
- *
- * \param security_data Mode0 Security data associated with the message to
- * check - will be erased before returning
- * \param received_mac0 pointer to received mac0 struct (built from message to
- * check)
- * \return Nexus check value struct that represents the computed MAC given the
- * inputs
- */
-struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
-    const struct nexus_security_mode0_cose_mac0_t* const received_mac0,
-    struct nexus_channel_link_security_mode0_data* const security_data);
-
     // Expose for unit tests only
     #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 /** Check if Nexus Channel headers indicate that this CoAP packet is secured
@@ -116,66 +85,77 @@ struct nexus_check_value _nexus_channel_sm_compute_mac_mode0(
  * by Nexus Channel. False otherwise
  */
 bool _nexus_channel_sm_message_headers_secured_mode0(coap_packet_t* const pkt);
-
-// Exposed only for demo program
-bool _nexus_channel_sm_auth_packet_mode0(
-    coap_packet_t* const pkt,
-    const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed,
-    struct nexus_channel_link_security_mode0_data* const link_sec_data);
-
-// Exposed only for demo program
-bool _nexus_channel_sm_get_cose_mac0_data(
-    coap_packet_t* const pkt,
-    nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed);
-
-/** Determines if the input oc_rep is in canonical Angaza-COSE_MAC0 format:
- *
- * 1. bytestring of any size (protected bucket), expected to be
- * empty/0-length
- * 2. object/map of unprotected bucket, size 2
- *   2a. int (unprotected key ID)
- *   2b. int (unprotected nonce)
- * 3. bytestring of any size (payload)
- * 4. bytestring (MAC, expected to be 8 bytes)
- *
- * Due to limitations in the `oc_rep` module, we cannot make the COSE_MAC0
- * format as per its spec. Specifically, we cannot create an array with
- * mixed object/map and primitive types (like bytestrings).
- *
- * This format was chosen as a good compromise between understandability and
- * overhead per message. Angaza controls the format in the Nexus layer so
- * there is no risk that we will get a valid message with an unexpected
- * format.
- *
- * When we eventually switch to RFC-specified COSE_MAC0, then this method
- * should be updated -- all decoding of the security header is contained in
- * here.
- *
- * \param rep `oc_rep_t` representing the CBOR-encoded COSE_MAC0 to validate.
- * The rep shall not be modified, but the pointer can be modified (to
- * traverse the tree)
- * \param cose_mac0_parsed pointer to an object that contains all data stored
- * inside the COSE_MAC0 message. If parsing is successful then all data will
- * be stored in this struct for caller access
- * \return true if the input is in canonical Angaza-COSE_MAC0 format, false
- * otherwise
- */
-bool _nexus_channel_sm_parse_cose_mac0(
-    const oc_rep_t* rep, nexus_security_mode0_cose_mac0_t* cose_mac0_parsed);
-
-/** Repack an authenticated CoAP message without its COSE_MAC0 header.
- *
- * This means we pack the parsed payload and update the application-content
- * type (since the packet no longer contains COSE_MAC0 information).
- *
- * \param pkt pointer to CoAP packet to repack
- * \param cose_mac0_parsed pointer to data parsed from COSE_MAC0 that will be
- * repacked into the CoAP packet (the payload and payload length)
- */
-void _nexus_channel_sm_repack_no_cose_mac0(
-    coap_packet_t* const pkt,
-    const nexus_security_mode0_cose_mac0_t* const cose_mac0_parsed);
     #endif
+
+/** Parse a CoAP message and determine if the requested resource method
+ * is secured by Nexus Channel.
+ *
+ * \param pkt pointer to CoAP message to check if requesting a secured resource
+ * method
+ * \return true if the requested resource method is secured by Nexus Channel,
+ * false otherwise
+ */
+bool nexus_channel_sm_requested_method_is_secured(
+    const coap_packet_t* const pkt);
+
+/* Result of attempting to parse and authenticate an incoming message.
+ *
+ * Unsecured CoAP packets will result in a short-circuit return value of
+ * `NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE`. Secured CoAP packets
+ * will have their content-header, payload pointer, and payload length modified
+ * to appear as an unsecured message to the calling code, and if there are
+ * no authentication errors, will cause a return value of
+ * `NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE`.
+ */
+typedef enum
+{
+    // No error - pass CoAP packet to application request/response handler.
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE,
+    // Valid secured payload format, but security MAC/tag invalid
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_MAC_INVALID,
+    // Error parsing the COSE structure from a secured payload
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_COSE_UNPARSEABLE,
+    // Payload is too large or too small to process
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_PAYLOAD_SIZE_INVALID,
+    // No secured link exists to the device sending the request
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_SENDER_DEVICE_NOT_LINKED,
+    // Received an unsecured request for a secured resource
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_RESOURCE_REQUIRES_SECURED_REQUEST,
+    // Received a secured request, but it had an invalid nonce
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_REQUEST_RECEIVED_WITH_INVALID_NONCE,
+    // should trigger a resend of the previous secured request
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_VALID_NONCE_SYNC_RECEIVED,
+    // approaching max possible nonce value, trigger a reset to 0
+    NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONCE_APPROACHING_MAX_FORCED_RESET_REQUIRED,
+
+} nexus_channel_sm_auth_error_t;
+
+/** Authenticate message against Nexus Channel security.
+ *
+ * If the message contains Nexus security information, then that security
+ * information will be checked against currently active Nexus links. If
+ * the message is unsecured, then it will only pass authentication if it
+ * is bound for an unsecured resource method.
+ *
+ * The method will return `NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE` if the
+ * received message in `pkt` should be passed on to an appropriate application
+ * resource handler.
+ *
+ * Returns `NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_VALID_NONCE_SYNC_RECEIVED`
+ * if the received message was a 'nonce sync' response and the link nonce
+ * has been updated, and the application should resend the orignal secured
+ * request with a matching token/mid with updated security data.
+ *
+ * \param endpoint pointer to `oc_endpoint_t` representing the endpoint of the
+ * received CoAP message. Neither pointer nor value shall be modified
+ * \param pkt pointer to the `coap_packet_t` that contains the received CoAP
+ * message information. The pointer shall not be modified but the packet
+ * itself may be changed for a secured and authenticated message
+ * \return error code representing Nexus Channel authentication check result
+ */
+nexus_channel_sm_auth_error_t
+nexus_channel_authenticate_message(const oc_endpoint_t* const endpoint,
+                                   coap_packet_t* const pkt);
 
     // Only defined for unit tests
     #ifdef NEXUS_DEFINED_DURING_TESTING

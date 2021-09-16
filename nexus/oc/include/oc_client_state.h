@@ -88,6 +88,9 @@ typedef struct oc_client_cb_t
   bool stop_multicast_receive;
   uint8_t ref_count;
   uint8_t separate;
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+  bool nx_request_secured;
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 } oc_client_cb_t;
 
 #ifdef OC_BLOCK_WISE

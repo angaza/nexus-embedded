@@ -60,13 +60,13 @@ extern "C" {
 
 #define COAP_RESPONSE_TIMEOUT (2)
 #define COAP_RESPONSE_RANDOM_FACTOR (1.5)
-#define COAP_MAX_RETRANSMIT (4)
+#define COAP_MAX_RETRANSMIT (2)
 
 /** COAP_RESPONSE_TIMEOUT * ((2 ** COAP_MAX_RETRANSMIT) - 1) *
  * COAP_RESPONSE_RANDOM_FACTOR */
-#define OC_MAX_TRANSMIT_SPAN (45)
+#define OC_MAX_TRANSMIT_SPAN (9)
 
-#define OC_MAX_LATENCY (100)
+#define OC_MAX_LATENCY (5)
 #define OC_PROCESSING_DELAY COAP_RESPONSE_TIMEOUT
 #define OC_MAX_RTT (2 * OC_MAX_LATENCY) + OC_PROCESSING_DELAY
 
@@ -160,10 +160,15 @@ typedef enum
 
     /* Stack errors */
     MEMORY_ALLOCATION_ERROR = 192,
-    PACKET_SERIALIZATION_ERROR,
-    CLEAR_TRANSACTION,
-    EMPTY_ACK_RESPONSE,
-    CLOSE_ALL_TLS_SESSIONS
+    PACKET_SERIALIZATION_ERROR = 193,
+    CLEAR_TRANSACTION = 194,
+    EMPTY_ACK_RESPONSE = 195,
+    CLOSE_ALL_TLS_SESSIONS = 196,
+    // internal specific to Nexus Channel, resend request but resecure
+    // it with an updated nonce. Not an actual CoAP code to send on
+    // the wire!
+    NEXUS_CHANNEL_SECURITY_RESEND_PREVIOUS_REQUEST = 200,
+    NEXUS_CHANNEL_SECURITY_REQUIRE_NONCE_SYNC_SPECIAL_CASE_RESET = 201,
 } coap_status_t;
 
 /* CoAP header option numbers */

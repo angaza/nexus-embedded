@@ -1,11 +1,11 @@
 swagger: '2.0'
 info:
   title: PAYG Credit
-  version: 'v0.5.0-2020'
+  version: 'v0.7.0-2021'
   license:
     name: Angaza Nexus Data Model License (MIT License)
     url: 'https://github.com/angaza/nexus-embedded/blob/master/LICENSE'
-    x-copyright: 'Copyright 2020 Angaza, Inc. All rights reserved.'
+    x-copyright: 'Copyright 2021 Angaza, Inc. All rights reserved.'
 schemes:
   - http # http for schema validation only - implementation requires CoAP
   - coap
@@ -15,27 +15,27 @@ produces:
   - application/vnd.ocf+cbor
 
 paths:
-  /c:
+  /nx/pc:
     get:
       description: |-
         This resource indicates the remaining PAYG (pay-as-you-go) credit of
         a specific device. Credit may be time-based or usage-based.
 
-        `supportedModes` and `modes` are implemented similar to the description
-        of  `oic.r.mode` (https://www.oneiota.org/revisions/5310).
+        'modes' are implemented similar to the description of `oic.r.mode`
+        (https://www.oneiota.org/revisions/5310).
 
-        Any device may be 'disconnected'.
+        Any device may be 'independent'.
         Controller-capable devices may be 'leading'
         Accessory-capable devices may be 'following'
-        Dual-mode capable devices may also be 'relaying'.
         
         A "Following" device has PAYG credit managed by another device which is
         "Leading".
-        
-        A "Relaying" device has PAYG credit managed by another device which is
-        "Leading", but a third device follows the "Relaying" device ('chaining'
-        the same credit from device A to device C through device B, even though
-        devices A and C are not directly connected).
+
+        "Relaying" is not implemented in this release. A "Relaying" device
+        has PAYG credit managed by another device which is "Leading", but
+        a third device follows the "Relaying" device ('chaining' the credit
+        from device A to device C via device B, even though devices A and C
+        are not directly connected).
 
         The default interface is 'oic.if.rw'. To retrieve the baseline OCF
         information, it is necessary to query with 'if=oic.if.baseline'.
@@ -57,16 +57,13 @@ paths:
           x-example:
             description: "x-example included only for automatic code generation."
             rt:
-              - angaza.com.nexus.channel.payg_credit
+              - angaza.com.nexus.channel.pc
             if:
               - oic.if.rw
               - oic.if.baseline
-            remaining: 603755
-            units: 'seconds'
-            mode: 0
-            supportedModes:
-              - 0
-              - 1
+            re: 603755
+            un: 1
+            mo: 0
 
     post:
       description: |-
@@ -95,7 +92,7 @@ paths:
           description: This device is not currently capable of remotely updating credit (may be in 'independent' mode)
           schema:
               properties:
-                mode:
+                mo:
                   $ref: '#/definitions/FullPAYGState/properties/mode'
 
 parameters:
@@ -118,7 +115,7 @@ definitions:
         description: The OCF-Format Resource Type
         items:
           enum:
-              - angaza.com.nexus.payg_credit
+              - angaza.com.nexus.pc
           maxLength: 64
           type: string
         minItems: 1
@@ -151,21 +148,37 @@ definitions:
         example: 603755
         minimum: 0
         maximum: 4294967294
-      units:
-        description: (Short name = 'un') Measurement unit for PAYG credit (seconds, days, gallons).
-        type: string
-        example: 'seconds'
-        minLength: 1
-        maxLength: 10
+      unit:
+        description: >
+          (Short name = 'un') Measurement unit for PAYG credit (seconds, days, gallons).
+          Possible types:
+            * 0 = No units, not recommended
+            * 1 = Seconds
+            * 2 = Hours
+            * 3 = Days
+            * 10 = Liters
+            * 11 = Gallons
+            * 20 = Watt Hour
+        type: integer
+        format: uint8
+        enum:
+          - 0
+          - 1
+          - 2
+          - 3 
+          - 10
+          - 11
+          - 20
+        example: 1
         readOnly: true
       mode:
         description: >
           (Short name = 'mo'). Current PAYG credit management mode of this device.
           Possible types
-            * 0 = Disconnected, not controlled by or controlling PAYG credit of other device
+            * 0 = Independent, not controlled by or controlling PAYG credit of other device
             * 1 = Leading, controlling PAYG credit of at least one other device
             * 2 = Following, PAYG credit controlled by another linked device
-            * 3 = Relaying, same as 'following', except also mirroring the same credit to another device
+            * 3 = Relaying, not implemented.
         type: integer
         format: uint8
         enum:
@@ -175,22 +188,19 @@ definitions:
           - 3
         example: 0
         readOnly: true
-      supportedModes:
-        description: (Short Name = 'sM') Supported PAYG credit management modes for this device.
+      deviceIds:
+        description: >
+          (Short name = 'di') List of Nexus ID of devices that are being
+          controlled by the PAYG credit of this device. The NXID is represented
+          as a 6-byte bytestring, where the first two bytes are big endian
+          authority ID, the next four bytes are big endian device ID.
+          Example '\x0B\x10\x06\xF1\x44\x33' represents
+          authority ID 2832 (0x0b10), device ID 116474931 (0x06F14433)
         type: array
-        example:
-         - 0
-         - 1
-         - 2
-        items:
-          type: integer
-          enum:
-            - 0
-            - 1
-            - 2
-            - 3
-        minItems: 1
-        maxItems: 4
-        uniqueItems: true
         readOnly: true
-
+        minItems: 0
+        maxItems: 8
+        format: binary
+        example:
+          - "\x0B\x10\x06\xF1\x44\x33"
+          - "\x0A\x00\x10\x00\xBA\x54"

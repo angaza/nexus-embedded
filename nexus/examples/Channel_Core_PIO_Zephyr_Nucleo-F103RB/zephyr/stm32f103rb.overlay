@@ -1,0 +1,45 @@
+/*
+ * Copyright (c) 2021 Angaza
+ * Released under MIT license
+ */
+
+/ {
+    chosen {
+        zephyr,code-partition = &image_partition;
+    };
+};
+
+// Override board default flash0/flash@8000000 (which has no partitions)
+&flash0 {
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = < 0x1 >;
+        #size-cells = < 0x1 >;
+
+        // 120kB for flash image
+        image_partition: partition@0 {
+            label = "image_partition";
+            reg = <0x000000000 0x00001e000>;
+        };
+        // 4kB for product-side NV (PAYG credit, product variables, etc)
+        product_nv_partition: partition@1e000 {
+            label = "product_nv_partition";
+            reg = <0x00001e000 0x000001000>;
+        };
+
+        // 4kB for Nexus library NV (Channel link state, keycode history, etc)
+        // Assuming 4 storage requests/hour @ <= 100 bytes per request:
+        // NS = 4 storage requests/hour (number of storage requests)
+        // DS = 100 bytes (data size)
+        // SECTOR_SIZE = 1024 bytes
+        // PAGE_ERASES = 10,000 minimum
+        // SECTOR_COUNT = 4 (4 pages)
+        // SECTOR_COUNT * SECTOR_SIZE * PAGE_ERASES / (NS * (DS + 8)) hours
+        // ( 4 * 1024 * 10000) / (4 * 108) = 10.8 years of flash
+        // See https://docs.zephyrproject.org/latest/reference/storage/nvs/nvs.html?highlight=nvs#calculating-expected-device-lifetime
+        nexus_nv_partition: partition@1f000 {
+            label = "nexus_nv_partition";
+            reg = <0x00001f000 0x00001000>;
+        };
+    };
+};

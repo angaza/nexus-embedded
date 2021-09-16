@@ -19,6 +19,8 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(battery_res);
 
+#include "flash_filesystem.h"
+
 #define BATT_CAPACITY_MAH 32000
 
 // used to simulate a connected battery
@@ -129,6 +131,8 @@ static void battery_res_get_handler(oc_request_t* request,
     // ----- Required parameters ----- //
     // battery voltage in mV
     oc_rep_set_int(root, vb, battery_mv);
+    // uncomment this line ('hr') to add a new 'hr' parameter to GET responses!
+    // oc_rep_set_int(root, hr, 45);
     // charge percentage 0-100%
     oc_rep_set_int(root, cp, charge_pct);
 
@@ -225,6 +229,10 @@ static void battery_res_post_handler(oc_request_t* request,
         oc_rep_end_root_object();
 
         LOG_INF("Responding with 204 to POST");
+        flash_filesystem_write_product_nv(
+            FLASH_FILESYSTEM_PRODUCT_NV_ID_BATTERY_THRESHOLD,
+            &_threshold,
+            sizeof(_threshold));
         // respond with code "CHANGED 2.04"
         oc_send_response(request, OC_STATUS_CHANGED);
     }
@@ -285,6 +293,11 @@ void battery_res_init(void)
         LOG_ERR("Failed to initialize battery resource!\n");
         // should not reach here
     }
+
+    flash_filesystem_read_product_nv(
+        FLASH_FILESYSTEM_PRODUCT_NV_ID_BATTERY_THRESHOLD,
+        &_threshold,
+        sizeof(_threshold));
 
     LOG_INF("Successfully registered battery resource\n");
 }

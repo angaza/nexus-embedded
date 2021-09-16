@@ -29,6 +29,9 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_common_internal.h"
+#include "src/nexus_cose_mac0_common.h"
+#include "src/nexus_cose_mac0_sign.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -85,6 +88,7 @@ static const oc_interface_mask_t if_mask_arr[] = {OC_IF_BASELINE, OC_IF_RW};
 void setUp(void)
 {
     G_OC_MESSAGE = oc_allocate_message();
+    nexus_channel_res_payg_credit_process_IgnoreAndReturn(UINT32_MAX);
 }
 
 // Teardown (called after any 'test_*' function is called, automatically)
@@ -196,10 +200,44 @@ void test_nexus_oc_wrapper__nx_channel_network_receive__invalid_messages__reject
     result = nx_channel_network_receive(dummy_data, 0, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_UNSPECIFIED, result);
     result = nx_channel_network_receive(
-        dummy_data,
-        NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES + 1,
-        &fake_id);
+        dummy_data, NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE + 1, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_MESSAGE_TOO_LARGE, result);
+}
+
+void test_nexus_oc_wrapper__nx_channel_network_receive__too_many_calls_before_processing_buffer_fills__returns_error(
+    void)
+{
+    struct nx_id fake_id = {0, 12345678};
+    uint8_t dummy_data[200];
+    memset(&dummy_data, 0xAB, sizeof(dummy_data));
+
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+
+    // Need to initialize core (and subsequently OC processes/buffer setup)
+    nexus_channel_core_init();
+
+    nxp_common_request_processing_Expect();
+    nexus_channel_core_process(0);
+
+    nx_channel_error result;
+    while (oc_buffer_incoming_free_count() > 0)
+    {
+        nxp_common_request_processing_Expect(); // due to message being rcvd
+        result = nx_channel_network_receive(dummy_data, 10, &fake_id);
+        TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_NONE, result);
+    }
+
+    // incoming buffers are full
+    result = nx_channel_network_receive(dummy_data, 10, &fake_id);
+    TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_UNSPECIFIED, result);
+
+    // clear buffers for next tests. We'll expect to send back an error
+    // message, but aren't testing contents here
+    nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+    nexus_channel_core_process(1);
 }
 
 void test_nexus_oc_wrapper__nx_channel_network_receive__valid_message__no_error(
@@ -216,13 +254,17 @@ void test_nexus_oc_wrapper__nx_channel_network_receive__valid_message__no_error(
     uint8_t dummy_data[10];
     memset(&dummy_data, 0xAB, sizeof(dummy_data));
 
-    nxp_common_request_processing_Expect(); // due to a valid message being
-    // received
+    nxp_common_request_processing_Expect(); // due to message being rcvd
     nx_channel_error result =
         nx_channel_network_receive(dummy_data, 10, &fake_id);
     TEST_ASSERT_EQUAL_UINT(NX_CHANNEL_ERROR_NONE, result);
 
-    // process the message to unref the internally-made ref
+    // process the message to unref the internally-made ref, will trigger
+    // an 'empty message' (error) response since dummy_data isn't valid CoAP
+
+    nxp_common_request_processing_Expect();
+    nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
     nexus_channel_core_process(1);
 }
 
@@ -231,7 +273,7 @@ void test_nexus_oc_wrapper__oc_send_buffer__expected_calls_to_nxp_channel_networ
 {
     // we assert that this flag is set
     G_OC_MESSAGE->endpoint.flags = IPV6 | MULTICAST;
-    G_OC_MESSAGE->length = NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES;
+    G_OC_MESSAGE->length = NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE;
     struct nx_id fake_source_nx_id = {0, 12345678};
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_source_nx_id);
 
@@ -254,8 +296,7 @@ void test_nexus_oc_wrapper__oc_send_buffer__message_too_large__does_not_call_nxp
     struct nx_id fake_source_nx_id = {0, 12345678};
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_source_nx_id);
 
-    G_OC_MESSAGE->length =
-        NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES + 1;
+    G_OC_MESSAGE->length = NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE + 1;
     // no `nxp_channel_network_send_ExpectAndReturn` indicates that the
     // too large message is dropped and not passed to the product link layer
     int result = oc_send_buffer(G_OC_MESSAGE);
@@ -288,444 +329,81 @@ void test_nexus_oc_wrapper_repack_buffer_secured__input_buffer_too_small_fails(
     void)
 {
     // too small
-    uint8_t buf[OC_BLOCK_SIZE - 1] = {0};
+    uint8_t buf[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE - 1] = {0};
 
+    uint8_t payload[1] = {1};
+
+    struct nx_common_check_key arbitrary_key = {0};
     // populate COSE_MAC0 struct
-    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-    cose_mac0.protected_header_method = OC_GET; // 1
-    cose_mac0.protected_header_nonce = 5; // arbitrary
-    cose_mac0.kid = 0;
-    struct nexus_check_value mac = {
-        {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
-    cose_mac0.mac = &mac;
+    nexus_cose_mac0_common_macparams_t mac_params = {
+        &arbitrary_key,
+        5, // arbitrary nonce
+        {
+            OC_GET, // 1
+            "/uri/test",
+            9,
+        },
+        payload,
+        sizeof(payload),
+    };
 
     TEST_ASSERT_EQUAL_UINT(
         0,
-        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &cose_mac0));
+        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &mac_params));
 }
 
 void test_nexus_oc_wrapper_repack_buffer_secured__no_payload_ok(void)
 {
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
+    uint8_t buf[NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE] = {0};
 
+    struct nx_common_check_key arbitrary_key = {0};
     // populate COSE_MAC0 struct
-    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-    cose_mac0.protected_header_method = OC_GET; // 1
-    cose_mac0.protected_header_nonce = 5; // arbitrary
-    cose_mac0.kid = 0;
-    struct nexus_check_value mac = {
-        {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
-    cose_mac0.payload = buf; // should not be null
-    cose_mac0.mac = &mac;
+    nexus_cose_mac0_common_macparams_t mac_params = {
+        &arbitrary_key,
+        5, // arbitrary nonce
+        {
+            OC_GET, // 1
+            "/uri/test",
+            9,
+        },
+        NULL,
+        0,
+    };
 
     TEST_ASSERT_EQUAL_UINT(
-        31,
-        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &cose_mac0));
+        16,
+        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &mac_params));
 
     /* from cbor.me:
+     * [h'A10505', {}, h'', h'4331FFBE327BE46C']
+     * 84                     # array(4)
+     *    43                  # bytes(3)
+     *       A10505           # "\xA1\x05\x05"
+     *    A0                  # map(0)
+     *    40                  # bytes(0)
+     *                        # ""
+     *    48                  # bytes(8)
+     *       4331FFBE327BE46C # "C1\xFF\xBE2{\xE4l"
+     */
 
-    BF                     # map(*)
-        61                  # text(1)
-            70               # "p"
-        41                  # bytes(1)
-            01               # "\x01"
-        61                  # text(1)
-            75               # "u"
-        BF                  # map(*)
-            61               # text(1)
-                34            # "4"
-            00               # unsigned(0)
-            61               # text(1)
-                35            # "5"
-            05               # unsigned(5)
-            FF               # primitive(*)
-        61                  # text(1)
-            64               # "d"
-        40                  # bytes(0)
-                            # ""
-        61                  # text(1)
-            6D               # "m"
-        48                  # bytes(8)
-            0001020304050607 # "\x00\x01\x02\x03\x04\x05\x06\a"
-        FF                  # primitive(*)
-
-    */
-
-    uint8_t expected_secured_buf[31] = {
-        0xbf, 0x61, 0x70, 0x45, 0x01, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75,
-        0xbf, 0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x40, 0x61, 0x6d, 0x48,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff};
+    uint8_t expected_secured_buf[16] = {0x84,
+                                        0x43,
+                                        0xA1,
+                                        0x05,
+                                        0x05,
+                                        0xA0,
+                                        0x40,
+                                        0x48,
+                                        0x43,
+                                        0x31,
+                                        0xFF,
+                                        0xBE,
+                                        0x32,
+                                        0x7B,
+                                        0xE4,
+                                        0x6C};
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
         buf, expected_secured_buf, sizeof(expected_secured_buf));
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__unsecured_payload_unmodified(
-    void)
-{
-    // CBOR encoded data that is not secured
-    const uint8_t data[16] = {0xbf,
-                              0x61,
-                              0x64,
-                              0x4b,
-                              0x68,
-                              0x65,
-                              0x6c,
-                              0x6c,
-                              0x6f,
-                              0x20,
-                              0x77,
-                              0x6f,
-                              0x72,
-                              0x6c,
-                              0x64,
-                              0xff};
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // not a secured message, unmodified
-    TEST_ASSERT_FALSE(result);
-    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__secured_payload_valid_unsecured_ok(
-    void)
-{
-    /* from cbor.me:
-
-         BF                                     # map(*)
-         61                                  # text(1)
-             70                               # "p"
-         41                                  # bytes(1)
-             02                               # "\x02"
-         61                                  # text(1)
-             75                               # "u"
-         BF                                  # map(*)
-             61                               # text(1)
-                 34                            # "4"
-             00                               # unsigned(0)
-             61                               # text(1)
-                 35                            # "5"
-             05                               # unsigned(5)
-             FF                               # primitive(*)
-         61                                  # text(1)
-             64                               # "d"
-         50                                  # bytes(16)
-             BF61644B68656C6C6F20776F726C64FF # "\xBFadKhello world\xFF"
-         61                                  # text(1)
-             6D                               # "m"
-         48                                  # bytes(8)
-             0001020304050607                 # "\x00\x01\x02\x03\x04\x05\x06\a"
-         FF                                  # primitive(*)
-
-     */
-
-    const uint8_t data[47] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x50, 0xbf, 0x61, 0x64, 0x4b, 0x68,
-        0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61,
-        0x6d, 0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff};
-
-    const uint8_t enclosed_payload[16] = {0xbf,
-                                          0x61,
-                                          0x64,
-                                          0x4b,
-                                          0x68,
-                                          0x65,
-                                          0x6c,
-                                          0x6c,
-                                          0x6f,
-                                          0x20,
-                                          0x77,
-                                          0x6f,
-                                          0x72,
-                                          0x6c,
-                                          0x64,
-                                          0xff};
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // succeeded, length is length of enclosed payload
-    TEST_ASSERT_TRUE(result);
-    TEST_ASSERT_EQUAL_UINT(16, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, enclosed_payload, new_length);
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__incorrect_length_provided__fails(
-    void)
-{
-    /* from cbor.me:
-
-         BF                                     # map(*)
-         61                                  # text(1)
-             70                               # "p"
-         41                                  # bytes(1)
-             02                               # "\x02"
-         61                                  # text(1)
-             75                               # "u"
-         BF                                  # map(*)
-             61                               # text(1)
-                 34                            # "4"
-             00                               # unsigned(0)
-             61                               # text(1)
-                 35                            # "5"
-             05                               # unsigned(5)
-             FF                               # primitive(*)
-         61                                  # text(1)
-             64                               # "d"
-         50                                  # bytes(16)
-             BF61644B68656C6C6F20776F726C64FF # "\xBFadKhello world\xFF"
-         61                                  # text(1)
-             6D                               # "m"
-         48                                  # bytes(8)
-             0001020304050607                 # "\x00\x01\x02\x03\x04\x05\x06\a"
-         FF                                  # primitive(*)
-
-     */
-
-    const uint8_t data[47] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x50, 0xbf, 0x61, 0x64, 0x4b, 0x68,
-        0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61,
-        0x6d, 0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff};
-
-    /*
-    const uint8_t enclosed_payload[16]= {
-        0xbf, 0x61, 0x64, 0x4b, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f,
-    0x72, 0x6c, 0x64, 0xff};
-        */
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    // 16 is the enclosed payload, it should fail
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, 16, &new_length);
-
-    // succeeded, length is length of enclosed payload
-    TEST_ASSERT_FALSE(result);
-    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__1_byte_payload_length__incorrect_value__fails(
-    void)
-{
-    // (this is invalid CBOR)
-    /* modified from cbor.me:
-     * BF                                      # map(*)
-     * 61                                   # text(1)
-     *   70                                # "p"
-     * 45                                   # bytes(5)
-     *   0205000000                        # "\x02\x05\x00\x00\x00"
-     * 61                                   # text(1)
-     *   75                                # "u"
-     * BF                                   # map(*)
-     *   61                                # text(1)
-     *     34                             # "4"
-     *   00                                # unsigned(0)
-     *   FF                                # primitive(*)
-     * 61                                   # text(1)
-     *   64                                # "d"
-     * 58 FF                                # bytes(45)
-     *    BF616AABBCC11223344556677889900FAFBDDEEFF44B68656C6C6F20776F726C64FF616D4800010203040506FF
-     * # "\xBFaj\xAB\xBC\xC1\x12#4EVgx\x89\x90\x0F\xAF\xBD\xDE\xEF\xF4Khello
-     * world\xFFamH\x00\x01\x02\x03\x04\x05\x06\xFF" FF # primitive(*)
-     */
-
-    const uint8_t data[66] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x58, 0xFF,
-
-        0xBF, 0x61, 0x6a, 0xab, 0xbc, 0xc1, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67,
-        0x78, 0x89, 0x90, 0x0f, 0xaf, 0xbd, 0xde, 0xef, 0xf4, 0x4b, 0x78, 0x65,
-        0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61, 0x6d,
-        0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xff};
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // succeeded, length is length of enclosed payload
-    TEST_ASSERT_FALSE(result);
-    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__1_byte_payload_length__extracted_ok(
-    void)
-{
-    /* from cbor.me:
-     * BF                                      # map(*)
-     * 61                                   # text(1)
-     *   70                                # "p"
-     * 45                                   # bytes(5)
-     *   0205000000                        # "\x02\x05\x00\x00\x00"
-     * 61                                   # text(1)
-     *   75                                # "u"
-     * BF                                   # map(*)
-     *   61                                # text(1)
-     *     34                             # "4"
-     *   00                                # unsigned(0)
-     *   FF                                # primitive(*)
-     * 61                                   # text(1)
-     *   64                                # "d"
-     * 58 2D                                # bytes(45)
-     *    BF616AABBCC11223344556677889900FAFBDDEEFF44B68656C6C6F20776F726C64FF616D4800010203040506FF
-     * # "\xBFaj\xAB\xBC\xC1\x12#4EVgx\x89\x90\x0F\xAF\xBD\xDE\xEF\xF4Khello
-     * world\xFFamH\x00\x01\x02\x03\x04\x05\x06\xFF" FF # primitive(*)
-     */
-
-    const uint8_t data[66] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x58, 0x2D,
-
-        0xBF, 0x61, 0x6a, 0xab, 0xbc, 0xc1, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67,
-        0x78, 0x89, 0x90, 0x0f, 0xaf, 0xbd, 0xde, 0xef, 0xf4, 0x4b, 0x78, 0x65,
-        0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61, 0x6d,
-        0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xff};
-
-    const uint8_t enclosed_payload[45] = {
-        0xBF, 0x61, 0x6a, 0xab, 0xbc, 0xc1, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67,
-        0x78, 0x89, 0x90, 0x0f, 0xaf, 0xbd, 0xde, 0xef, 0xf4, 0x4b, 0x78, 0x65,
-        0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61, 0x6d,
-        0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xff};
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // succeeded, length is length of enclosed payload
-    TEST_ASSERT_TRUE(result);
-    TEST_ASSERT_EQUAL_UINT(45, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, enclosed_payload, new_length);
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__2_byte_payload_length__fails(
-    void)
-{
-    /* from cbor.me:
-     * BF                                      # map(*)
-     * 61                                   # text(1)
-     *   70                                # "p"
-     * 45                                   # bytes(5)
-     *   0205000000                        # "\x02\x05\x00\x00\x00"
-     * 61                                   # text(1)
-     *   75                                # "u"
-     * BF                                   # map(*)
-     *   61                                # text(1)
-     *     34                             # "4"
-     *   00                                # unsigned(0)
-     *   FF                                # primitive(*)
-     * 61                                   # text(1)
-     *   64                                # "d"
-     * 59 002D                                # bytes(45)
-     *    BF616AABBCC11223344556677889900FAFBDDEEFF44B68656C6C6F20776F726C64FF616D4800010203040506FF
-     * # "\xBFaj\xAB\xBC\xC1\x12#4EVgx\x89\x90\x0F\xAF\xBD\xDE\xEF\xF4Khello
-     * world\xFFamH\x00\x01\x02\x03\x04\x05\x06\xFF" FF # primitive(*)
-     */
-
-    const uint8_t data[66] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x59, 0x00, 0x2D,
-
-        0xBF, 0x61, 0x6a, 0xab, 0xbc, 0xc1, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67,
-        0x78, 0x89, 0x90, 0x0f, 0xaf, 0xbd, 0xde, 0xef, 0xf4, 0x4b, 0x78, 0x65,
-        0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61, 0x6d,
-        0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xff};
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // succeeded, length is length of enclosed payload
-    TEST_ASSERT_FALSE(result);
-    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-}
-
-void test_nexus_oc_wrapper__nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload__secured_payload_invalid_payload_key(
-    void)
-{
-    /* from cbor.me:
-
-         BF                                     # map(*)
-         61                                  # text(1)
-             70                               # "p"
-         41                                  # bytes(1)
-             02                               # "\x02"
-         61                                  # text(1)
-             75                               # "u"
-         BF                                  # map(*)
-             61                               # text(1)
-                 34                            # "4"
-             00                               # unsigned(0)
-             61                               # text(1)
-                 35                            # "5"
-             05                               # unsigned(5)
-             FF                               # primitive(*)
-         61                                  # text(1)
-             78                               # "x"  // ERROR, is not 'd'
-         50                                  # bytes(16)
-             BF61644B68656C6C6F20776F726C64FF # "\xBFadKhello world\xFF"
-         61                                  # text(1)
-             6D                               # "m"
-         48                                  # bytes(8)
-             0001020304050607                 # "\x00\x01\x02\x03\x04\x05\x06\a"
-         FF                                  # primitive(*)
-
-     */
-
-    const uint8_t data[47] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x78, 0x50, 0xbf, 0x61, 0x64, 0x4b, 0x68,
-        0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61,
-        0x6d, 0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff};
-
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
-    memcpy(buf, data, sizeof(data));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
-
-    // sentinel value
-    uint8_t new_length = UINT8_MAX;
-    bool result = nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-        buf, sizeof(data), &new_length);
-
-    // failed, unmodified
-    TEST_ASSERT_FALSE(result);
-    TEST_ASSERT_EQUAL_UINT(UINT8_MAX, new_length);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
 }
 
 void test_nexus_oc_wrapper__repack_buffer_secured__repack_ok(void)
@@ -747,59 +425,44 @@ void test_nexus_oc_wrapper__repack_buffer_secured__repack_ok(void)
                               0x6c,
                               0x64,
                               0xff};
-    uint8_t buf[OC_BLOCK_SIZE] = {0};
+    uint8_t buf[NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE] = {0};
     memcpy(buf, data, sizeof(data));
     TEST_ASSERT_EQUAL_UINT8_ARRAY(buf, data, sizeof(data));
 
+    struct nx_common_check_key arbitrary_key = {0};
     // populate COSE_MAC0 struct
-    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-    cose_mac0.protected_header_method = OC_POST; // 2
-    cose_mac0.protected_header_nonce = 5; // arbitrary
-    cose_mac0.kid = 0;
-    cose_mac0.payload = buf;
-    cose_mac0.payload_len = (uint8_t) sizeof(data);
-    struct nexus_check_value mac = {
-        {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
-    cose_mac0.mac = &mac;
-
+    nexus_cose_mac0_common_macparams_t mac_params = {
+        &arbitrary_key,
+        5, // arbitrary nonce
+        {
+            OC_POST, // 2
+            "/uri/test",
+            9,
+        },
+        (uint8_t*) data,
+        sizeof(data),
+    };
     TEST_ASSERT_EQUAL_UINT(
-        47,
-        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &cose_mac0));
+        32,
+        nexus_oc_wrapper_repack_buffer_secured(buf, sizeof(buf), &mac_params));
 
     /* from cbor.me:
+     * [h'A10505', {}, h'BF61644B68656C6C6F20776F726C64FF', h'021BC66FF023FF1D']
+     * 84                                     # array(4)
+     *    43                                  # bytes(3)
+     *       A10505                           # "\xA1\x05\x05"
+     *    A0                                  # map(0)
+     *    50                                  # bytes(16)
+     *       BF61644B68656C6C6F20776F726C64FF # "\xBFadKhello world\xFF"
+     *    48                                  # bytes(8)
+     *       021BC66FF023FF1D                 # "\x02\e\xC6o\xF0#\xFF\x1D"
+     */
 
-        BF                                     # map(*)
-        61                                  # text(1)
-            70                               # "p"
-        41                                  # bytes(1)
-            02                               # "\x02"
-        61                                  # text(1)
-            75                               # "u"
-        BF                                  # map(*)
-            61                               # text(1)
-                34                            # "4"
-            00                               # unsigned(0)
-            61                               # text(1)
-                35                            # "5"
-            05                               # unsigned(5)
-            FF                               # primitive(*)
-        61                                  # text(1)
-            64                               # "d"
-        50                                  # bytes(16)
-            BF61644B68656C6C6F20776F726C64FF # "\xBFadKhello world\xFF"
-        61                                  # text(1)
-            6D                               # "m"
-        48                                  # bytes(8)
-            0001020304050607                 # "\x00\x01\x02\x03\x04\x05\x06\a"
-        FF                                  # primitive(*)
+    uint8_t expected_secured_buf[32] = {
+        0x84, 0x43, 0xa1, 0x05, 0x05, 0xa0, 0x50, 0xbf, 0x61, 0x64, 0x4b,
+        0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64,
+        0xff, 0x48, 0x02, 0x1b, 0xc6, 0x6f, 0xf0, 0x23, 0xff, 0x1d};
 
-    */
-
-    uint8_t expected_secured_buf[47] = {
-        0xbf, 0x61, 0x70, 0x45, 0x02, 0x05, 0x00, 0x00, 0x00, 0x61, 0x75, 0xbf,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x50, 0xbf, 0x61, 0x64, 0x4b, 0x68,
-        0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61,
-        0x6d, 0x48, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff};
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
         buf, expected_secured_buf, sizeof(expected_secured_buf));
 }
@@ -1263,6 +926,110 @@ void test_nexus_oc_wrapper__nx_channel_do_post_request_secured_without_init__fai
     // did not init first, will return error
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED,
                       nx_channel_do_post_request_secured());
+}
+
+void test_nexus_oc_wrapper__nx_channel_do_get_request__no_reply__cb_timeout_ok(
+    void)
+{
+    // We may tangentially trigger events in security manager tests, ignore
+    nxp_channel_notify_event_Ignore();
+    nxp_common_nv_read_IgnoreAndReturn(true);
+    nxp_common_nv_write_IgnoreAndReturn(true);
+    nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_core_init();
+
+    struct nx_id src_nx_id = {0xFFFF, 0x12345678};
+    struct nx_id dest_nx_id = {0xFFFF, 0x87654321};
+
+    // register resource (server; replies)
+    const struct nx_channel_resource_props pc_props = {
+        .uri = "/test",
+        .resource_type = "angaza.test",
+        .rtr = 65000,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        .get_handler = nexus_channel_res_payg_credit_get_handler,
+        .get_secured = false,
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&pc_props);
+
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+
+    // arbitrary request context
+    char* context = "context";
+
+    // query string
+    char* query = "th=15";
+
+    // The request is (same token value due to random value mock above):
+    // 51 01 E2 41 40 B4 74 65 73 74 12 27 10 35 74 68 3D 31 35
+    // version 0x01, TKL 0x01, code 0x01 (get), MID 0xE241, token 0x40, option
+    // 0xB4 (uri-path, length 4), option value 0x74657374 (ASCII "test") option
+    // 0x12 (option delta 1, content-format, length 2), option 0x45 (option
+    // delta 4, uri-query, length 5), option value 0x74683D3135 (ASCII "th=15")
+    uint8_t request_bytes[16] = {0x51,
+                                 0x01,
+                                 0xE2,
+                                 0x41,
+                                 0x40,
+                                 0xB4,
+                                 0x74,
+                                 0x65,
+                                 0x73,
+                                 0x74,
+                                 0x45,
+                                 0x74,
+                                 0x68,
+                                 0x3D,
+                                 0x31,
+                                 0x35};
+
+    // make a request
+    nxp_common_request_processing_Expect();
+    nxp_channel_get_nexus_id_ExpectAndReturn(src_nx_id);
+    nxp_channel_network_send_ExpectAndReturn(request_bytes,
+                                             sizeof(request_bytes),
+                                             &src_nx_id,
+                                             &dest_nx_id,
+                                             false,
+                                             0);
+
+    // before the request is made, number of free callbacks is maximum
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS + 1,
+                      oc_ri_client_cb_free_count());
+
+    TEST_ASSERT_EQUAL(
+        NX_CHANNEL_ERROR_NONE,
+        nx_channel_do_get_request(
+            "test", &dest_nx_id, query, test_platform_get_handler, context));
+
+    // process/send the request; arbitrary uptime. Need to use
+    // `nx_common_process` since this updates Nexus uptime, which is used
+    // as the uptime for `oc_clock_time` (which in turn is used for internal
+    // OC timers)
+    (void) nx_common_process(0);
+    TEST_ASSERT_EQUAL(0, nexus_common_uptime());
+    TEST_ASSERT_EQUAL(oc_clock_time(), nexus_common_uptime());
+
+    // one should be consumed from the max (OC_MAX_NUM_CONCURRENT_REQUESTS + 1)
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS,
+                      oc_ri_client_cb_free_count());
+
+    // not enough time has elapsed to clear the client_cb
+    (void) nx_common_process(OC_NON_LIFETIME - 1);
+    TEST_ASSERT_EQUAL(OC_NON_LIFETIME - 1, nexus_common_uptime());
+    TEST_ASSERT_EQUAL(oc_clock_time(), nexus_common_uptime());
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS,
+                      oc_ri_client_cb_free_count());
+
+    // now, uptime is at a point where we can clear the callback
+    (void) nx_common_process(OC_NON_LIFETIME);
+    TEST_ASSERT_EQUAL(OC_NON_LIFETIME, nexus_common_uptime());
+    TEST_ASSERT_EQUAL(oc_clock_time(), nexus_common_uptime());
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS + 1,
+                      oc_ri_client_cb_free_count());
 }
 
 #pragma GCC diagnostic pop

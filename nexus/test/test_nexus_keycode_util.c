@@ -368,7 +368,7 @@ void test_nexus_digits_init__various_lengths__data_as_expected(void)
     {
         struct nexus_digits digits;
         nexus_digits_init(
-            &digits, scenarios[i].input_chars, scenarios[i].length);
+            &digits, (char*) scenarios[i].input_chars, scenarios[i].length);
         TEST_ASSERT_EQUAL_UINT(scenarios[i].length, digits.length);
         TEST_ASSERT_EQUAL_HEX8_ARRAY(
             scenarios[i].input_chars, digits.chars, digits.length);

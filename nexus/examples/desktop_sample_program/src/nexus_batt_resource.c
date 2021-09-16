@@ -48,46 +48,43 @@ static uint16_t mid = 123;
 
 /* global property variables for path: "/batt" */
 static char g_batt_RESOURCE_PROPERTY_NAME_batterythreshold[] =
-    "batterythreshold"; /* the name for the attribute */
+    "th"; /* the name for the attribute */
 int g_batt_batterythreshold =
     20; /* current value of property "batterythreshold" The threshold
            percentage for the low battery warning. */
 static char g_batt_RESOURCE_PROPERTY_NAME_capacity[] =
-    "capacity"; /* the name for the attribute */
+    "ca"; /* the name for the attribute */
 
 // Modified by Angaza to uint32_t, instead of double. //
 uint32_t g_batt_capacity = 3000; /* current value of property "capacity"  The
                                     total capacity in Amp-hours (Ah). */
 
 static char g_batt_RESOURCE_PROPERTY_NAME_charge[] =
-    "charge"; /* the name for the attribute */
+    "cp"; /* the name for the attribute */
 int g_batt_charge =
     50; /* current value of property "charge" The current charge percentage. */
 static char g_batt_RESOURCE_PROPERTY_NAME_charging[] =
-    "charging"; /* the name for the attribute */
+    "cg"; /* the name for the attribute */
 bool g_batt_charging =
     false; /* current value of property "charging" The status of charging. */
 static char g_batt_RESOURCE_PROPERTY_NAME_defect[] =
-    "defect"; /* the name for the attribute */
+    "ft"; /* the name for the attribute */
 bool g_batt_defect = false; /* current value of property "defect" Battery defect
                                detected. True = defect, False = no defect */
 static char g_batt_RESOURCE_PROPERTY_NAME_discharging[] =
-    "discharging"; /* the name for the attribute */
+    "ds"; /* the name for the attribute */
 bool g_batt_discharging = false; /* current value of property "discharging" The
                                     status of discharging. */
 static char g_batt_RESOURCE_PROPERTY_NAME_lowbattery[] =
-    "lowbattery"; /* the name for the attribute */
+    "lb"; /* the name for the attribute */
 bool g_batt_lowbattery =
     false; /* current value of property "lowbattery" The status of the low
               battery warning based upon the defined threshold. */
-static char g_batt_RESOURCE_PROPERTY_NAME_timestamp[] =
-    "timestamp"; /* the name for the attribute */
-char g_batt_timestamp[MAX_PAYLOAD_STRING] =
-    "2015-11-05T14:30:00.20Z"; /* current value of property "timestamp" An
-                                  RFC3339 formatted time indicating when the
-                                  data was observed (e.g.: 2016-02-15T09:19Z,
-                                  1996-12-19T16:39:57-08:00). Note that 1/100
-                                  time resolution should be used. */
+static char g_batt_RESOURCE_PROPERTY_NAME_seconds_since[] =
+    "ss"; /* the name for the attribute */
+int g_batt_seconds_since = 0;
+/* current value of property "ss" indicating
+seconds since this resource was updated. */
 
 //
 // FORWARD DECLARATIONS //
@@ -191,16 +188,12 @@ void battery_resource_simulate_post_update_properties(uint8_t battery_threshold)
 
     // to simplify formatting, we allow thresholds between 0 and 20%.
     // This keeps a constant CBOR size (vs one additional byte)
-    uint8_t request_data_cbor[19] = {
-        0xA1, 0x70, 0x62, 0x61, 0x74, 0x74, 0x65, 0x72, 0x79,
-        0x74, 0x68, 0x72, 0x65, 0x73, 0x68, 0x6F, 0x6C, 0x64,
-        0x00, /// will be modified
-    };
+    uint8_t request_data_cbor[5] = {0xA1, 0x62, 0x74, 0x68, 0x00};
     if (battery_threshold > 20)
     {
         return; // no-op
     }
-    request_data_cbor[18] = battery_threshold;
+    request_data_cbor[4] = battery_threshold;
 
     coap_set_payload(
         &request_packet, request_data_cbor, sizeof(request_data_cbor));
@@ -211,34 +204,6 @@ void battery_resource_simulate_post_update_properties(uint8_t battery_threshold)
 
     nx_channel_network_receive(
         send_buffer, send_length, &simulated_client_nx_id);
-}
-
-void _battery_resource_update_timestamp(void)
-{
-    // get current system time from clock
-    static time_t cur_time;
-    time(&cur_time);
-
-    // Convert into GMT/UTC
-    struct tm* tm_info;
-    tm_info = gmtime(&cur_time);
-
-    // Format into RFC3339 string representation for OCF resource
-    // Note: This is performed to conform strictly to the OCF 'battery'
-    // resource, it is possible to include a separate, 'seconds' time field
-    // in a custom resource if desired (or, within this resource), if the
-    // application does not need *strictly* compliant standard OCF resource
-    // models.
-    // YYYY-MM-DDTHH:MM:SSZ
-    snprintf(&g_batt_timestamp[0],
-             MAX_PAYLOAD_STRING,
-             "%4d-%02d-%02dT%02d:%02d:%02dZ",
-             (tm_info->tm_year + 1900),
-             tm_info->tm_mon + 1,
-             tm_info->tm_mday,
-             tm_info->tm_hour,
-             tm_info->tm_min,
-             tm_info->tm_sec);
 }
 
 void _battery_resource_update_low_batt_alarm(void)
@@ -311,14 +276,7 @@ void initialize_variables(void)
     g_batt_lowbattery = false; /* current value of property "lowbattery" The
                                   status of the low battery warning based upon
                                   the defined threshold. */
-    strcpy(
-        g_batt_timestamp,
-        "2015-11-05T14:30:00.20Z"); /* current value of property "timestamp" An
-                                       RFC3339 formatted time indicating when
-                                       the data was observed (e.g.:
-                                       2016-02-15T09:19Z,
-                                       1996-12-19T16:39:57-08:00). Note that
-                                       1/100 time resolution should be used. */
+    g_batt_seconds_since = 0;
 }
 
 /**
@@ -399,7 +357,7 @@ static void post_batt(oc_request_t* request,
     if (var_in_request == false)
     {
         error_state = true;
-        PRINT(" required property: 'batterythreshold' not in request\n");
+        PRINT(" required property: 'th' not in request\n");
     }
     /* loop over the request document to check if all inputs are ok */
     rep = request->request_payload;
@@ -416,15 +374,14 @@ static void post_batt(oc_request_t* request,
             if (rep->type != OC_REP_INT)
             {
                 error_state = true;
-                PRINT("   property 'batterythreshold' is not of type int %d \n",
-                      rep->type);
+                PRINT("   property 'th' is not of type int %d \n", rep->type);
             }
 
             int value_max = (int) rep->value.integer;
             if (value_max > 100)
             {
                 /* check the maximum range */
-                PRINT("   property 'batterythreshold' value exceed max : 0 >  "
+                PRINT("   property 'th' value exceed max : 0 >  "
                       "value: %d \n",
                       value_max);
                 error_state = true;
@@ -447,8 +404,7 @@ static void post_batt(oc_request_t* request,
                        g_batt_RESOURCE_PROPERTY_NAME_batterythreshold) == 0)
             {
                 /* assign "batterythreshold" */
-                PRINT("  property 'batterythreshold' : %d\n",
-                      (int) rep->value.integer);
+                PRINT("  property 'th' : %d\n", (int) rep->value.integer);
                 g_batt_batterythreshold = (int) rep->value.integer;
             }
             rep = rep->next;
@@ -457,14 +413,14 @@ static void post_batt(oc_request_t* request,
         PRINT("Set response \n");
         oc_rep_begin_root_object(); // changed to 'begin', Angaza
         /*oc_process_baseline_interface(request->resource); */
-        oc_rep_set_int(root, batterythreshold, g_batt_batterythreshold);
-        oc_rep_set_int(root, capacity, g_batt_capacity);
-        oc_rep_set_int(root, charge, g_batt_charge);
-        oc_rep_set_boolean(root, charging, g_batt_charging);
-        oc_rep_set_boolean(root, defect, g_batt_defect);
-        oc_rep_set_boolean(root, discharging, g_batt_discharging);
-        oc_rep_set_boolean(root, lowbattery, g_batt_lowbattery);
-        oc_rep_set_text_string(root, timestamp, g_batt_timestamp);
+        oc_rep_set_int(root, th, g_batt_batterythreshold);
+        oc_rep_set_int(root, ca, g_batt_capacity);
+        oc_rep_set_int(root, ch, g_batt_charge);
+        oc_rep_set_boolean(root, cg, g_batt_charging);
+        oc_rep_set_boolean(root, ft, g_batt_defect);
+        oc_rep_set_boolean(root, ds, g_batt_discharging);
+        oc_rep_set_boolean(root, lb, g_batt_lowbattery);
+        oc_rep_set_int(root, ss, g_batt_seconds_since);
 
         oc_rep_end_root_object();
         /* TODO: ACTUATOR add here the code to talk to the HW if one implements
@@ -507,8 +463,6 @@ static void post_batt(oc_request_t* request,
 static void
 get_batt(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-    // update timestamp
-    _battery_resource_update_timestamp();
     (void) user_data; /* variable not used */
     /* TODO: SENSOR add here the code to talk to the HW if one implements a
        sensor.
@@ -527,53 +481,53 @@ get_batt(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
     switch (interfaces)
     {
         case OC_IF_BASELINE:
-        /* fall through */
-        case OC_IF_RW:
             PRINT("\tadding baseline info\n");
             oc_process_baseline_interface(request->resource);
 
+        /* fall through */
+        case OC_IF_RW:
             /* property (integer) 'batterythreshold' */
-            oc_rep_set_int(root, batterythreshold, g_batt_batterythreshold);
+            oc_rep_set_int(root, th, g_batt_batterythreshold);
             PRINT("\t%s:\t%d\n",
                   g_batt_RESOURCE_PROPERTY_NAME_batterythreshold,
                   g_batt_batterythreshold);
             /* property (integer) 'capacity' */
             // Modified by Angaza, replacing double with int //
-            oc_rep_set_int(root, capacity, g_batt_capacity);
+            oc_rep_set_int(root, ca, g_batt_capacity);
             // Modified by Angaza to print int, instead of double. //
             PRINT("\t%s:\t\t%d\n",
                   g_batt_RESOURCE_PROPERTY_NAME_capacity,
                   g_batt_capacity);
             /* property (integer) 'charge' */
-            oc_rep_set_int(root, charge, g_batt_charge);
+            oc_rep_set_int(root, cp, g_batt_charge);
             PRINT("\t%s:\t\t\t%d\n",
                   g_batt_RESOURCE_PROPERTY_NAME_charge,
                   g_batt_charge);
             /* property (boolean) 'charging' */
-            oc_rep_set_boolean(root, charging, g_batt_charging);
+            oc_rep_set_boolean(root, cg, g_batt_charging);
             PRINT("\t%s:\t\t%s\n",
                   g_batt_RESOURCE_PROPERTY_NAME_charging,
                   btoa(g_batt_charging));
-            /* property (boolean) 'defect' */
-            oc_rep_set_boolean(root, defect, g_batt_defect);
+            /* property (boolean) 'defect/fault' */
+            oc_rep_set_boolean(root, ft, g_batt_defect);
             PRINT("\t%s:\t\t\t%s\n",
                   g_batt_RESOURCE_PROPERTY_NAME_defect,
                   btoa(g_batt_defect));
             /* property (boolean) 'discharging' */
-            oc_rep_set_boolean(root, discharging, g_batt_discharging);
+            oc_rep_set_boolean(root, ds, g_batt_discharging);
             PRINT("\t%s:\t\t%s\n",
                   g_batt_RESOURCE_PROPERTY_NAME_discharging,
                   btoa(g_batt_discharging));
             /* property (boolean) 'lowbattery' */
-            oc_rep_set_boolean(root, lowbattery, g_batt_lowbattery);
+            oc_rep_set_boolean(root, lb, g_batt_lowbattery);
             PRINT("\t%s:\t\t%s\n",
                   g_batt_RESOURCE_PROPERTY_NAME_lowbattery,
                   btoa(g_batt_lowbattery));
-            /* property (string) 'timestamp' */
-            oc_rep_set_text_string(root, timestamp, g_batt_timestamp);
-            PRINT("\t%s:\t\t%s\n",
-                  g_batt_RESOURCE_PROPERTY_NAME_timestamp,
-                  g_batt_timestamp);
+            /* property (string) 'seconds since sampled' */
+            oc_rep_set_int(root, ss, g_batt_seconds_since);
+            PRINT("\t%s:\t\t%d\n",
+                  g_batt_RESOURCE_PROPERTY_NAME_seconds_since,
+                  g_batt_seconds_since);
             break;
         default:
             break;

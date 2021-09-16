@@ -244,6 +244,20 @@ nx_channel_error nx_channel_do_post_request(void);
  * \return `nx_channel_error` detailing success or failure
  */
 nx_channel_error nx_channel_do_post_request_secured(void);
+
+/*! \brief Factory Reset a Nexus Channel Accessory (Accessory Only)
+ *
+ * Used by Nexus Channel Secure Accessories for factory reset/replacement
+ * scenarios. Accessory devices cannot accept keycodes, but sometimes need
+ * to be factory reset (maintenance or replacement when the linked Controller
+ * is inaccessible or broken).
+ *
+ * Calling this function will cause an accessory to delete all Nexus Channel
+ * secured links, and reset its PAYG credit (if using PAYG credit) to 0.
+ *
+ * \return `nx_channel_error` indicating success or failure (and cause)
+ */
+nx_channel_error nx_channel_accessory_delete_all_links(void);
 #endif // #ifdef CONFIG_NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 /*! \brief Nexus Channel origin command encoding/bearer type.

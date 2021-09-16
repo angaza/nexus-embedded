@@ -23,9 +23,11 @@
 #include "src/nexus_channel_om.h"
 #include "src/nexus_channel_res_link_hs.h"
 #include "src/nexus_channel_res_lm.h"
-#include "src/nexus_channel_res_payg_credit.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_common_internal.h"
+#include "src/nexus_cose_mac0_common.h"
+#include "src/nexus_cose_mac0_sign.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_keycode_core.h"
 #include "src/nexus_keycode_mas.h"
 #include "src/nexus_keycode_pro.h"
@@ -41,6 +43,7 @@
 #include "utils/siphash_24.h"
 
 // Other support libraries
+#include <mock_nexus_channel_res_payg_credit.h>
 #include <mock_nxp_channel.h>
 #include <mock_nxp_common.h>
 #include <mock_nxp_keycode.h>
@@ -81,6 +84,7 @@ void setUp(void)
     nxp_common_nv_read_IgnoreAndReturn(true);
     nxp_common_nv_write_IgnoreAndReturn(true);
     nxp_channel_random_value_IgnoreAndReturn(123456);
+    nexus_channel_res_payg_credit_process_IgnoreAndReturn(UINT32_MAX);
     nxp_common_request_processing_Expect();
 }
 

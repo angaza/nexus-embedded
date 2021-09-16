@@ -42,6 +42,7 @@ static NEXUS_PACKED_STRUCT
     nexus_channel_link_t pending_link_to_create;
     uint8_t link_count;
     bool link_idx_in_use[NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS];
+    bool link_idx_should_persist_nonce[NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS];
     bool pending_add_link;
     bool pending_clear_all_links;
 }
@@ -103,6 +104,7 @@ NEXUS_IMPL_STATIC bool _nexus_channel_link_manager_index_to_nv_block(
 
 bool nexus_channel_link_manager_init(void)
 {
+    // assumes that all flags in `_this` are 'do nothing' if false/0
     memset(&_this, 0x00, sizeof(_this));
 
     // Must initialize tmp_block_meta for CWE-457
@@ -128,16 +130,19 @@ bool nexus_channel_link_manager_init(void)
             _this.link_count++;
             _this.link_idx_in_use[i] = true;
 
-            // existing links update nonce by 16 on every re-init to protect
-            // against replay attacks
-            _this.stored.links[i].security_data.mode0.nonce += 16;
+            // existing links update nonce by
+            // NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT
+            // on every re-init to protect against replay attacks
+            _this.stored.links[i].security_data.mode0.nonce +=
+                NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT;
+            _this.link_idx_should_persist_nonce[i] = true;
         }
     }
 
     const oc_interface_mask_t if_mask_arr[] = {OC_IF_RW, OC_IF_BASELINE};
     const struct nx_channel_resource_props lm_props = {
         .uri = "/l",
-        .resource_type = "angaza.com.nexus.link",
+        .resource_type = "angaza.com.nx.ln",
         .rtr = 65002,
         .num_interfaces = 2,
         .if_masks = if_mask_arr,
@@ -186,14 +191,8 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
             (enum nexus_channel_link_security_mode) cur_link->security_mode ==
             NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24)
         {
-            // Persist updated nonce to NV periodically
-            if (cur_link->security_data.mode0.nonce %
-                    NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT ==
-                0)
+            if (_this.link_idx_should_persist_nonce[i])
             {
-                // increment to avoid updating again on next `process` call
-                cur_link->security_data.mode0.nonce++;
-
                 // Write the update to NV, clearing this link block. On the next
                 // read, if the block is all 0x00, it will be considered a
                 // meaningless link and ignored.
@@ -202,6 +201,8 @@ uint32_t nexus_channel_link_manager_process(uint32_t seconds_elapsed)
                     i, &tmp_block_meta);
                 NEXUS_ASSERT(tmp_block_meta != 0, "Block ID not found");
                 nexus_nv_update(*tmp_block_meta, (uint8_t*) cur_link);
+
+                _this.link_idx_should_persist_nonce[i] = false;
             }
         }
     }
@@ -303,9 +304,8 @@ _nexus_channel_link_manager_link_index_from_nxid(const struct nx_id* id,
     return false;
 }
 
-NEXUS_IMPL_STATIC bool
-_nexus_channel_link_manager_link_from_nxid(const struct nx_id* id,
-                                           nexus_channel_link_t* retrieved_link)
+bool nexus_channel_link_manager_link_from_nxid(
+    const struct nx_id* id, nexus_channel_link_t* retrieved_link)
 {
     uint8_t link_index;
     bool found =
@@ -333,8 +333,8 @@ bool nexus_channel_link_manager_create_link(
 
     struct nexus_channel_link_t matching_link;
     // first, check if a link already exists with this NXID
-    if (_nexus_channel_link_manager_link_from_nxid(linked_device_id,
-                                                   &matching_link))
+    if (nexus_channel_link_manager_link_from_nxid(linked_device_id,
+                                                  &matching_link))
     {
         OC_WRN("Cannot create new link, already exists");
         return false;
@@ -428,8 +428,10 @@ nexus_channel_link_manager_operating_mode(void)
                         "Neither controller nor accessory mode is supported, "
                         "but device is not dual mode - unexpected");
 
+    struct nx_id ignored_id;
     const bool is_accessory =
-        nexus_channel_link_manager_has_linked_controller();
+        nexus_channel_link_manager_has_linked_controller(&ignored_id);
+    (void) ignored_id;
     const bool is_controller =
         nexus_channel_link_manager_has_linked_accessory();
 
@@ -454,7 +456,7 @@ nexus_channel_link_manager_operating_mode(void)
 }
 
 static bool _nexus_channel_link_manager_has_link_with_role(
-    enum nexus_channel_link_operating_mode mode)
+    enum nexus_channel_link_operating_mode mode, struct nx_id* found_nexus_id)
 {
     bool found = false;
     for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
@@ -469,22 +471,26 @@ static bool _nexus_channel_link_manager_has_link_with_role(
         if (link->operating_mode == mode)
         {
             found = true;
+            memcpy(
+                found_nexus_id, &link->linked_device_id, sizeof(struct nx_id));
             break;
         }
     }
     return found;
 }
 
-bool nexus_channel_link_manager_has_linked_controller(void)
+bool nexus_channel_link_manager_has_linked_controller(
+    struct nx_id* found_nexus_id)
 {
     return _nexus_channel_link_manager_has_link_with_role(
-        CHANNEL_LINK_OPERATING_MODE_ACCESSORY);
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY, found_nexus_id);
 }
 
 bool nexus_channel_link_manager_has_linked_accessory(void)
 {
+    struct nx_id ignored_id;
     return _nexus_channel_link_manager_has_link_with_role(
-        CHANNEL_LINK_OPERATING_MODE_CONTROLLER);
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER, &ignored_id);
 }
 
 bool nexus_channel_link_manager_security_data_from_nxid(
@@ -494,7 +500,7 @@ bool nexus_channel_link_manager_security_data_from_nxid(
     // need an actual link to copy data into
     // Warning: assumes `link_from_nxid` copies over the entire link.
     nexus_channel_link_t tmp_link;
-    bool result = _nexus_channel_link_manager_link_from_nxid(id, &tmp_link);
+    bool result = nexus_channel_link_manager_link_from_nxid(id, &tmp_link);
 
     if (result)
     {
@@ -525,6 +531,28 @@ bool nexus_channel_link_manager_set_security_data_auth_nonce(
         return false;
     }
 
+    // If the nonce will be updated across a storage interval boundary,
+    // flag that we should persist the link data (including nonce) to NV.
+    const uint32_t old_nonce = found_link->security_data.mode0.nonce;
+    if (new_nonce == 0)
+    {
+        _this.link_idx_should_persist_nonce[link_index] = true;
+    }
+    else if ((new_nonce > old_nonce) && (old_nonce > 0))
+    {
+        for (uint32_t i = old_nonce + 1; i <= new_nonce; i++)
+        {
+            if ((i %
+                 NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT) ==
+                0)
+            {
+                _this.link_idx_should_persist_nonce[link_index] = true;
+                // if we've already passed the boundary, stop loop
+                break;
+            }
+        }
+    }
+
     found_link->security_data.mode0.nonce = new_nonce;
     return true;
 }
@@ -549,6 +577,87 @@ uint8_t nx_channel_link_count(void)
 {
     // starts at '0'
     return _this.link_count;
+}
+
+bool nexus_channel_link_manager_next_linked_accessory(
+    const struct nx_id* const previous_id, struct nx_id* next_id)
+{
+    // return the first ID we find, if no ID is specified, or if there
+    // is only one link present.
+    const uint8_t accessory_link_count =
+        nexus_channel_link_manager_accessory_link_count();
+    if ((previous_id == NULL) || (accessory_link_count == 1))
+    {
+        for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
+        {
+            // Only consider active links where *this* device is a controller
+            if (_this.link_idx_in_use[i] &&
+                (_this.stored.links[i].operating_mode !=
+                 CHANNEL_LINK_OPERATING_MODE_ACCESSORY))
+            {
+                memcpy(next_id,
+                       &_this.stored.links[i].linked_device_id,
+                       sizeof(struct nx_id));
+                return true;
+            }
+        }
+        // If we can't find an ID, this means there are no links present
+        NEXUS_ASSERT(accessory_link_count == 0,
+                     "No link found, but link count not zero");
+        return false;
+    }
+
+    uint8_t prev_id_link_idx;
+    // if previous_id was specified but no link exists, return early
+    if (!_nexus_channel_link_manager_link_index_from_nxid(previous_id,
+                                                          &prev_id_link_idx))
+    {
+        return false;
+    }
+
+    // start checking at the next link index after previous_id, checking
+    // all link slots *except* `prev_link_idx`
+    for (uint8_t i = prev_id_link_idx + 1;
+         i < (prev_id_link_idx + NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS);
+         i++)
+    {
+        const uint8_t link_idx = i % NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS;
+        if (!_this.link_idx_in_use[link_idx] ||
+            (_this.stored.links[link_idx].operating_mode ==
+             CHANNEL_LINK_OPERATING_MODE_ACCESSORY))
+        {
+            // skip inactive link slots or links where this device is an
+            // accessory
+            continue;
+        }
+        // found an active link - return its ID
+        memcpy(next_id,
+               &_this.stored.links[link_idx].linked_device_id,
+               sizeof(struct nx_id));
+        return true;
+    }
+
+    // no ID other than `previous_id` was found...
+    return false;
+}
+
+uint8_t nexus_channel_link_manager_accessory_link_count(void)
+{
+    uint8_t acc_count = 0;
+    for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
+    {
+        if (!_this.link_idx_in_use[i])
+        {
+            // skip inactive link slots
+            continue;
+        }
+        if (_this.stored.links[i].operating_mode ==
+            CHANNEL_LINK_OPERATING_MODE_CONTROLLER)
+        {
+            acc_count++;
+        }
+    }
+    return acc_count;
 }
 
 // internal. Warning, assumes `oc` root object is already open and will be
@@ -639,7 +748,7 @@ _nexus_channel_link_manager_secs_since_link_active(const struct nx_id* id)
 {
     nexus_channel_link_t found_link = {0};
     const bool found =
-        _nexus_channel_link_manager_link_from_nxid(id, &found_link);
+        nexus_channel_link_manager_link_from_nxid(id, &found_link);
 
     if (found)
     {

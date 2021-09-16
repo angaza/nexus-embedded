@@ -41,8 +41,7 @@ oc_event_callback_retval_t oc_ri_remove_client_cb(void *data);
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 static bool _prepare_secured_coap_request(uint8_t* const transaction_payload, uint8_t* payload_size)
 {
-  // size of buffer for the payload data based on structs/constants defined elsewhere
-  const uint16_t transaction_payload_buf_size = sizeof(((oc_message_t*) 0)->data) - COAP_MAX_HEADER_SIZE;
+
   bool sec_data_exists = false;
 
   // get Nexus ID of destination/server
@@ -65,25 +64,40 @@ static bool _prepare_secured_coap_request(uint8_t* const transaction_payload, ui
   // Now, we have the security data for the secured link to the server, and
   // can begin building the secured request message.
 
-  // populate COSE_MAC0 struct
-  nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-  cose_mac0.protected_header_method = (uint8_t) client_cb->method;
-  cose_mac0.protected_header_nonce = sec_data.nonce;
-  cose_mac0.kid = 0;
-  cose_mac0.payload_len = *payload_size;
-  // the encoded payload has been written here by the client application
-  cose_mac0.payload = transaction_payload;
+  // AAD computed over URI without terminating byte
+  uint8_t uri_size = 0;
+  if (client_cb->uri.size > 0)
+  {
+      uri_size = oc_string_len(client_cb->uri);
+  }
+  // populate COSE_MAC0 struct. Make every outbound request with the
+  // *current* nonce of the link + 1
+    nexus_cose_mac0_common_macparams_t mac_params = {
+        &sec_data.sym_key,
+        sec_data.nonce + 1,
+        // aad
+        {
+            client_cb->method,
+            (uint8_t*) client_cb->uri.ptr,
+            uri_size,
+        },
+        // the CBOR payload has been written here by the client application
+        transaction_payload,
+        *payload_size,
+    };
 
-  // compute MAC
-  struct nexus_check_value mac = _nexus_channel_sm_compute_mac_mode0(&cose_mac0, &sec_data);
-  cose_mac0.mac = &mac;
+    // size of buffer for the payload data based on structs/constants defined elsewhere
+    // We are assuming that `transaction_payload` is pointing to the payload
+    // part of an `oc_message_t` struct inside a `coap_transaction_t`.
+    NEXUS_STATIC_ASSERT(sizeof(((oc_message_t*) 0)->data) - COAP_MAX_HEADER_SIZE <= NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE, "Transaction payload buffer size is larger than local buffer");
+    // will be populated with repacked COSE MAC0 data
+    uint8_t coap_payload_buffer[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
 
-  // repack the message stored in the transaction with secured data
-  // At this point, we are overwriting `transaction_payload` with `cose_mac0`, but `cose_mac0`s
-  // `payload` field is pointing to `transaction_payload`. However, this is OK because
-  // `nexus_oc_wrapper_repack_buffer_secured` internally copies the data from `transaction_payload`
-  // into a local buffer before moving the final 'packed' result back into `transaction_payload`.
-  *payload_size = nexus_oc_wrapper_repack_buffer_secured(transaction_payload, transaction_payload_buf_size, &cose_mac0);
+  // `nexus_oc_wrapper_repack_buffer_secured` internally copies the data from `mac_params->payload`
+  // into a local buffer before moving the final 'packed' result back into `coap_payload_buffer`.
+  *payload_size = (uint8_t) nexus_oc_wrapper_repack_buffer_secured(coap_payload_buffer, sizeof(coap_payload_buffer), &mac_params);
+
+  NEXUS_ASSERT(*payload_size <= NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE, "Secured payload size too large");
 
   if (*payload_size == 0)
   {
@@ -97,6 +111,9 @@ static bool _prepare_secured_coap_request(uint8_t* const transaction_payload, ui
             sizeof(struct nexus_channel_link_security_mode0_data));
 
   coap_set_header_content_format(request, APPLICATION_COSE_MAC0);
+  // copy secured message into outbound transaction payload buffer
+
+  memcpy(transaction_payload, coap_payload_buffer, *payload_size);
 
   return true;
 }
@@ -109,6 +126,8 @@ dispatch_coap_request(bool nx_secure_request)
   uint8_t payload_size = (uint8_t) oc_rep_get_encoded_payload_size();
   // pointer to where the payload bytes start in the outbound message
   uint8_t* const transaction_payload = transaction->message->data + COAP_MAX_HEADER_SIZE;
+  NEXUS_STATIC_ASSERT(COAP_MAX_HEADER_SIZE + NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE <= NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE,
+          "Header and payload sizes don't fit within a message");
 
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
   // returns true if the request should be secured and it was successfully secured, or if
@@ -116,6 +135,9 @@ dispatch_coap_request(bool nx_secure_request)
   bool security_ok = true;
   if (nx_secure_request)
   {
+      // remember that request is secured so that we can
+      // check that reply is also secured
+      client_cb->nx_request_secured = true;
       security_ok = _prepare_secured_coap_request(transaction_payload, &payload_size);
   }
 #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
@@ -139,14 +161,14 @@ dispatch_coap_request(bool nx_secure_request)
     coap_serialize_message(request, transaction->message->data);
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
   if (transaction->message->length > 0 && security_ok) {
+    coap_send_transaction(transaction, nx_secure_request);
 #else
   if (transaction->message->length > 0) {
+    coap_send_transaction(transaction, false);
 #endif
-    coap_send_transaction(transaction);
 
-// XXX Currently the `client_cb` will remain valid (unremoved) until a
-// response arrives. However, we probably do want to remove it after some
-// timeout period (OC_NON_LIFETIME seems fine but too long right now... 10 seconds?)
+
+
 #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
     if (client_cb->observe_seq == -1) {
       if (client_cb->qos == LOW_QOS)
@@ -156,10 +178,21 @@ dispatch_coap_request(bool nx_secure_request)
         oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb,
                                 OC_EXCHANGE_LIFETIME);
     }
+#else
+    // All callbacks should be removed eventually in the event of no response
+    oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb, OC_NON_LIFETIME);
+    OC_DBG("Clearing client CB with MID %d after %d seconds",
+          (int) client_cb->mid,
+          (int) OC_NON_LIFETIME);
+
 #endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
     success = true;
   } else {
+    OC_WRN(
+        "oc_client_api: Failed to send transaction (length %u)",
+        transaction->message->length
+    );
     coap_clear_transaction(transaction);
     oc_ri_remove_client_cb(client_cb);
   }
@@ -181,10 +214,12 @@ static bool prepare_coap_request(oc_client_cb_t *cb)
   transaction = coap_new_transaction(cb->mid, &cb->endpoint);
 
   if (!transaction) {
+    // also free the client callback early here.
+    oc_ri_remove_client_cb(cb);
     return false;
   }
 
-  oc_rep_new(transaction->message->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+  oc_rep_new(transaction->message->data + COAP_MAX_HEADER_SIZE, NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE);
 
   coap_udp_init_message(request, type, (uint8_t) cb->method, cb->mid);
 
@@ -207,17 +242,6 @@ static bool prepare_coap_request(oc_client_cb_t *cb)
   client_cb = cb;
 
   return true;
-}
-
-void
-oc_free_server_endpoints(oc_endpoint_t *endpoint)
-{
-  oc_endpoint_t *next;
-  while (endpoint != NULL) {
-    next = endpoint->next;
-    oc_free_endpoint(endpoint);
-    endpoint = next;
-  }
 }
 
 bool

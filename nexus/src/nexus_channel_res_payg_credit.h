@@ -1,7 +1,7 @@
 /** \file
  * Nexus Channel PAYG Credit OCF Resource (Header)
  * \author Angaza
- * \copyright 2020 Angaza, Inc.
+ * \copyright 2021 Angaza, Inc.
  * \license This file is released under the MIT license
  *
  * The above copyright notice and license shall be included in all
@@ -9,6 +9,7 @@
  *
  * Explanation of operational modes:
  *
+ *                     I AM LINKED AS AN ACCESSORY /
  *                     I EXPECT CREDIT UPDATES FROM
                        A (LINKED) CONTROLLER
 
@@ -16,36 +17,20 @@
                     +---------------+--------------+
                   T |               |              |
                   R |               |              |
-                  U |    RELAYING   |    LEADING   |
-I UPDATE THE      E |               |              |
-CREDIT OF MY        |               |              |
-(LINKED)            +------------------------------+
-ACCESSORIES       F |               |              |
-                  A |               |              |
-                  L |   FOLLOWING   | DISCONNECTED |
+I AM LINKED AS    U |    RELAYING   |    LEADING   |
+A CONTROLLER /    E |               |              |
+I UPDATE THE        |               |              |
+CREDIT OF           +------------------------------+
+(LINKED)          F |               |              |
+ACCESSORIES       A |               |              |
+                  L |   FOLLOWING   |  INDEPENDENT |
                   S |               |              |
                   E |               |              |
                     +---------------+--------------+
-
-
-
-                       I AM LINKED AS AN ACCESSORY
-
-
-                           TRUE           FALSE
-                    +---------------+--------------+
-                  T |               |              |
-                  R |               |              |
-                  U |    RELAYING   |    LEADING   |
-I AM LINKED AS    E |               |              |
-  A CONTROLLER      |               |              |
-                    +------------------------------+
-                  F |               |              |
-                  A |               |              |
-                  L |   FOLLOWING   | DISCONNECTED |
-                  S |               |              |
-                  E |               |              |
-                    +---------------+--------------+
+ *
+ * Note: After being unlocked by a linked controller and then
+ * unlinked, accessories will remain unlocked until re-linked.
+ * Note: Relaying mode is not currently supported.
  */
 #ifndef NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_RES_PAYG_CREDIT__H
 #define NEXUS__CHANNEL__SRC__NEXUS_CHANNEL_RES_PAYG_CREDIT__H
@@ -65,18 +50,47 @@ extern "C" {
 extern const char* PAYG_CREDIT_REMAINING_SHORT_PROP_NAME;
 extern const char* PAYG_CREDIT_UNITS_SHORT_PROP_NAME;
 extern const char* PAYG_CREDIT_MODE_SHORT_PROP_NAME;
-extern const char* PAYG_CREDIT_SUPPORTED_MODES_SHORT_PROP_NAME;
+extern const char* PAYG_CREDIT_CONTROLLED_IDS_LIST_SHORT_PROP_NAME;
 
 // expose internal state for unit tests
 uint32_t _nexus_channel_payg_credit_remaining_credit(void);
         #endif
 
+extern const struct nx_id NEXUS_CHANNEL_PAYG_CREDIT_SENTINEL_NULL_NEXUS_ID;
+
+        // Time between POST requests to linked accessory devices
+        #define NEXUS_CHANNEL_PAYG_CREDIT_INTERVAL_BETWEEN_PAYG_CREDIT_POST_SECONDS \
+            2
+
+        // How long, in seconds, between controller/leader attempts to
+        // 'synchronize' (via POST) PAYG credit to each linked accessory
+        #define NEXUS_CHANNEL_PAYG_CREDIT_POST_UPDATE_CYCLE_TIME_SECONDS 25
+
+        #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+            // How long, in seconds, will an accessory/following device
+            // wait for a POST from a controller before resetting credit to 0.
+            // (UNLOCKED devices ignore this timeout)
+            #define NEXUS_CHANNEL_PAYG_CREDIT_FOLLOWER_MAX_TIME_BETWEEN_UPDATES_SECONDS \
+                (3 * NEXUS_CHANNEL_PAYG_CREDIT_POST_UPDATE_CYCLE_TIME_SECONDS)
+        #endif // # if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+
 enum nexus_channel_payg_credit_operating_mode
 {
-    NEXUS_CHANNEL_PAYG_CREDIT_OPERATING_MODE_DISCONNECTED = 0,
+    NEXUS_CHANNEL_PAYG_CREDIT_OPERATING_MODE_INDEPENDENT = 0,
     NEXUS_CHANNEL_PAYG_CREDIT_OPERATING_MODE_LEADING = 1,
     NEXUS_CHANNEL_PAYG_CREDIT_OPERATING_MODE_FOLLOWING = 2,
     NEXUS_CHANNEL_PAYG_CREDIT_OPERATING_MODE_RELAYING = 3,
+};
+
+enum nexus_channel_payg_credit_units
+{
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_NONE = 0,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_SECONDS = 1,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_HOURS = 2,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_DAYS = 3,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_LITERS = 10,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_GALLONS = 11,
+    NEXUS_CHANNEL_PAYG_CREDIT_UNITS_WATT_HOURS = 20,
 };
 
 /* Initialize the Nexus Channel PAYG Credit module.
@@ -84,6 +98,13 @@ enum nexus_channel_payg_credit_operating_mode
  * Called on startup by `nexus_channel_core_init()`.
  */
 void nexus_channel_res_payg_credit_init(void);
+
+/* Called to perform processing for PAYG credit outside of an interrupt.
+ *
+ * For example, controller role devices must periodically send POST
+ * requests to connected accessories.
+ */
+uint32_t nexus_channel_res_payg_credit_process(uint32_t seconds_elapsed);
 
         #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 

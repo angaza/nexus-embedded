@@ -86,57 +86,16 @@ typedef uint64_t oc_clock_time_t;
 // Prescriptive lower layers MTU size, enable block-wise transfers
 #define OC_BLOCK_WISE_SET_MTU (700)
 */
-// Maximum size of request/response payloads
-#define OC_MAX_APP_DATA_SIZE (128)
 
 // Maximum number of concurrent requests
 #define OC_MAX_NUM_CONCURRENT_REQUESTS (2)
 
 // Maximum number of nodes in a payload tree structure
-#define OC_MAX_NUM_REP_OBJECTS (100)
+#define OC_MAX_NUM_REP_OBJECTS (25)
 
 // Number of devices on the OCF platform
 #define OC_MAX_NUM_DEVICES (1)
 
-// Maximum number of endpoints
-// XXX can probably match to number of 'active links' + 1 (for multicast)
-#define OC_MAX_NUM_ENDPOINTS (10)
-/*
-// Security layer
-// Maximum number of authorized clients
-#define OC_MAX_NUM_SUBJECTS (2)
-
-// Maximum number of concurrent (D)TLS sessions
-#define OC_MAX_TLS_PEERS (1)
-
-// Maximum number of peer for TCP channel
-#define OC_MAX_TCP_PEERS (2)
-
-// Maximum number of interfaces for IP adapter
-#define OC_MAX_IP_INTERFACES (2)
-
-// Maximum number of callbacks for Network interface event monitoring
-#define OC_MAX_NETWORK_INTERFACE_CBS (2)
-
-// Maximum number of callbacks for connection of session
-#define OC_MAX_SESSION_EVENT_CBS (2)
-
-#endif // !OC_DYNAMIC_ALLOCATION
-
-// library features that require persistent storage
-#ifdef OC_SECURITY
-#define OC_STORAGE
-#endif
-#ifdef OC_IDD_API
-#define OC_STORAGE
-#endif
-#ifdef OC_CLOUD
-#define OC_STORAGE
-#endif
-#ifdef OC_SOFTWARE_UPDATE
-#define OC_STORAGE
-#endif
-*/
 #ifdef __cplusplus
 }
 #endif

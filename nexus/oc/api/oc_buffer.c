@@ -20,19 +20,10 @@
 #pragma GCC diagnostic ignored "-Wshadow"
 
 #include "messaging/coap/engine.h"
-#include "oc_signal_event_loop.h"
 //#include "port/oc_network_events_mutex.h"
 #include "util/oc_memb.h"
 #include <stdint.h>
 #include <stdio.h>
-/*#ifdef OC_DYNAMIC_ALLOCATION
-#include <stdlib.h>
-#endif // OC_DYNAMIC_ALLOCATION
-
-#ifdef OC_SECURITY
-#include "security/oc_tls.h"
-#endif // OC_SECURITY
-*/
 #include "oc_buffer.h"
 #include "oc_config.h"
 #include "oc_events.h"
@@ -41,6 +32,18 @@ OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
 OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 
+
+
+int oc_buffer_incoming_free_count(void)
+{
+    return oc_memb_numfree(&oc_incoming_buffers);
+}
+
+int oc_buffer_outgoing_free_count(void)
+{
+    return oc_memb_numfree(&oc_outgoing_buffers);
+}
+
 static oc_message_t *
 allocate_message(struct oc_memb *pool)
 {
@@ -48,33 +51,11 @@ allocate_message(struct oc_memb *pool)
   oc_message_t *message = (oc_message_t *)oc_memb_alloc(pool);
   //oc_network_event_handler_mutex_unlock();
   if (message) {
-/*#ifdef OC_DYNAMIC_ALLOCATION
-    message->data = malloc(OC_PDU_SIZE);
-    if (!message->data) {
-      oc_memb_free(pool, message);
-      return NULL;
-    }
-#endif // OC_DYNAMIC_ALLOCATION
-*/
     message->pool = pool;
     message->length = 0;
     message->next = 0;
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
-/*#ifdef OC_SECURITY
-    message->encrypted = 0;
-#endif // OC_SECURITY
-#ifndef OC_DYNAMIC_ALLOCATION
-    OC_DBG("buffer: Allocated TX/RX buffer; num free: %d",
-           oc_memb_numfree(pool));
-#endif // !OC_DYNAMIC_ALLOCATION
-  }
-#ifndef OC_DYNAMIC_ALLOCATION
-  else {
-    OC_WRN("buffer: No free TX/RX buffers!");
-  }
-#endif // !OC_DYNAMIC_ALLOCATION
-*/
   }
   return message;
 }
@@ -146,30 +127,12 @@ oc_recv_message(oc_message_t *message)
 void
 oc_send_message(oc_message_t *message)
 {
+  OC_DBG("-sending OCF message (%u)-", (unsigned int) message->length);
   if (oc_process_post(&message_buffer_handler,
                       oc_events[OUTBOUND_NETWORK_EVENT],
                       message) == OC_PROCESS_ERR_FULL)
     message->ref_count--;
-
-  //_oc_signal_event_loop();
 }
-
-/*#ifdef OC_SECURITY
-void
-oc_close_all_tls_sessions_for_device(size_t device)
-{
-  oc_process_post(&message_buffer_handler, oc_events[TLS_CLOSE_ALL_SESSIONS],
-                  (oc_process_data_t)device);
-}
-
-void
-oc_close_all_tls_sessions(void)
-{
-  oc_process_poll(&(oc_tls_handler));
-  _oc_signal_event_loop();
-}
-#endif // OC_SECURITY
-*/
 
 OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 {
@@ -192,24 +155,6 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         oc_message_unref(message);
       } else
 #endif // OC_CLIENT
-/*
-#ifdef OC_SECURITY
-        if (message->endpoint.flags & SECURED) {
-        OC_DBG("Outbound network event: forwarding to TLS");
-
-#ifdef OC_CLIENT
-        if (!oc_tls_connected(&message->endpoint)) {
-          OC_DBG("Posting INIT_TLS_CONN_EVENT");
-          oc_process_post(&oc_tls_handler, oc_events[INIT_TLS_CONN_EVENT],
-                          data);
-        } else
-#endif // OC_CLIENT
-        {
-          OC_DBG("Posting RI_TO_TLS_EVENT");
-          oc_process_post(&oc_tls_handler, oc_events[RI_TO_TLS_EVENT], data);
-        }
-      } else
-#endif // OC_SECURITY*/
       {
 // avoid static analysis errors when OC_DBG is a no-op (identical branches).
 #ifdef CONFIG_NEXUS_COMMON_OC_DEBUG_LOG_ENABLED
@@ -233,12 +178,6 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         oc_message_unref(message);
       }
     }
-/*#ifdef OC_SECURITY
-    else if (ev == oc_events[TLS_CLOSE_ALL_SESSIONS]) {
-      OC_DBG("Signaling to close all TLS sessions from this device");
-      oc_process_post(&oc_tls_handler, oc_events[TLS_CLOSE_ALL_SESSIONS], data);
-    }
-#endif // OC_SECURITY*/
   }
   OC_PROCESS_END();
 }

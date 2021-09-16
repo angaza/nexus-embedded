@@ -36,6 +36,9 @@
 // Doubles are not supported at this time in any configuration.
 #define NEXUS_CHANNEL_OC_SUPPORT_DOUBLES 0
 
+// oc does not clock any faster than Nexus currently
+#define NEXUS_OC_CLOCKS_PER_SEC 1
+
 // Set up further configuration parameters
 #if NEXUS_CHANNEL_CORE_ENABLED
     // both controllers and accessories may act in client or server roles
@@ -51,9 +54,6 @@
     // used only in confirmable messages or observability
     // (neither implemented currently)
     #define NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS 0
-
-    // oc does not clock any faster than Nexus currently
-    #define NEXUS_OC_CLOCKS_PER_SEC 1
 
     // Is int64/uint64 supported?
     #ifndef UINT64_MAX
@@ -106,5 +106,46 @@
     #define NEXUS_CHANNEL_OC_ENABLE_DUPLICATE_MESSAGE_ID_CHECK 0
 
 #endif /* if NEXUS_CHANNEL_CORE_ENABLED */
+// 4 bytes for base CoAP header fields (Ver/T/OC/Code/TID)
+// 1 byte for token value
+// 1 byte for payload separator
+// 4 bytes for content format (including option tags, supporting value 10000)
+#define NEXUS_CHANNEL_COAP_HEADER_BASE_MINIMUM_SIZE (4 + 1 + 1 + 4)
+
+// 2 `uri-path` tags = one to introduce a URI option path, one for a single '/'
+// e.g. supports two-section URIs like "nx/something", "mfgr/custom_res", etc
+// Assuming encoder encodes uri-path first, and only other option is content
+// format, each tag should take up exactly 1 byte
+#define NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_OPTION_TAG_BYTES 2
+// Max length of the URI path characters excluding slashes (e.g. `nxsomething`)
+#define NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_LENGTH 10
+// Header requires 2 bytes for each URI path option tag
+#define NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_OPTION_AND_FIELD_SIZE           \
+    ((NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_OPTION_TAG_BYTES) +               \
+     NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_LENGTH)
+// -1 to account for the fact that one of the uri-path options is the implicit
+// leading 'slash'
+#define NEXUS_CHANNEL_MAX_HUMAN_READABLE_URI_LENGTH                            \
+    (NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_OPTION_AND_FIELD_SIZE - 1)
+
+#define NEXUS_CHANNEL_MAX_COAP_HEADER_SIZE                                     \
+    (NEXUS_CHANNEL_COAP_HEADER_BASE_MINIMUM_SIZE +                             \
+     NEXUS_CHANNEL_MAX_COAP_HEADER_URI_PATH_OPTION_AND_FIELD_SIZE)
+// see: https://angaza.github.io/nexus-channel-models/coap_format_spec.html,
+// entire transmitted message should be < 120 bytes. Bytes not consumed by CoAP
+// header remain for CBOR payload data.
+#define NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE 120
+
+// With default values, max *unsecured* payload size is 98 bytes
+// For COSE secured payloads, worst-case (smallest) max
+// encapsulated 'unsecured' payload body is 77 bytes
+// * 77 bytes unsecured bytes from:
+//      98 bytes of secured payload -
+//          8 byte MAC,
+//          6 bytes COSE array structure overhead,
+//          7 byte protected header containing 4-byte uint32_t nonce)
+#define NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE                                    \
+    (NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE -                               \
+     NEXUS_CHANNEL_MAX_COAP_HEADER_SIZE)
 
 #endif /* ifndef NEXUS__CHANNEL__INCLUDE__SHARED_OC_CONFIG_H_ */

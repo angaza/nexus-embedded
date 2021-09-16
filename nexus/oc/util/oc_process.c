@@ -70,6 +70,7 @@ struct event_data
 static unsigned long OC_PROCESS_NUMEVENTS = 10;
 #else // OC_DYNAMIC_ALLOCATION
 */
+// XXX can we reduce this figure? 5?
 #define OC_PROCESS_NUMEVENTS 10
 //#endif // !OC_DYNAMIC_ALLOCATION
 

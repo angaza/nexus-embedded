@@ -1,4 +1,5 @@
-FROM ubuntu:20.04
+FROM ubuntu@sha256:376209074d481dca0a9cf4282710cd30a9e7ff402dea8261acdaaf57a18971dd
+# ubuntu 20.04 latest as of July 2021
 LABEL maintainer="iot@angaza.com"
 
 # 2020-06-16 -> 4.8.3

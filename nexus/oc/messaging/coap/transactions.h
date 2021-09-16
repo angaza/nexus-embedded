@@ -80,20 +80,29 @@ typedef struct coap_transaction
     uint16_t mid;
     struct oc_etimer retrans_timer;
     uint8_t retrans_counter;
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    // used to keep an outbound transaction in case we need to retransmit it
+    // due to nonce sync
+    struct oc_etimer idle_timeout_timer;
+#endif
     oc_message_t* message;
 } coap_transaction_t;
 
 void coap_register_as_transaction_handler(void);
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, oc_endpoint_t* endpoint);
+int coap_transactions_free_count(void);
+coap_transaction_t* coap_new_transaction(uint16_t mid,
+                                         const oc_endpoint_t* endpoint);
 
-void coap_send_transaction(coap_transaction_t* t);
+void coap_send_transaction(coap_transaction_t* t, bool should_cache);
 void coap_clear_transaction(coap_transaction_t* t);
 coap_transaction_t* coap_get_transaction_by_mid(uint16_t mid);
 
 void coap_check_transactions(void);
 void coap_free_all_transactions(void);
-void coap_free_transactions_by_endpoint(oc_endpoint_t* endpoint);
+
+// Currently unused, don't compile in
+// void coap_free_transactions_by_endpoint(const oc_endpoint_t* endpoint);
 
 #ifdef __cplusplus
 }

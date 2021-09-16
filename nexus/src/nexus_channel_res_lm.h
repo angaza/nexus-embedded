@@ -39,7 +39,7 @@ extern const char* L_TIMEOUT_CONFIGURED_SHORT_PROP_NAME;
 
     // How many secured messages must be exchanged before the nonce is persisted
     // to nonvolatile storage
-    #define NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT 32
+    #define NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT 64
 
 /* Security data for link mode 0.
  *
@@ -66,6 +66,8 @@ typedef NEXUS_PACKED_STRUCT nexus_channel_link_t
 {
     // these elements are provided via the OCF resource representation
     struct nx_id linked_device_id; // 6 bytes
+    // the operating mode of *this* device (not the mode of device @
+    // `linked_device_id`)
     uint8_t operating_mode;
     uint8_t security_mode;
     uint32_t seconds_since_init;
@@ -169,15 +171,60 @@ nexus_channel_link_manager_operating_mode(void);
  * a single accessory. The ID of the first linked controller found (if any)
  * will be populated in the struct pointed to by `linked_controller`.
  *
+ * The Nexus ID of the *first* linked controller found will be copied into
+ * the buffer provided by `found_nexus_id`, if this function returns
+ * true.
+ *
+ * \param found_nexus_id Populated with the first linked Controller ID found
+ *
  * \return true if linked to an controller, false otherwise
  */
-bool nexus_channel_link_manager_has_linked_controller(void);
+bool nexus_channel_link_manager_has_linked_controller(
+    struct nx_id* found_nexus_id);
 
 /* Return true if this device is linked to another accessory device.
  *
  * \return true if linked to an accessory, false otherwise
  */
 bool nexus_channel_link_manager_has_linked_accessory(void);
+
+/* Iterate over the list of Nexus IDs linked to this device as accessories.
+ *
+ * Starting at `previous_id`, this function will find the 'next'
+ * linked ID, moving from left-to-right internally across the stored
+ * array of links, similar to a circular linked list.
+ *
+ * If `previous_id` is not provided, this function will populate `next_id`
+ * with an arbitrary (but consistent) NX ID of one currently linked device
+ * (if any are linked).
+ *
+ * If link state changes (link added or deleted), the notion of which
+ * IDs are 'next' will change (but will remain consistent until another
+ * link change).
+ *
+ * If `previous_id` is valid but it is the only linked accessory, `next_id`
+ * will be the same value as `previous_id`, and this function will return true.
+ *
+ * If `previous_id` does not represent a linked ID, this function will
+ * return false.
+ *
+ * When iterating over linked devices, this function will skip over any
+ * devices that are linked to this one as controllers. See also
+ * `nexus_channel_link_manager_accessory_link_count`.
+ *
+ * \param previous_id Optional ID to start searching from
+ * \param next_id Populated with the ID following `previous_id` if present
+ *
+ * \return true if `next_id` was populated, false otherwise
+ */
+bool nexus_channel_link_manager_next_linked_accessory(
+    const struct nx_id* const previous_id, struct nx_id* next_id);
+
+/* Return the number of devices linked to this one as accessories.
+ *
+ * \return number of linked accessory devices
+ */
+uint8_t nexus_channel_link_manager_accessory_link_count(void);
 
 /* Obtain a Nexus channel link from a Nexus ID.
  *
@@ -225,10 +272,19 @@ bool nexus_channel_link_manager_set_security_data_auth_nonce(
 bool nexus_channel_link_manager_reset_link_secs_since_active(
     const struct nx_id* id);
 
-    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
-// Used internally, will retrieve an entire link entity given the NXID.
-bool _nexus_channel_link_manager_link_from_nxid(
+/** Look up link details based on Nexus ID
+ *
+ * Can be used to verify whether a link exists or not by examining the
+ * return value (true or false).
+ *
+ * \param id Nexus ID of link to look up
+ * \param retrieved_link will be populated with link data, if link exists
+ * \return true if link to `id` exists, false otherwise
+ */
+bool nexus_channel_link_manager_link_from_nxid(
     const struct nx_id* id, nexus_channel_link_t* retrieved_link);
+
+    #ifdef NEXUS_INTERNAL_IMPL_NON_STATIC
 bool _nexus_channel_link_manager_index_to_nv_block(
     uint8_t index, struct nx_common_nv_block_meta** dest_block_meta_ptr);
     #endif // NEXUS_INTERNAL_IMPL_NON_STATIC

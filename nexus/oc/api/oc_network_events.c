@@ -19,7 +19,6 @@
 #include "oc_network_events.h"
 #include "oc_buffer.h"
 #include "oc_events.h"
-#include "oc_signal_event_loop.h"
 #include "port/oc_connectivity.h"
 #include "utils/oc_list.h"
 // hook into Nexus for event processing
@@ -88,34 +87,9 @@ oc_network_event(oc_message_t *message)
   //oc_network_event_handler_mutex_unlock();
 
   oc_process_poll(&(oc_network_events));
-  //_oc_signal_event_loop();
 #else
   // Note: Nexus code which calls `oc_network_event` must call
   // `nxp_common_request_processing` after this returns
   oc_recv_message(message);
 #endif // NEXUS_USE_OC_NETWORK_EVENTS_PROCESS
 }
-
-/*#ifdef OC_NETWORK_MONITOR
-void
-oc_network_interface_event(oc_interface_event_t event)
-{
-  if (!oc_process_is_running(&(oc_network_events))) {
-    return;
-  }
-
-  oc_network_event_handler_mutex_lock();
-  if (event == NETWORK_INTERFACE_DOWN) {
-    interface_down = true;
-  } else if (event == NETWORK_INTERFACE_UP) {
-    interface_up = true;
-  } else {
-    oc_network_event_handler_mutex_unlock();
-    return;
-  }
-  oc_network_event_handler_mutex_unlock();
-
-  oc_process_poll(&(oc_network_events));
-  _oc_signal_event_loop();
-}
-#endif // OC_NETWORK_MONITOR */
