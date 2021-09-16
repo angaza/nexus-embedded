@@ -22,6 +22,10 @@
     #include "oc/messaging/coap/transactions.h"
     #include "src/nexus_channel_sm.h"
 
+    // in the future, we can add another layer of abstraction here to hide
+    // the fact that COSE MAC0 is being used in this internal API
+    #include "src/nexus_cose_mac0_common.h"
+
     #ifdef __cplusplus
 extern "C" {
     #endif
@@ -106,40 +110,16 @@ void nexus_oc_wrapper_oc_endpoint_to_nx_id(
     #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 /** Repack a CBOR-encoded payload with Nexus Channel security.
  *
- * \param buffer pointer to buffer to repack with Nexus Channel security
- * \param buffer_size size of buffer to repack
- * \param cose_mac0 pointer to COSE_MAC0 data to use in creating the
- * security primitives
- * \return new size of the COSE_MAC0 packed buffer
+ * \param secured_output secured message will be placed here
+ * \param secured_output_size max number of bytes to copy into `secured_output`
+ * \param cose_mac0 pointer to MAC0 params to use in creating the
+ * security primitives (including the unsecured payload)
+ * \return number of bytes packed into `secured_output`
  */
-uint8_t nexus_oc_wrapper_repack_buffer_secured(
-    uint8_t* buffer,
-    uint8_t buffer_size,
-    nexus_security_mode0_cose_mac0_t* cose_mac0);
-
-/** Repack a CBOR-encoded payload *without* Nexus Channel security.
- *
- * Takes a payload that has been previously secured via
- * `nexus_oc_wrapper_repack_buffer_secured` and unwraps it, extracting
- * the embedded payload only. No validation of security is performed
- * by this function.
- *
- * Makes a local copy of contents in `buffer`, and will copy the
- * 'unsecured' payload back into the original `payload_buffer`,
- * destructively overwriting the original secured content.
- *
- * If this function returns false, `payload_buffer` and
- * `unsecured_payload_size` are unmodified.
- *
- * \param payload_buffer pointer to COSE_MAC0 payload to extract from
- * \param secured_payload_size number of secured message bytes in `payload_buffer`
- * \param unsecured_payload_size Final 'unsecured' message size
- * \return true if unpacked successfully, false otherwise
- */
-bool nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-    uint8_t* payload_buffer,
-    uint8_t secured_payload_size,
-    uint8_t* unsecured_payload_size);
+size_t nexus_oc_wrapper_repack_buffer_secured(
+    uint8_t* secured_output,
+    size_t secured_output_size,
+    nexus_cose_mac0_common_macparams_t* cose_mac0);
 
     #endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
 

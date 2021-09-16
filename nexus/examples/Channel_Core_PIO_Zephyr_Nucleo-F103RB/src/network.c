@@ -8,13 +8,15 @@
  * or substantial portions of the Software.
  */
 
-#include "network.h"
-#include "nx_channel.h"
-#include <stdbool.h>
+#ifdef CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED
 
-// Zephyr logging for easier demonstration purposes
-#include <logging/log.h>
-#include <zephyr.h>
+    #include "network.h"
+    #include "nx_channel.h"
+    #include <stdbool.h>
+
+    // Zephyr logging for easier demonstration purposes
+    #include <logging/log.h>
+    #include <zephyr.h>
 LOG_MODULE_REGISTER(network);
 
 // "Receive data" from the network-specific logic (LIN, UART, BLE, I2C, etc)
@@ -78,3 +80,5 @@ nx_channel_error nxp_channel_network_send(const void* const bytes_to_send,
 
     return NX_CHANNEL_ERROR_NONE;
 }
+
+#endif // #ifdef CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED

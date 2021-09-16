@@ -58,15 +58,6 @@
 
 #include "coap.h"
 #include "transactions.h"
-/*
-#ifdef OC_TCP
-#include "coap_signal.h"
-#endif // OC_TCP
-
-#ifdef OC_SECURITY
-#include "security/oc_tls.h"
-#endif
-*/
 /*---------------------------------------------------------------------------*/
 /*- Variables ---------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
@@ -406,9 +397,11 @@ static coap_status_t coap_parse_token_option(void* packet,
                 data_len - (uint32_t)(coap_pkt->payload - data);
 
             if (coap_pkt->transport_type == COAP_TRANSPORT_UDP &&
-                coap_pkt->payload_len > (uint32_t) OC_BLOCK_SIZE)
+                coap_pkt->payload_len >
+                    (uint32_t) NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE)
             {
-                coap_pkt->payload_len = (uint32_t) OC_BLOCK_SIZE;
+                coap_pkt->payload_len =
+                    (uint32_t) NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE;
                 /* null-terminate payload */
             }
             coap_pkt->payload[coap_pkt->payload_len] = '\0';
@@ -670,14 +663,7 @@ exit:
     coap_pkt->buffer = NULL;
     return 0;
 }
-/*---------------------------------------------------------------------------*/
-void coap_send_message(oc_message_t* message)
-{
-    OC_DBG("-sending OCF message (%u)-", (unsigned int) message->length);
 
-    oc_send_message(message);
-}
-/*---------------------------------------------------------------------------*/
 coap_status_t
 coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len)
 {
@@ -866,16 +852,9 @@ int coap_set_payload(void* packet, const void* payload, size_t length)
     coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
     coap_pkt->payload = (uint8_t*) payload;
-#ifdef OC_TCP
-    if (coap_pkt->transport_type == COAP_TRANSPORT_TCP)
     {
-        coap_pkt->payload_len = (uint32_t) length;
-    }
-    else
-#endif /* OC_TCP */
-    {
-        coap_pkt->payload_len =
-            (uint16_t) MIN((unsigned) OC_BLOCK_SIZE, length);
+        coap_pkt->payload_len = (uint16_t) MIN(
+            (unsigned) NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE, length);
     }
 
     return coap_pkt->payload_len;

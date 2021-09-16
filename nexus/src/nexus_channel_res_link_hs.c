@@ -88,13 +88,13 @@ static struct
 bool _nexus_channel_res_link_hs_link_mode_3_send_post(
     const nexus_link_hs_controller_t* client_hs);
 
+    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
 NEXUS_IMPL_STATIC void _nexus_channel_res_link_hs_reset_server_state(void)
 {
-    #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
     // Relies on fact that 'idle' is 0 for all values in the struct.
     memset(&_this.server, 0x00, sizeof(_this.server));
-    #endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 }
+    #endif /* NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE */
 
 void nexus_channel_res_link_hs_init(void)
 {
@@ -137,8 +137,8 @@ void nexus_channel_res_link_hs_init(void)
     const oc_interface_mask_t if_mask_arr[] = {OC_IF_RW, OC_IF_BASELINE};
     const struct nx_channel_resource_props link_hs_props = {
         .uri = "/h",
-        .resource_type = "angaza.com.nexus.link.hs",
-        .rtr = 65001,
+        .resource_type = "angaza.com.nx.ln.hs",
+        .rtr = 1001,
         .num_interfaces = 2,
         .if_masks = if_mask_arr,
         .get_handler = nexus_channel_res_link_hs_server_get,
@@ -266,6 +266,8 @@ uint32_t nexus_channel_res_link_hs_process(uint32_t seconds_elapsed)
                 // Try sending out the multicast message again.
                 client_hs->last_post_seconds = client_hs->seconds_since_init;
                 _nexus_channel_res_link_hs_link_mode_3_send_post(client_hs);
+                // call again immediately to send the POST request out
+                next_call_secs = 0;
             }
         }
 
@@ -931,9 +933,6 @@ bool nexus_channel_res_link_hs_link_mode_3(
         OC_ERR("All handshakes are active, cannot accept origin command");
         return false;
     }
-
-    // TODO future: filter for accessories using this ID if we know of them
-    // using om_body->trunc_acc_id
 
     // compute random salt, fits 2x uint32_t into 8-byte salt length
     for (uint8_t i = 0; i < 2; i++)

@@ -210,7 +210,7 @@ static uint32_t _chars_to_uint32(const char* chars, const uint8_t count)
 }
 
 void nexus_digits_init(struct nexus_digits* digits,
-                       const char* chars,
+                       char* chars,
                        uint16_t length)
 {
     digits->chars = chars;

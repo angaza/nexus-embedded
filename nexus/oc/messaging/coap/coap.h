@@ -148,19 +148,6 @@ typedef struct
     const char* uri_query;
     uint8_t if_none_match;
 
-    /*
-    #ifdef OC_TCP
-      // Signal option values
-      uint32_t max_msg_size;
-      uint8_t blockwise_transfer;
-      uint8_t custody;
-      const char *alt_addr;
-      size_t alt_addr_len;
-      uint32_t hold_off;
-      uint16_t bad_csm_opt;
-    #endif // OC_TCP
-    */
-
     uint32_t payload_len;
     uint8_t* payload;
 } coap_packet_t;
@@ -238,14 +225,8 @@ void coap_udp_init_message(void* packet,
                            uint8_t code,
                            uint16_t mid);
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
-void coap_send_message(oc_message_t* message);
 coap_status_t
 coap_udp_parse_message(void* request, uint8_t* data, uint16_t data_len);
-
-int coap_get_query_variable(void* packet,
-                            const char* name,
-                            const char** output);
-int coap_get_post_variable(void* packet, const char* name, const char** output);
 
 /*---------------------------------------------------------------------------*/
 
@@ -255,38 +236,6 @@ int coap_set_token(void* packet, const uint8_t* token, size_t token_len);
 
 int coap_get_header_content_format(void* packet, unsigned int* format);
 int coap_set_header_content_format(void* packet, unsigned int format);
-
-int coap_get_header_accept(void* packet, unsigned int* accept);
-int coap_set_header_accept(void* packet, unsigned int accept);
-
-int coap_get_header_max_age(void* packet, uint32_t* age);
-int coap_set_header_max_age(void* packet, uint32_t age);
-
-int coap_get_header_etag(void* packet, const uint8_t** etag);
-int coap_set_header_etag(void* packet, const uint8_t* etag, size_t etag_len);
-
-int coap_get_header_if_match(void* packet, const uint8_t** etag);
-int coap_set_header_if_match(void* packet,
-                             const uint8_t* etag,
-                             size_t etag_len);
-
-int coap_get_header_if_none_match(void* packet);
-int coap_set_header_if_none_match(void* packet);
-
-int coap_get_header_proxy_uri(
-    void* packet,
-    const char** uri); /* in-place string might not be 0-terminated. */
-int coap_set_header_proxy_uri(void* packet, const char* uri);
-
-int coap_get_header_proxy_scheme(
-    void* packet,
-    const char** scheme); /* in-place string might not be 0-terminated. */
-int coap_set_header_proxy_scheme(void* packet, const char* scheme);
-
-int coap_get_header_uri_host(
-    void* packet,
-    const char** host); /* in-place string might not be 0-terminated. */
-int coap_set_header_uri_host(void* packet, const char* host);
 
 size_t coap_get_header_uri_path(
     void* packet,
@@ -299,60 +248,13 @@ size_t coap_get_header_uri_query(
     const char** query); /* in-place string might not be 0-terminated. */
 size_t coap_set_header_uri_query(void* packet, const char* query);
 
-int coap_get_header_location_path(
-    void* packet,
-    const char** path); /* in-place string might not be 0-terminated. */
-int coap_set_header_location_path(void* packet,
-                                  const char* path); /* also splits optional
-                                                        query into
-                                                        Location-Query option.
-                                                        */
-
-int coap_get_header_location_query(
-    void* packet,
-    const char** query); /* in-place string might not be 0-terminated. */
-size_t coap_set_header_location_query(void* packet, const char* query);
-
+/*
 int coap_get_header_observe(void* packet, uint32_t* observe);
 int coap_set_header_observe(void* packet, uint32_t observe);
-
-int coap_get_header_block2(void* packet,
-                           uint32_t* num,
-                           uint8_t* more,
-                           uint16_t* size,
-                           uint32_t* offset);
-int coap_set_header_block2(void* packet,
-                           uint32_t num,
-                           uint8_t more,
-                           uint16_t size);
-
-int coap_get_header_block1(void* packet,
-                           uint32_t* num,
-                           uint8_t* more,
-                           uint16_t* size,
-                           uint32_t* offset);
-int coap_set_header_block1(void* packet,
-                           uint32_t num,
-                           uint8_t more,
-                           uint16_t size);
-
-int coap_get_header_size2(void* packet, uint32_t* size);
-int coap_set_header_size2(void* packet, uint32_t size);
-
-int coap_get_header_size1(void* packet, uint32_t* size);
-int coap_set_header_size1(void* packet, uint32_t size);
+*/
 
 int coap_get_payload(void* packet, const uint8_t** payload);
 int coap_set_payload(void* packet, const void* payload, size_t length);
-
-#ifdef OC_TCP
-void coap_tcp_init_message(void* packet, uint8_t code);
-
-size_t coap_tcp_get_packet_size(const uint8_t* data);
-
-coap_status_t
-coap_tcp_parse_message(void* packet, uint8_t* data, uint32_t data_len);
-#endif /* OC_TCP */
 
 #ifdef __cplusplus
 }

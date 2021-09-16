@@ -395,8 +395,8 @@ int oc_rep_get_encoded_payload_size(void);
  * @see oc_rep_open_array
  * @see oc_rep_close_array
  */
-//#define oc_rep_add_byte_string(parent, value, value_len)                       \
-//  g_err |= cbor_encode_byte_string(&parent##_array, value, value_len)
+#define oc_rep_add_byte_string(parent, value, value_len)                       \
+  g_err |= cbor_encode_byte_string(&parent##_array, value, value_len)
 
 //#define oc_rep_set_value_byte_string(parent, value, value_len)                 \
 //  g_err |= cbor_encode_byte_string(&parent##_map, value, value_len)

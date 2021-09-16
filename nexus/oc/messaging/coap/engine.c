@@ -63,10 +63,10 @@
 
 #include "api/oc_events.h"
 #include "include/nxp_common.h"
-#include "oc/include/nexus_channel_security.h"
 #include "oc_api.h"
 #include "oc_buffer.h"
 #include "src/nexus_channel_sm.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
 
@@ -83,11 +83,6 @@
 #ifdef OC_CLIENT
     #include "oc_client_state.h"
 #endif // OC_CLIENT
-/*
-#ifdef OC_TCP
-#include "coap_signal.h"
-#endif
-*/
 OC_PROCESS(coap_engine, "CoAP Engine");
 /*
 #ifdef OC_BLOCK_WISE
@@ -125,15 +120,135 @@ static bool check_if_duplicate(uint16_t mid, uint8_t device)
 #endif // #if NEXUS_CHANNEL_OC_ENABLE_DUPLICATE_MESSAGE_ID_CHECK
 
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+static void
+coap_send_previous_request_with_repacked_security(uint16_t mid,
+                                                  const oc_endpoint_t* endpoint)
+{
+    coap_transaction_t* request_transaction = coap_get_transaction_by_mid(mid);
+
+    if (request_transaction == NULL)
+    {
+        OC_WRN("No previous request transaction found");
+        // no op - no previous request to send
+        return;
+    }
+
+    // no need to allocate another oc_message, we will reuse the one that
+    // is preserved in the buffered transaction.
+    //
+    oc_message_t* request_message = request_transaction->message;
+    if (request_message == NULL)
+    {
+        OC_WRN("Found transaction to resend, but no message");
+        // ensure there *was* some message for the transaction (should be)
+        coap_clear_transaction(request_transaction);
+        return;
+    }
+    else if (oc_endpoint_compare(&request_message->endpoint, endpoint) != 0)
+    {
+        OC_WRN(
+            "Found transaction matching message ID, but not matching endpoint");
+        return;
+    }
+    NEXUS_ASSERT(request_message->length > 0, "Message unexpectedly 0 length");
+
+    OC_DBG("Repacking security for transaction with MID=%d",
+           (int) request_transaction->mid);
+    coap_packet_t pkt[1];
+    // will be populated with repacked COSE MAC0 data
+    uint8_t coap_payload_buffer[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+
+    const coap_status_t parse_result = coap_udp_parse_message(
+        pkt, request_message->data, request_message->length);
+    if (parse_result != COAP_NO_ERROR)
+    {
+        OC_WRN("Unable to parse CoAP packet from stored transaction...");
+        coap_clear_transaction(request_transaction);
+        return;
+    }
+    // here, we don't want to verify the message MAC, we just want to extract
+    // the unsecured payload from the previously sent request.
+    nexus_cose_mac0_extracted_cose_params_t extracted_params;
+    const nexus_cose_error cose_result =
+        nexus_cose_mac0_verify_deserialize_protected_message(
+            pkt->payload, pkt->payload_len, &extracted_params);
+    if (cose_result != NEXUS_COSE_ERROR_NONE)
+    {
+        OC_WRN("Error deserializing COSE MAC0 protected message (transaction)");
+        coap_clear_transaction(request_transaction);
+        return;
+    }
+    // here, we find the payload of the original message, and point to it.
+    // we will then resecure and regenerate the message - storing it in a
+    // local buffer in this function, then recopying it back over the
+    // transaction message buffer (and updating length).
+    struct nx_id nexus_id = {0};
+    (void) nexus_oc_wrapper_oc_endpoint_to_nx_id(&request_message->endpoint,
+                                                 &nexus_id);
+    struct nexus_channel_link_security_mode0_data sec_data = {0};
+    bool sec_data_exists = nexus_channel_link_manager_security_data_from_nxid(
+        &nexus_id, &sec_data);
+    if (!sec_data_exists)
+    {
+        OC_WRN("Secured message is to an endpoint we have no link to...");
+        coap_clear_transaction(request_transaction);
+        return;
+    }
+
+    // repack the original payload with an updated nonce
+    nexus_cose_mac0_common_macparams_t mac_params = {
+        &sec_data.sym_key,
+        // nonce would have been updated before this re-request, but
+        // we need to increment again because the server has already
+        // updated its nonce to the same value and it expects to
+        // receive a request with a nonce greater than its own
+        sec_data.nonce + 1,
+        // aad
+        {
+            pkt->code,
+            (uint8_t*) pkt->uri_path,
+            (uint8_t) pkt->uri_path_len,
+        },
+        extracted_params.payload,
+        extracted_params.payload_len,
+    };
+
+    pkt->payload_len = nexus_oc_wrapper_repack_buffer_secured(
+        coap_payload_buffer, sizeof(coap_payload_buffer), &mac_params);
+    pkt->payload = coap_payload_buffer;
+
+    // set the header content-format to indicate the payload is
+    // secured
+    coap_set_header_content_format(pkt, APPLICATION_COSE_MAC0);
+
+    // securely clear the Nexus Channel security data from the
+    // stack
+    nexus_secure_memclr(&sec_data,
+                        sizeof(struct nexus_channel_link_security_mode0_data),
+                        sizeof(struct nexus_channel_link_security_mode0_data));
+
+    // transfer from coap packet to message->data
+    size_t len = coap_serialize_message(pkt, request_message->data);
+    if (len > 0)
+    {
+        request_message->length = len;
+        oc_send_message(request_message);
+    }
+    if (request_message->ref_count == 0)
+    {
+        oc_message_unref(request_message);
+    }
+}
+
 // always a fixed code of 4.06
 static void coap_send_nonce_sync_response(uint16_t mid,
                                           const uint8_t* token,
                                           size_t token_len,
-                                          oc_endpoint_t* endpoint)
+                                          const oc_endpoint_t* endpoint,
+                                          bool is_nonce_reset)
 {
     coap_packet_t pkt[1];
-    // will be populated with repacked COSE MAC0 data
-    uint8_t coap_payload_buffer[OC_BLOCK_SIZE];
+    uint8_t coap_payload_buffer[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
 
     coap_udp_init_message(pkt, COAP_TYPE_NON, NOT_ACCEPTABLE_4_06, mid);
     oc_message_t* message = oc_internal_allocate_outgoing_message();
@@ -154,23 +269,34 @@ static void coap_send_nonce_sync_response(uint16_t mid,
                      "Unexpectedly attempting to nonce sync for missing "
                      "security link...");
 
-        // populate COSE_MAC0 struct
-        nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-        cose_mac0.protected_header_method = NOT_ACCEPTABLE_4_06;
-        cose_mac0.protected_header_nonce = sec_data.nonce;
-        cose_mac0.kid = 0;
-        cose_mac0.payload_len = 0;
+        // this can only happen if we just reset the nonce due to overflow --
+        // otherwise, nonce sync should never be triggered. In this case, we
+        // want to send a special-value (UINT32_MAX) which is interpreted as
+        // 'reset nonce to 0'
+        uint32_t sync_nonce = sec_data.nonce;
+        if (is_nonce_reset)
+        {
+            sync_nonce = NEXUS_CHANNEL_LINK_SECURITY_RESET_NONCE_SIGNAL_VALUE;
+        }
 
-        // compute MAC
-        struct nexus_check_value mac =
-            _nexus_channel_sm_compute_mac_mode0(&cose_mac0, &sec_data);
-        cose_mac0.mac = &mac;
-
-        // repack the message stored in the transaction with secured
-        // data
+        // encode the outbound message as secured
+        nexus_cose_mac0_common_macparams_t mac_params = {
+            &sec_data.sym_key,
+            sync_nonce,
+            // aad
+            {
+                NOT_ACCEPTABLE_4_06,
+                // no URI, response message
+                NULL,
+                0,
+            },
+            // no payload to secure - just method + nonce
+            NULL,
+            0,
+        };
 
         pkt->payload_len = nexus_oc_wrapper_repack_buffer_secured(
-            coap_payload_buffer, OC_BLOCK_SIZE, &cose_mac0);
+            coap_payload_buffer, sizeof(coap_payload_buffer), &mac_params);
         pkt->payload = coap_payload_buffer;
 
         // set the header content-format to indicate the payload is
@@ -189,7 +315,7 @@ static void coap_send_nonce_sync_response(uint16_t mid,
         if (len > 0)
         {
             message->length = len;
-            coap_send_message(message);
+            oc_send_message(message);
         }
         if (message->ref_count == 0)
         {
@@ -208,7 +334,7 @@ static void coap_send_empty_response(coap_message_type_t type,
                                      const uint8_t* token,
                                      size_t token_len,
                                      uint8_t code,
-                                     oc_endpoint_t* endpoint)
+                                     const oc_endpoint_t* endpoint)
 {
     // not actually 'empty' per spec, doesn't have code of 0.00
     OC_DBG("CoAP send 'empty' message: mid=%u, code=%u", mid, code);
@@ -226,7 +352,7 @@ static void coap_send_empty_response(coap_message_type_t type,
         if (len > 0)
         {
             message->length = len;
-            coap_send_message(message);
+            oc_send_message(message);
         }
         if (message->ref_count == 0)
         {
@@ -236,10 +362,95 @@ static void coap_send_empty_response(coap_message_type_t type,
 }
 #endif // #if (NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR ||
        // NEXUS_CHANNEL_LINK_SECURITY_ENABLED)
+
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+// will modify `msg` in place
+// returns `true` if processing of the message should continue and pass
+// to the application layer, `false` otherwise
+static coap_status_t _coap_unpack_possibly_secured_payload(
+    coap_packet_t* coap_pkt,
+    const oc_endpoint_t* const sender_endpoint,
+    bool* rcvd_pkt_secured)
+{
+    *rcvd_pkt_secured = false;
+
+    // will modify `coap_pkt->payload` and `coap_pkt.payload_len`
+    // if the authentication succeeds. If the message is *not*
+    // authenticated *and* the message is a request to a secured
+    // resource, this will return a failure.
+    const uint8_t* original_payload_ptr = coap_pkt->payload;
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(sender_endpoint, coap_pkt);
+
+    if (coap_pkt->payload != original_payload_ptr)
+    {
+        // we've repacked the message without security, update
+        // the parsed CoAP header, but provide a boolean to let downstream
+        // parsers know that the originally received payload was secured
+        coap_set_header_content_format(coap_pkt, APPLICATION_VND_OCF_CBOR);
+        *rcvd_pkt_secured = true;
+    }
+
+    coap_status_t status_code = INTERNAL_SERVER_ERROR_5_00;
+    switch (auth_result)
+    {
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_VALID_NONCE_SYNC_RECEIVED:
+            // The received message will have a CoAP code of 4.06, and the
+            // application client callback should resend the original message -
+            // we've already updated the local nonce.
+            status_code = NEXUS_CHANNEL_SECURITY_RESEND_PREVIOUS_REQUEST;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE:
+            status_code = COAP_NO_ERROR;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONCE_APPROACHING_MAX_FORCED_RESET_REQUIRED:
+            // signal to the caller that although the message was valid, the
+            // nonce for this link is getting too large, nearing overflow - so a
+            // special case nonce sync should be sent which 'resets' the nonce
+            // of the requester
+            status_code =
+                NEXUS_CHANNEL_SECURITY_REQUIRE_NONCE_SYNC_SPECIAL_CASE_RESET;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_REQUEST_RECEIVED_WITH_INVALID_NONCE:
+            // should trigger caller to send nonce sync
+            status_code = NOT_ACCEPTABLE_4_06;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_SENDER_DEVICE_NOT_LINKED:
+            // intentional fallthrough
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_MAC_INVALID:
+            status_code = UNAUTHORIZED_4_01;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_COSE_UNPARSEABLE:
+            // intentional fallthrough
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_PAYLOAD_SIZE_INVALID:
+            status_code = BAD_REQUEST_4_00;
+            break;
+
+        case NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_RESOURCE_REQUIRES_SECURED_REQUEST:
+            status_code = FORBIDDEN_4_03;
+            break;
+
+        default:
+            NEXUS_ASSERT(false, "Should not reach this case");
+            break;
+    }
+
+    NEXUS_ASSERT(status_code != INTERNAL_SERVER_ERROR_5_00,
+                 "CoAP status code unexpected");
+
+    return status_code;
+}
+#endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
+
 /*---------------------------------------------------------------------------*/
 /*- Internal API ------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
-int coap_receive(oc_message_t* msg, bool request_secured)
+int coap_receive(oc_message_t* msg)
 {
     coap_status_code = COAP_NO_ERROR;
 
@@ -248,8 +459,8 @@ int coap_receive(oc_message_t* msg, bool request_secured)
     OC_LOGbytes(msg->data, msg->length);
 
     // static declaration reduces stack peaks and program code size
-    static coap_packet_t
-        message[1]; // this way the packet can be treated as pointer as usual
+    static coap_packet_t parsed_coap_pkt[1]; // this way the packet can be
+                                             // treated as pointer as usual
     static coap_packet_t response[1];
     static coap_transaction_t* transaction;
     transaction = NULL;
@@ -258,20 +469,42 @@ int coap_receive(oc_message_t* msg, bool request_secured)
     oc_client_cb_t* client_cb = 0;
 #endif // OC_CLIENT
 
-    {
-        coap_status_code =
-            coap_udp_parse_message(message, msg->data, (uint16_t) msg->length);
-    }
+    bool rcvd_pkt_secured = false;
 
+    coap_status_code = coap_udp_parse_message(
+        parsed_coap_pkt, msg->data, (uint16_t) msg->length);
+
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    // Only attempt to unpack/authenticate COSE payload if the encapsulating
+    // CoAP message was parseable
+    if (coap_status_code == COAP_NO_ERROR)
+    {
+        // may modify `parsed_coap_pkt` in place
+        // Either returns a CoAP status code, or indicates whether a previously
+        // sent request should be silently resent (we've updated the nonce)
+        // Will return `COAP_NO_ERROR` if the CoAP packet should continue
+        // to be parsed, and a different code otherwise. Specifically,
+        // returning `NOT_ACCEPTABLE_4_06` here indicates that we should
+        // send a nonce sync, and `NEXUS_SECURITY_RESEND_PREVIOUS_REQUEST`
+        // asks to resecure and resend the previous payload.
+        coap_status_code = _coap_unpack_possibly_secured_payload(
+            parsed_coap_pkt,
+            &((oc_message_t*) msg)->endpoint,
+            &rcvd_pkt_secured);
+    }
+#endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
+
+    // Here, we pass the message onwards to an appropriate application handler
+    // (request or response handler)
     if (coap_status_code == COAP_NO_ERROR)
     {
 #ifdef OC_DEBUG
         OC_DBG("  Parsed: CoAP version: %u, token: 0x%02X%02X, mid: %u",
-               message->version,
-               message->token[0],
-               message->token[1],
-               message->mid);
-        switch (message->type)
+               parsed_coap_pkt->version,
+               parsed_coap_pkt->token[0],
+               parsed_coap_pkt->token[1],
+               parsed_coap_pkt->mid);
+        switch (parsed_coap_pkt->type)
         {
             case COAP_TYPE_CON:
                 OC_DBG("  type: CON");
@@ -289,7 +522,7 @@ int coap_receive(oc_message_t* msg, bool request_secured)
                 break;
         }
 #endif
-        transaction = coap_get_transaction_by_mid(message->mid);
+        transaction = coap_get_transaction_by_mid(parsed_coap_pkt->mid);
         if (transaction)
         {
             coap_clear_transaction(transaction);
@@ -297,11 +530,12 @@ int coap_receive(oc_message_t* msg, bool request_secured)
         transaction = NULL;
 
         // handle requests
-        if (message->code >= COAP_GET && message->code <= COAP_DELETE)
+        if (parsed_coap_pkt->code >= COAP_GET &&
+            parsed_coap_pkt->code <= COAP_DELETE)
         {
 
 #ifdef OC_DEBUG
-            switch (message->code)
+            switch (parsed_coap_pkt->code)
             {
                 case COAP_GET:
                     OC_DBG("  method: GET");
@@ -316,40 +550,36 @@ int coap_receive(oc_message_t* msg, bool request_secured)
                     OC_DBG("  method: DELETE");
                     break;
             }
-            OC_DBG(
-                "  URL: %.*s", (int) message->uri_path_len, message->uri_path);
+            OC_DBG("  URL: %.*s",
+                   (int) parsed_coap_pkt->uri_path_len,
+                   parsed_coap_pkt->uri_path);
             OC_DBG("  QUERY: %.*s",
-                   (int) message->uri_query_len,
-                   message->uri_query);
+                   (int) parsed_coap_pkt->uri_query_len,
+                   parsed_coap_pkt->uri_query);
             OC_DBG("  Payload: %.*s",
-                   (int) message->payload_len,
-                   message->payload);
+                   (int) parsed_coap_pkt->payload_len,
+                   parsed_coap_pkt->payload);
 #endif
             const char* href;
-            size_t href_len = coap_get_header_uri_path(message, &href);
-            /*
-            #ifdef OC_TCP
-                  if (msg->endpoint.flags & TCP) {
-                    coap_tcp_init_message(response, CONTENT_2_05);
-                  } else
-            #endif // OC_TCP
-            */
+            size_t href_len = coap_get_header_uri_path(parsed_coap_pkt, &href);
             {
-                if (message->type == COAP_TYPE_CON)
+                if (parsed_coap_pkt->type == COAP_TYPE_CON)
                 {
-                    coap_udp_init_message(
-                        response, COAP_TYPE_ACK, CONTENT_2_05, message->mid);
+                    coap_udp_init_message(response,
+                                          COAP_TYPE_ACK,
+                                          CONTENT_2_05,
+                                          parsed_coap_pkt->mid);
                 }
                 else
                 {
 #if NEXUS_CHANNEL_OC_ENABLE_DUPLICATE_MESSAGE_ID_CHECK
-                    if (check_if_duplicate(message->mid,
+                    if (check_if_duplicate(parsed_coap_pkt->mid,
                                            (uint8_t) msg->endpoint.device))
                     {
                         OC_DBG("Detected duplicate, returning early...");
                         return 0;
                     }
-                    history[idx] = message->mid;
+                    history[idx] = parsed_coap_pkt->mid;
                     history_dev[idx] = (uint8_t) msg->endpoint.device;
                     idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
 #endif
@@ -377,7 +607,7 @@ int coap_receive(oc_message_t* msg, bool request_secured)
             {
                 // incoming requests are handled here
                 if (oc_ri_invoke_coap_entity_handler(
-                        message,
+                        parsed_coap_pkt,
                         response,
                         transaction->message->data + COAP_MAX_HEADER_SIZE,
                         &msg->endpoint))
@@ -396,33 +626,97 @@ int coap_receive(oc_message_t* msg, bool request_secured)
             OC_DBG("Handling response message");
 
 #ifdef OC_CLIENT
-            if (message->type != COAP_TYPE_RST)
+            if (parsed_coap_pkt->type != COAP_TYPE_RST)
             {
-                client_cb = oc_ri_find_client_cb_by_token(message->token,
-                                                          message->token_len);
+                client_cb = oc_ri_find_client_cb_by_token(
+                    parsed_coap_pkt->token, parsed_coap_pkt->token_len);
             }
 
             if (client_cb)
             {
+    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+                if (client_cb->nx_request_secured && !rcvd_pkt_secured)
+                {
+                    // if the request was secured and the
+                    // reply was not, then ignore this
+                    // message
+                    OC_WRN("received unsecured reply to secured request; "
+                           "dropping message");
+                    return UNAUTHORIZED_4_01;
+                }
+    #endif
                 // responses to a request are handled here
                 OC_DBG("calling oc_ri_invoke_client_cb");
-                oc_ri_invoke_client_cb(message, client_cb, &msg->endpoint);
+
+                oc_ri_invoke_client_cb(
+                    parsed_coap_pkt, client_cb, &msg->endpoint);
             }
 #endif // OC_CLIENT
         }
     }
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+    // we received a secured request that should not be processed by
+    // resource handlers, and we should send a nonce sync message back to the
+    // requester instead. (This `coap_status_code` is the result of parsing,
+    // not the actual CoAP code of the received message).
+    else if (coap_status_code == NOT_ACCEPTABLE_4_06)
+    {
+        OC_DBG("Sending Nonce Sync response, mid=%d", parsed_coap_pkt->mid);
+        coap_send_nonce_sync_response(parsed_coap_pkt->mid,
+                                      parsed_coap_pkt->token,
+                                      parsed_coap_pkt->token_len,
+                                      &((oc_message_t*) msg)->endpoint,
+                                      false);
+        // the above will result in a message being posted
+        // on the outbound queue, request processing to send
+        nxp_common_request_processing();
+        // we won't attempt to receive the message, we want to
+        // nonce sync.
+        return coap_status_code;
+    }
+    else if (coap_status_code == NEXUS_CHANNEL_SECURITY_RESEND_PREVIOUS_REQUEST)
+    {
+        OC_DBG("Resending previous secured request with updated security info");
+        // will look up the previous transaction to this endpoint
+        coap_send_previous_request_with_repacked_security(
+            parsed_coap_pkt->mid, &((oc_message_t*) msg)->endpoint);
+        nxp_common_request_processing();
+        return coap_status_code;
+    }
+    else if (coap_status_code ==
+             NEXUS_CHANNEL_SECURITY_REQUIRE_NONCE_SYNC_SPECIAL_CASE_RESET)
+    {
+        OC_DBG("Sending RESET Nonce Sync response, mid=%d",
+               parsed_coap_pkt->mid);
+        coap_send_nonce_sync_response(parsed_coap_pkt->mid,
+                                      parsed_coap_pkt->token,
+                                      parsed_coap_pkt->token_len,
+                                      &((oc_message_t*) msg)->endpoint,
+                                      true);
+        // the above will result in a message being posted
+        // on the outbound queue, request processing to send
+        nxp_common_request_processing();
+        // we won't attempt to receive the message, we want to
+        // nonce sync.
+        return coap_status_code;
+    }
+#endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
     else
     {
         OC_ERR("Unexpected CoAP command");
-#if NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR
-        coap_send_empty_response(
-            message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-            message->mid,
-            message->token,
-            message->token_len,
-            coap_status_code,
-            &msg->endpoint);
-#endif // #if NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR
+#if (NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR ||                       \
+     NEXUS_CHANNEL_LINK_SECURITY_ENABLED)
+        coap_send_empty_response(parsed_coap_pkt->type == COAP_TYPE_CON ?
+                                     COAP_TYPE_ACK :
+                                     COAP_TYPE_NON,
+                                 parsed_coap_pkt->mid,
+                                 parsed_coap_pkt->token,
+                                 parsed_coap_pkt->token_len,
+                                 coap_status_code,
+                                 &msg->endpoint);
+        nxp_common_request_processing();
+#endif // #if (NEXUS_CHANNEL_OC_ENABLE_EMPTY_RESPONSES_ON_ERROR ||
+       // NEXUS_CHANNEL_LINK_SECURITY_ENABLED)
         return coap_status_code;
     }
 
@@ -434,113 +728,111 @@ send_message:
     }
     else if (transaction)
     {
-        if (response->type != COAP_TYPE_RST && message->token_len)
+        if (response->type != COAP_TYPE_RST && parsed_coap_pkt->token_len)
         {
-            if (message->code >= COAP_GET && message->code <= COAP_DELETE)
+            if (parsed_coap_pkt->code >= COAP_GET &&
+                parsed_coap_pkt->code <= COAP_DELETE)
             {
-                coap_set_token(response, message->token, message->token_len);
+                coap_set_token(response,
+                               parsed_coap_pkt->token,
+                               parsed_coap_pkt->token_len);
             }
+
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+            bool resource_secured = false;
+            bool sec_data_exists = false;
+
+            // send secured replies to requests to resource methods that are
+            // secured
+            const char* href;
+            size_t href_len = coap_get_header_uri_path(parsed_coap_pkt, &href);
+            oc_resource_t* res = oc_ri_get_app_resource_by_uri(
+                href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+            // NOTE: This function is only used by servers, to determine
+            // if a resource/method combination it is serving requires
+            // security to access or not.
+            resource_secured = nexus_channel_sm_resource_method_is_secured(
+                res, (oc_method_t) parsed_coap_pkt->code);
+
+            // get Nexus ID
+            struct nx_id nexus_id = {0};
+            (void) nexus_oc_wrapper_oc_endpoint_to_nx_id(
+                &transaction->message->endpoint, &nexus_id);
+
+            // get security data
+            struct nexus_channel_link_security_mode0_data sec_data = {0};
+            sec_data_exists =
+                nexus_channel_link_manager_security_data_from_nxid(&nexus_id,
+                                                                   &sec_data);
+
+            // Clients may make secured or unsecured requests - we
+            // only respond with a secured response if:
+            // * We have a secured link to the client AND
+            // * (the requested resource/method is secured OR
+            //   the client sent a secure request (regardless of
+            //   resource/method security))
+            if (sec_data_exists && (resource_secured || rcvd_pkt_secured))
+            {
+                // encode the outbound message as secured
+                nexus_cose_mac0_common_macparams_t mac_params = {
+                    &sec_data.sym_key,
+                    sec_data.nonce,
+                    // aad
+                    {
+                        (uint8_t) response->code,
+                        // response has no URI
+                        NULL,
+                        0,
+                    },
+                    response->payload,
+                    response->payload_len,
+                };
+
+                // so that we don't memcpy over the payload we are
+                // encoding
+                uint8_t tmp_output[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+
+                const size_t new_payload_size =
+                    nexus_oc_wrapper_repack_buffer_secured(
+                        tmp_output, sizeof(tmp_output), &mac_params);
+                response->payload_len = new_payload_size;
+                memcpy(response->payload, tmp_output, new_payload_size);
+
+                // set the header content-format to indicate the payload is
+                // secured
+                if (new_payload_size > 0)
+                {
+                    coap_set_header_content_format(response,
+                                                   APPLICATION_COSE_MAC0);
+                }
+                else
+                {
+                    OC_WRN("Secured server message cannot be packed");
+                    coap_clear_transaction(transaction);
+                }
+
+                // securely clear the Nexus Channel security data from the
+                // stack
+                nexus_secure_memclr(
+                    &sec_data,
+                    sizeof(struct nexus_channel_link_security_mode0_data),
+                    sizeof(struct nexus_channel_link_security_mode0_data));
+            }
+#else
+            // only used if security is enabled
+            (void) rcvd_pkt_secured;
+#endif
+            // Nexus security currently repacks message, changing size
             transaction->message->length =
                 coap_serialize_message(response, transaction->message->data);
 
-            if (transaction->message->length > 0)
+            if (transaction->message->length == 0)
             {
-#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-                bool resource_secured = false;
-                bool sec_data_exists = false;
-
-                // send secured replies to requests to resource methods that are
-                // secured
-                const char* href;
-                size_t href_len = coap_get_header_uri_path(message, &href);
-                oc_resource_t* res = oc_ri_get_app_resource_by_uri(
-                    href, href_len, NEXUS_CHANNEL_NEXUS_DEVICE_ID);
-                // NOTE: This function is only used by servers, to determine
-                // if a resource/method combination it is serving requires
-                // security to access or not.
-                resource_secured = nexus_channel_sm_resource_method_is_secured(
-                    res, (oc_method_t) message->code);
-
-                // get Nexus ID
-                struct nx_id nexus_id = {0};
-                (void) nexus_oc_wrapper_oc_endpoint_to_nx_id(
-                    &transaction->message->endpoint, &nexus_id);
-
-                // get security data
-                struct nexus_channel_link_security_mode0_data sec_data = {0};
-                sec_data_exists =
-                    nexus_channel_link_manager_security_data_from_nxid(
-                        &nexus_id, &sec_data);
-
-                // Clients may make secured or unsecured requests - we
-                // only respond with a secured response if:
-                // * We have a secured link to the client AND
-                // * (the requested resource/method is secured OR
-                //   the client sent a secure request (regardless of
-                //   resource/method security))
-                if (sec_data_exists && (resource_secured || request_secured))
-                {
-                    // populate COSE_MAC0 struct
-                    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-
-                    // the `code` field is shared between requests and responses
-                    cose_mac0.protected_header_method =
-                        (uint8_t) response->code;
-                    cose_mac0.protected_header_nonce = sec_data.nonce;
-                    cose_mac0.kid = 0;
-                    // also sets the payload pointer of `cose_mac0`
-                    cose_mac0.payload_len = coap_get_payload(
-                        response, (const uint8_t**) &cose_mac0.payload);
-
-                    // compute MAC
-                    struct nexus_check_value mac =
-                        _nexus_channel_sm_compute_mac_mode0(&cose_mac0,
-                                                            &sec_data);
-                    cose_mac0.mac = &mac;
-
-                    // repack the message stored in the response struct
-                    // with the secured response
-                    const uint8_t old_payload_size = response->payload_len;
-                    const uint8_t new_payload_size =
-                        nexus_oc_wrapper_repack_buffer_secured(
-                            response->payload, OC_BLOCK_SIZE, &cose_mac0);
-                    response->payload_len = new_payload_size;
-                    NEXUS_ASSERT(
-                        new_payload_size >= old_payload_size,
-                        "Secured message smaller than unsecured payload...");
-
-                    // set the header content-format to indicate the payload is
-                    // secured
-                    if (new_payload_size > 0)
-                    {
-                        coap_set_header_content_format(response,
-                                                       APPLICATION_COSE_MAC0);
-                    }
-                    else
-                    {
-                        OC_WRN("Secured server message cannot be packed");
-                        coap_clear_transaction(transaction);
-                    }
-
-                    // securely clear the Nexus Channel security data from the
-                    // stack
-                    nexus_secure_memclr(
-                        &sec_data,
-                        sizeof(struct nexus_channel_link_security_mode0_data),
-                        sizeof(struct nexus_channel_link_security_mode0_data));
-                }
-#else
-                // only used if security is enabled
-                (void) request_secured;
-#endif
-                // Nexus security currently repacks message, changing size
-                transaction->message->length = coap_serialize_message(
-                    response, transaction->message->data);
-                coap_send_transaction(transaction);
+                coap_clear_transaction(transaction);
             }
             else
             {
-                coap_clear_transaction(transaction);
+                coap_send_transaction(transaction, false);
             }
         }
     }
@@ -566,157 +858,8 @@ OC_PROCESS_THREAD(coap_engine, ev, data)
 
         if (ev == oc_events[INBOUND_RI_EVENT])
         {
-            bool request_secured = false;
-#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
-            coap_packet_t coap_pkt[1];
-
-            // make a local copy of the message for security manager processing;
-            // coap_merge_multi_option in the parsing code makes it impossible
-            // to parse some headers multiple times (e.g., headers with
-            // multiple uri-path options)
-            oc_message_t message = {0};
-            message.length = ((oc_message_t*) data)->length;
-            memcpy(message.data, ((oc_message_t*) data)->data, message.length);
-            oc_endpoint_copy(&message.endpoint,
-                             &((oc_message_t*) data)->endpoint);
-
-            coap_status_code =
-                coap_udp_parse_message(coap_pkt, message.data, message.length);
-
-            // standalone, does not interact with the next if block
-            if (coap_status_code == COAP_NO_ERROR)
-            {
-                unsigned int format = 0;
-                coap_get_header_content_format((void*) coap_pkt, &format);
-                if (format == APPLICATION_COSE_MAC0)
-                {
-                    request_secured = true;
-                }
-            }
-
-            // CoAP parsed correctly, attempt to authenticate
-            if (coap_status_code != COAP_NO_ERROR)
-            {
-                // do nothing, `coap_receive` will fail to process the message
-                oc_message_unref((oc_message_t*) data);
-                continue;
-            }
-            else if (coap_pkt->code == NOT_ACCEPTABLE_4_06)
-            {
-                // CLIENT receives a 'nonce-sync' in response to a previous
-                // request This case should *never* be entered in an unsolicited
-                // manner (this should *only* occur if `coap_pkt` is a response
-                // to a request previously made by this device to another device
-                // via a secured Nexus Channel link and nonce was not current)
-                // authenticate message with Nexus Channel
-                // `nexus_channel_authenticate_message` will update nonce
-                // if the message is valid
-                coap_status_code = nexus_channel_authenticate_message(
-                    &message.endpoint, coap_pkt);
-                // we've updated the nonce, no further processing
-                // is required on this message
-                // XXX do we want to automatically 'resend' the originally
-                // sent message that triggered this nonce sync?
-                oc_message_unref((oc_message_t*) data);
-                continue;
-            }
-
-            else if (coap_pkt->code >= COAP_GET &&
-                     coap_pkt->code <= COAP_DELETE)
-            {
-                // SERVER receives a request message
-                coap_status_code = nexus_channel_authenticate_message(
-                    &message.endpoint, coap_pkt);
-
-                // case if nonce is invalid/doesn't match
-                // Implies that a link does exist
-                if (coap_status_code == NOT_ACCEPTABLE_4_06)
-                {
-                    coap_send_nonce_sync_response(coap_pkt->mid,
-                                                  coap_pkt->token,
-                                                  coap_pkt->token_len,
-                                                  &message.endpoint);
-                    // the above will result in a message being posted
-                    // on the outbound queue, request processing to send
-                    nxp_common_request_processing();
-                    oc_message_unref((oc_message_t*) data);
-                    // continue, we don't want to attempt to 'receive'
-                    // the message, it was a nonce sync.
-                    continue;
-                }
-
-                // We use 'empty' responses to handle security-layer
-                // failures *other than* nonce sync (4.06).
-                // In reality, this isn't an 'empty' response
-                // as the CoAP spec defines it, since we include an
-                // error code (truly 'empty' responses are code 0.00)
-                else if (coap_status_code != COAP_NO_ERROR)
-                {
-                    coap_send_empty_response(coap_pkt->type == COAP_TYPE_CON ?
-                                                 COAP_TYPE_ACK :
-                                                 COAP_TYPE_NON,
-                                             coap_pkt->mid,
-                                             coap_pkt->token,
-                                             coap_pkt->token_len,
-                                             coap_status_code,
-                                             &message.endpoint);
-                    // the above will result in a message being posted on
-                    // the outbound queue; request processing to send
-                    nxp_common_request_processing();
-                    oc_message_unref((oc_message_t*) data);
-                    continue;
-                }
-                // if there is a parsing error, then this will be handled in
-                // `coap_receive`
-            }
-            else if (coap_pkt->code >= CREATED_2_01)
-            {
-                // CLIENT receives a response message to a previous request
-                if (nexus_channel_authenticate_message(
-                        &message.endpoint, coap_pkt) != COAP_NO_ERROR)
-                {
-                    // if there is any security issue in the incoming message,
-                    // ignore it and continue.
-                    // no response is sent, no need for requesting processing
-                    OC_DBG("Client received secured response, but does not "
-                           "authenticate. Ignoring.");
-                    oc_message_unref((oc_message_t*) data);
-                    continue;
-                }
-            }
-            // Before passing the incoming message to `coap_receive`, if it was
-            // secured, repack it *without* security.
-            coap_packet_t coap_pkt_repacked[1];
-
-            // reuse temporary local message struct
-            // need to recopy the message data, but don't need to update the
-            // message endpoint - it hasn't changed
-            message.length = ((oc_message_t*) data)->length;
-            memcpy(message.data, ((oc_message_t*) data)->data, message.length);
-            coap_status_code = coap_udp_parse_message(
-                coap_pkt_repacked, message.data, message.length);
-
-            // will not erase existing data in payload beyond `payload_len`
-            // which is OK
-            const uint8_t old_payload_len = coap_pkt_repacked->payload_len;
-            uint8_t new_payload_len = old_payload_len;
-            if (nexus_oc_wrapper_extract_embedded_payload_from_mac0_payload(
-                    coap_pkt_repacked->payload,
-                    old_payload_len,
-                    &new_payload_len))
-            {
-                coap_pkt_repacked->payload_len = new_payload_len;
-
-                // reserialize the 'unpacked' message into data buffer
-                ((oc_message_t*) data)->length = coap_serialize_message(
-                    coap_pkt_repacked, ((oc_message_t*) data)->data);
-            }
-            NEXUS_ASSERT(new_payload_len <= old_payload_len,
-                         "Unexpected - unsecured payload larger than secured");
-
-#endif /* NEXUS_CHANNEL_LINK_SECURITY_ENABLED */
-            coap_receive((oc_message_t*) data, request_secured);
-
+            OC_DBG("Handling INBOUND_RI_EVENT\n");
+            coap_receive((oc_message_t*) data);
             oc_message_unref((oc_message_t*) data);
         }
         else if (ev == OC_PROCESS_EVENT_TIMER)

@@ -26,12 +26,6 @@
     #error "NEXUS_CHANNEL_LINK_SECURITY_ENABLED must be defined"
 #endif
 
-// Not externally exposed, configures maximum bytes for any message sent
-// between Nexus Channel devices (excluding any link-layer overhead, just
-// Nexus application layer message size). Required for Nexus Channel and
-// Nexus Channel Core
-#define NEXUS_CHANNEL_APPLICATION_LAYER_MAX_MESSAGE_BYTES 120
-
 // Set up further configuration parameters
 #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
@@ -55,6 +49,11 @@ extern "C" {
     // Seconds that an established link must be idle before being deleted
     // from this system. 7776000 = 3 months
     #define NEXUS_CHANNEL_LINK_TIMEOUT_SECONDS 7776000
+
+NEXUS_STATIC_ASSERT(
+    NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE <
+        NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE,
+    "CBOR Payload size configured incorrectly, must fit within total message");
 
 /*
  * Possible ways to secure communication on a Nexus Channel Link.
@@ -160,7 +159,6 @@ struct nexus_channel_om_accessory_action_body
 
 struct nexus_channel_om_create_link_body
 {
-    struct nexus_channel_om_truncated_accessory_id trunc_acc_id;
     // passed onward to the accessory which will validate it
     union nexus_channel_om_auth_field accessory_challenge;
 };

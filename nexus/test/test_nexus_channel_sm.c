@@ -3,7 +3,6 @@
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
 #include "oc/api/oc_main.h"
-#include "oc/include/nexus_channel_security.h" // for shared security functions
 #include "oc/include/oc_api.h"
 #include "oc/include/oc_buffer.h"
 #include "oc/include/oc_core_res.h"
@@ -22,6 +21,9 @@
 #include "src/nexus_channel_res_lm.h"
 #include "src/nexus_channel_sm.h"
 #include "src/nexus_common_internal.h"
+#include "src/nexus_cose_mac0_common.h"
+#include "src/nexus_cose_mac0_sign.h"
+#include "src/nexus_cose_mac0_verify.h"
 #include "src/nexus_nv.h"
 #include "src/nexus_oc_wrapper.h"
 #include "src/nexus_security.h"
@@ -117,6 +119,7 @@ void setUp(void)
     nxp_common_nv_write_IgnoreAndReturn(true);
     nxp_channel_random_value_IgnoreAndReturn(123456);
     nexus_channel_om_init_Ignore();
+    nexus_channel_res_payg_credit_process_IgnoreAndReturn(UINT32_MAX);
 
     nexus_channel_core_init();
 
@@ -250,306 +253,6 @@ void test_sm_message_headers_secured_mode0__unsecured_message__unsecured_ok(
         _nexus_channel_sm_message_headers_secured_mode0(&request_packet));
 }
 
-void test_sm_parse_cose_mac0__empty_inputs_fails(void)
-{
-    nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
-
-    TEST_ASSERT_FALSE(
-        _nexus_channel_sm_parse_cose_mac0(NULL, &cose_mac0_parsed));
-}
-
-void test_sm_parse_cose_mac0__format_ok(void)
-{
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22};
-
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = CONTENT_2_05;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr; single byte for CoAP type code
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    // decode rep
-    nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
-    int err = oc_parse_rep(enc_data, enc_size, &G_OC_REP);
-    TEST_ASSERT_TRUE(err == 0);
-    TEST_ASSERT_TRUE(G_OC_REP != NULL);
-    TEST_ASSERT_TRUE(
-        _nexus_channel_sm_parse_cose_mac0(G_OC_REP, &cose_mac0_parsed));
-
-    TEST_ASSERT_EQUAL(15, cose_mac0_parsed.kid);
-    TEST_ASSERT_EQUAL(0x01020304, cose_mac0_parsed.protected_header_nonce);
-    TEST_ASSERT_EQUAL(strlen(payload), cose_mac0_parsed.payload_len);
-
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(
-        payload, cose_mac0_parsed.payload, strlen(payload));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(mac, cose_mac0_parsed.mac, sizeof(mac));
-}
-
-void test_sm_parse_cose_mac0__bad_first_type__fails(void)
-{
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22};
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // FAILURE CAUSE: we expect this to be a bstr
-    oc_rep_set_uint(root, p, 0);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    // decode rep
-    nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
-    int err = oc_parse_rep(enc_data, enc_size, &G_OC_REP);
-    TEST_ASSERT_TRUE(err == 0);
-    TEST_ASSERT_TRUE(G_OC_REP != NULL);
-    TEST_ASSERT_FALSE(
-        _nexus_channel_sm_parse_cose_mac0(G_OC_REP, &cose_mac0_parsed));
-}
-
-void test_sm_parse_cose_mac0_too_many_types__fails(void)
-{
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22};
-
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_GET;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr; single byte for CoAP type code
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    // FAILURE CAUSE: we expect to only have 4 elements
-    oc_rep_set_uint(root, e, 0);
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    // decode rep
-    nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
-    int err = oc_parse_rep(enc_data, enc_size, &G_OC_REP);
-    TEST_ASSERT_TRUE(err == 0);
-    TEST_ASSERT_TRUE(G_OC_REP != NULL);
-    TEST_ASSERT_FALSE(
-        _nexus_channel_sm_parse_cose_mac0(G_OC_REP, &cose_mac0_parsed));
-}
-
-void test_sm_parse_cose_mac0_mac_wrong_length__fails(void)
-{
-    // payload
-    const char* payload = "hello world";
-    // FAILURE CAUSE: MAC should be 8 bytes in length
-    const uint8_t mac[7] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11};
-
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_GET;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    // decode rep
-    nexus_security_mode0_cose_mac0_t cose_mac0_parsed = {0};
-    int err = oc_parse_rep(enc_data, enc_size, &G_OC_REP);
-    TEST_ASSERT_TRUE(err == 0);
-    TEST_ASSERT_TRUE(G_OC_REP != NULL);
-    TEST_ASSERT_FALSE(
-        _nexus_channel_sm_parse_cose_mac0(G_OC_REP, &cose_mac0_parsed));
-}
-
-void test_sm_repack_no_cose_mac_0__repack_success__ok(void)
-{
-    coap_packet_t request_packet;
-    // initialize packet: PUT with arbitrary message ID
-    coap_udp_init_message(&request_packet, COAP_TYPE_CON, 3, 123);
-    // set the request URI path and content format
-    coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
-    coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
-
-    // payload
-    char* payload = "hello world";
-    // MAC
-    struct nexus_check_value mac = {
-        {0x59, 0xBA, 0xC0, 0x74, 0x69, 0xEA, 0xEB, 0x30}};
-
-    // struct used to repack the CoAP packet
-    nexus_security_mode0_cose_mac0_t cose_mac0 = {0};
-    cose_mac0.payload = payload;
-    cose_mac0.payload_len = (uint8_t) strlen(payload);
-    cose_mac0.mac = &mac;
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_set_uint(u, 5, 0x01020304); // nonce 0x01020304
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac.bytes, sizeof(mac.bytes));
-    // sanity check..
-    TEST_ASSERT_EQUAL(sizeof(mac), sizeof(mac.bytes));
-    TEST_ASSERT_EQUAL(8, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    coap_set_payload(&request_packet, enc_data, enc_size);
-    coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
-
-    // includes security information
-    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
-    int cf = 0;
-    coap_get_header_content_format(&request_packet, &cf);
-    TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, cf);
-
-    _nexus_channel_sm_repack_no_cose_mac0(&request_packet, &cose_mac0);
-
-    // a bit brittle; this is the size of the CBOR-encoded map representing
-    // a single key-bytestring pair ({"d": "hello world"})
-    TEST_ASSERT_EQUAL(request_packet.payload_len, 16);
-    coap_get_header_content_format(&request_packet, &cf);
-    TEST_ASSERT_EQUAL(APPLICATION_VND_OCF_CBOR, cf);
-}
-
 void test_nexus_channel_authenticate_message__method_secured_message_secured__ok(
     void)
 {
@@ -591,66 +294,47 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__ok
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xD1, 0x95, 0xAA, 0x31, 0xA3, 0xC5, 0xEC, 0xEC};
+    // create a cose mac0 signed payload and set it as the packet payload
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 0x05;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        38,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
-    // includes security information
-    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
-
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(COAP_NO_ERROR, status);
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE, auth_result);
     // security information stripped out
-    TEST_ASSERT_TRUE((int) request_packet.payload_len < enc_size);
-    // a bit brittle; this is the size of the CBOR-encoded map representing
-    // a single key-bytestring pair ({"d": "hello world"})
-    TEST_ASSERT_EQUAL(request_packet.payload_len, 16);
-    // should have incremented the nonce
+    TEST_ASSERT_TRUE((int) request_packet.payload_len < (int) enc_size);
+    // after re-encoding, the length is exactly equal to the original
+    // unsecured payload
+    TEST_ASSERT_EQUAL(request_packet.payload_len, sizeof(payload_to_secure));
+    // should have incremented the nonce to the one received in the message
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
-    TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
+    TEST_ASSERT_EQUAL(38, sec_data.mode0.nonce);
 }
 
 void test_nexus_channel_authenticate_message__method_unsecured_message_secured__ok(
@@ -687,47 +371,28 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xE8, 0x2B, 0xAE, 0xB7, 0xEE, 0x6F, 0xD2, 0x3A};
+    // create a cose mac0 signed payload and set it as the packet payload
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        0x01020304,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = CONTENT_2_05;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr; single byte for CoAP type code
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     // includes security information
@@ -735,19 +400,196 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_secured__
 
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
+
     TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(COAP_NO_ERROR, status);
+
+    uint32_t original_payload_len = request_packet.payload_len;
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE, auth_result);
     // security information stripped out
-    TEST_ASSERT_TRUE((int) request_packet.payload_len < enc_size);
-    // a bit brittle; this is the size of the CBOR-encoded map representing
-    // a single key-bytestring pair ({"d": "hello world"})
-    TEST_ASSERT_EQUAL(request_packet.payload_len, 16);
+    TEST_ASSERT_TRUE((int) request_packet.payload_len < (int) enc_size);
+    // unsecured payload should be smaller than the original secured payload
+    TEST_ASSERT_LESS_THAN(original_payload_len, request_packet.payload_len);
     // should have incremented the nonce
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(0x01020304, sec_data.mode0.nonce);
+}
+
+void test_nexus_channel_authenticate_message__payload_to_auth_too_large__return_error(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // create a link
+    nxp_common_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_link_manager_process(0);
+
+    // initialize resources
+    oc_resource_t* res = oc_ri_get_app_resource_by_uri(
+        "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+
+    // register a new secured resource handler
+    nexus_channel_sm_nexus_resource_method_new(res, OC_PUT);
+
+    coap_packet_t request_packet;
+    // initialize packet: PUT with arbitrary message ID
+    coap_udp_init_message(&request_packet, COAP_TYPE_CON, 3, 123);
+    // set the request URI path and content format
+    coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
+    coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
+
+    // create a cose mac0 signed payload and set it as the packet payload,
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        6,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
+
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
+
+    // set the payload with an invalid/too long payload length
+    // Cannot use `coap_set_payload` as that function will silently
+    // prevent us from exceeding `NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE`
+    request_packet.payload_len = NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE + 1;
+    request_packet.payload = enc_data;
+    // fake/invalid payload length is set
+    TEST_ASSERT_EQUAL(request_packet.payload_len,
+                      NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE + 1);
+
+    nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                       &sec_data.mode0);
+    TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
+
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_PAYLOAD_SIZE_INVALID,
+                      auth_result);
+    // nonce should be unchanged
+    nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                       &sec_data.mode0);
+    TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
+}
+
+// a secured message cannot have no payload, by definition - the COSE structure
+// requires *some* space
+void test_nexus_channel_authenticate_message__payload_to_auth_zero_length__returns_400(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // create a link
+    nxp_common_request_processing_Expect();
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_link_manager_process(0);
+
+    // initialize resources
+    oc_resource_t* res = oc_ri_get_app_resource_by_uri(
+        "/nx/pc", strlen("/nx/pc"), NEXUS_CHANNEL_NEXUS_DEVICE_ID);
+
+    // register a new secured resource handler
+    nexus_channel_sm_nexus_resource_method_new(res, OC_PUT);
+
+    coap_packet_t request_packet;
+    // initialize packet: PUT with arbitrary message ID
+    coap_udp_init_message(&request_packet, COAP_TYPE_CON, 3, 123);
+    // set the request URI path and content format
+    coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
+    coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
+
+    // create a cose mac0 signed payload and set it as the packet payload,
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        6,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
+
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
+
+    // set the payload with an invalid/too long payload length
+    coap_set_payload(&request_packet, enc_data, 0);
+    // fake/invalid payload length is set
+    TEST_ASSERT_EQUAL(request_packet.payload_len, 0);
+
+    nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                       &sec_data.mode0);
+    TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
+
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_PAYLOAD_SIZE_INVALID,
+                      auth_result);
+    // nonce should be unchanged
+    nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                       &sec_data.mode0);
+    TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
 }
 
 void test_nexus_channel_authenticate_message__resource_secured_message_unsecured__fails(
@@ -791,34 +633,28 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_VND_OCF_CBOR);
 
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
+    // create a cose mac0 signed payload and set it as the packet payload,
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        6,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 1;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
@@ -826,9 +662,13 @@ void test_nexus_channel_authenticate_message__resource_secured_message_unsecured
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(UNAUTHORIZED_4_01, status);
+
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(
+        NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_RESOURCE_REQUIRES_SECURED_REQUEST,
+        auth_result);
     // nonce should be unchanged
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
@@ -876,52 +716,39 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_cos
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0xcc, 0xc9, 0x4e, 0xf8, 0x18, 0x22, 0x3b, 0xca};
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        6,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
-    // CAUSE OF FAILURE: COSE_MAC0 is improperly packed (no protected element)
-    oc_rep_begin_root_object();
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_set_uint(u, 5, 0x01020304); // nonce 0x01020304
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    coap_set_payload(&request_packet, enc_data, enc_size);
-    // includes security information
-    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
+    // offset the payload by 1, so the COSE MAC0 payload is corrupted
+    coap_set_payload(&request_packet, enc_data + 1, enc_size - 1);
+    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size - 1);
 
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(BAD_REQUEST_4_00, status);
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_COSE_UNPARSEABLE,
+                      auth_result);
     // nonce should be unchanged
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
@@ -969,46 +796,28 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_inv
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0x59, 0xBA, 0xC0, 0x74, 0x69, 0xEA, 0xEB, 0x30};
+    // create a cose mac0 signed payload and set it as the packet payload
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        4, // expected nonce = 5, will cause 4.06 response
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 1; // expected nonce=5, was 1 (will get a 4.06 back)
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     // includes security information
@@ -1017,9 +826,13 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_inv
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, status);
+
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(
+        NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_REQUEST_RECEIVED_WITH_INVALID_NONCE,
+        auth_result);
     // nonce should be unchanged
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
@@ -1068,46 +881,28 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // MAC
-    const uint8_t mac[8] = {0x59, 0xBA, 0xC0, 0x74, 0x69, 0xEA, 0xEB, 0x30};
+    // create a cose mac0 signed payload and set it as the packet payload
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        6,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     // includes security information
@@ -1116,9 +911,12 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured_no_
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(BAD_REQUEST_4_00, status);
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(
+        NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_SENDER_DEVICE_NOT_LINKED,
+        auth_result);
     // nonce should be unchanged
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
@@ -1166,46 +964,29 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__in
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // payload
-    const char* payload = "hello world";
-    // CAUSE OF FAILURE: MAC in COSE_MAC is incorrect
-    const uint8_t mac[8] = {0xFF, 0xBA, 0xC0, 0x74, 0x69, 0xEA, 0xEB, 0x30};
+    // create a cose mac0 signed payload and set it as the packet payload
+    // HELLO WORLD
+    uint8_t payload_to_secure[11] = {
+        0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+    // CAUSE OF FAILURE: MAC in COSE_MAC is incorrect (incorrect key used...)
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &NEXUS_INTEGRITY_CHECK_FIXED_FF_KEY,
+        0x01020304,
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        payload_to_secure,
+        sizeof(payload_to_secure),
+    };
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_PUT;
-    uint32_t nonce = 0x01020304;
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr;
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     // includes security information
@@ -1214,15 +995,19 @@ void test_nexus_channel_authenticate_message__method_secured_message_secured__in
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(UNAUTHORIZED_4_01, status);
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_MAC_INVALID,
+                      auth_result);
     // nonce should be unchanged
     nexus_channel_link_manager_security_data_from_nxid(&linked_id,
                                                        &sec_data.mode0);
     TEST_ASSERT_EQUAL(5, sec_data.mode0.nonce);
 }
 
+// because header is not secured, this message won't return an error
+// XXX should return some indication that message is not authenticated?
 void test_nexus_channel_authenticate_message__method_unsecured_message_unsecured__ok(
     void)
 {
@@ -1236,37 +1021,21 @@ void test_nexus_channel_authenticate_message__method_unsecured_message_unsecured
     // payload
     const char* payload = "hello world";
 
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-    oc_rep_begin_root_object();
+    coap_set_payload(&request_packet, payload, strlen("hello world"));
+    TEST_ASSERT_EQUAL(request_packet.payload_len, strlen("hello world"));
 
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
+    uint8_t* original_payload_ptr = request_packet.payload;
+    uint32_t original_payload_len = request_packet.payload_len;
+    nexus_channel_sm_auth_error_t auth_result =
+        nexus_channel_authenticate_message(&FAKE_ACCESSORY_ENDPOINT,
+                                           &request_packet);
 
-    oc_rep_end_root_object();
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
-
-    coap_set_payload(&request_packet, enc_data, enc_size);
-    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
-
-    coap_status_t status = nexus_channel_authenticate_message(
-        &FAKE_ACCESSORY_ENDPOINT, &request_packet);
-    TEST_ASSERT_EQUAL(COAP_NO_ERROR, status);
+    TEST_ASSERT_EQUAL(NEXUS_CHANNEL_SM_AUTH_MESSAGE_ERROR_NONE, auth_result);
     // no changes to the payload
-    TEST_ASSERT_EQUAL(request_packet.payload_len, enc_size);
+    TEST_ASSERT_EQUAL(request_packet.payload_len, strlen("hello world"));
+    // payload pointer was unmodified
+    TEST_ASSERT_EQUAL(original_payload_ptr, request_packet.payload);
+    TEST_ASSERT_EQUAL(original_payload_len, request_packet.payload_len);
 }
 
 void test_coap_nexus_engine__resource_unsecured_message_unsecured__ok(void)
@@ -1332,7 +1101,7 @@ void test_coap_nexus_engine__resource_secured_message_unsecured__fails(void)
 
     // process the message; should not get to `coap_receive` and sends an
     // early error reply because of failed authentication
-    nxp_common_request_processing_Expect();
+    nxp_common_request_processing_Ignore();
 
     struct nx_id fake_id = {0, 12345678};
     nxp_channel_get_nexus_id_ExpectAndReturn(fake_id);
@@ -1377,11 +1146,23 @@ CALLBACK_test_nexus_channel_sm_do_get_cose_mac0_appended__ok__nxp_channel_networ
     TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
     TEST_ASSERT_TRUE(strncmp(uri, coap_pkt->uri_path, 5) == 0);
 
-    // test the encoded payload
-    const uint8_t payload_encoded[31] = {
-        0xBF, 0x61, 0x70, 0x45, 0x01, 0x00, 0x00, 0x00, 0x00, 0x61, 0x75,
-        0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x40, 0x61, 0x6d, 0x48,
-        0x1f, 0x41, 0xc5, 0x65, 0x7b, 0x1e, 0x2c, 0xed, 0xff};
+    // test the encoded payload (generated empirically)
+    const uint8_t payload_encoded[16] = {0x84,
+                                         0x43,
+                                         0xA1,
+                                         0x05,
+                                         0x01,
+                                         0xA0,
+                                         0x40,
+                                         0x48,
+                                         0x7f,
+                                         0x4b,
+                                         0xbf,
+                                         0xb5,
+                                         0x0b,
+                                         0xb9,
+                                         0xe1,
+                                         0x3f};
 
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
         payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -1435,8 +1216,8 @@ void test_do_get_cose_mac0_appended__ok(void)
     TEST_ASSERT_TRUE(oc_do_get(
         uri, true, &FAKE_ACCESSORY_ENDPOINT, NULL, NULL, LOW_QOS, NULL));
 
-    // one event for outgoing message
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
+    // one event for outgoing message, one event (transaction idle etimer)
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
     nexus_channel_core_process(0);
 }
 
@@ -1476,12 +1257,10 @@ CALLBACK_test_nexus_channel_sm_do_post_cose_mac0_appended__ok__nxp_channel_netwo
     TEST_ASSERT_TRUE(strncmp(uri, coap_pkt->uri_path, 5) == 0);
 
     // test the encoded payload
-    const uint8_t payload_encoded[47] = {
-
-        0xBF, 0x61, 0x70, 0x45, 0x02, 0x00, 0x00, 0x00, 0x00, 0x61, 0x75, 0xBF,
-        0x61, 0x34, 0x00, 0xff, 0x61, 0x64, 0x50, 0xbf, 0x61, 0x64, 0x4b, 0x68,
-        0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0xff, 0x61,
-        0x6d, 0x48, 0xc9, 0x96, 0xe8, 0xca, 0x7a, 0x73, 0x29, 0x08, 0xff};
+    const uint8_t payload_encoded[32] = {
+        0x84, 0x43, 0xa1, 0x05, 0x01, 0xa0, 0x50, 0xbf, 0x61, 0x64, 0x4b,
+        0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64,
+        0xff, 0x48, 0x41, 0x39, 0x97, 0x90, 0x2f, 0x8f, 0xcf, 0x49};
 
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
         payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -1556,12 +1335,22 @@ void test_do_post_cose_mac0_appended__ok(void)
 
     // This will cause a message to be immediately sent and clear transaction
     TEST_ASSERT_TRUE(oc_do_post(true));
-    // (the data pointed to by 't' above is invalid at this point)
-    TEST_ASSERT_EQUAL(NULL, coap_get_transaction_by_mid(prev_mid));
+    // (the data pointed to by 't' above is still allocated, not null -
+    // we hold on to outbound *request* transactions)
+    coap_transaction_t* buffered_t = coap_get_transaction_by_mid(prev_mid);
+    TEST_ASSERT_NOT_EQUAL(NULL, buffered_t);
+    TEST_ASSERT_EQUAL(buffered_t->message->length, t->message->length);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(
+        buffered_t->message->data, t->message->data, t->message->length);
 
-    // one event for outgoing message
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
-    nexus_channel_core_process(0);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    OC_DBG("just before final call of nexus_channel_core_process");
+    // This will return the number of seconds until the next OC event -
+    // here, it is 5 seconds, the time until
+    // `OC_TRANSACTION_CACHED_IDLE_TIMEOUT_SECONDS` (5) is reached, to clear
+    // the outbound secured transaction (POST) sent above
+    TEST_ASSERT_EQUAL(5, nexus_channel_core_process(0));
 }
 
 // Ensure that response from server sent when a secured request is made with
@@ -1600,13 +1389,26 @@ CALLBACK_test_receive_secured_get__server_response_is_nonce_sync_406__server_non
     TEST_ASSERT_EQUAL(0, coap_pkt->uri_path_len);
     // but should have a payload
     TEST_ASSERT_NOT_NULL(coap_pkt->payload);
-    TEST_ASSERT_EQUAL(31, coap_pkt->payload_len);
+    TEST_ASSERT_EQUAL(17, coap_pkt->payload_len);
 
-    // test the encoded payload (is a COSE nonce sync with nonce)
-    const uint8_t payload_encoded[31] = {
-        0xBF, 0x61, 0x70, 0x45, 0x86, 0x37, 0x00, 0x00, 0x00, 0x61, 0x75,
-        0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x40, 0x61, 0x6d, 0x48,
-        0xb8, 0x73, 0xc0, 0x15, 0x13, 0x95, 0x94, 0xee, 0xff};
+    // test the encoded payload (is a COSE MAC0 with nonce=55)
+    const uint8_t payload_encoded[31] = {0x84,
+                                         0x44,
+                                         0xa1,
+                                         0x05,
+                                         0x18,
+                                         0x37,
+                                         0xa0,
+                                         0x40,
+                                         0x48,
+                                         0x79,
+                                         0x61,
+                                         0x7b,
+                                         0x6b,
+                                         0xcf,
+                                         0xbf,
+                                         0x26,
+                                         0xeb};
 
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
         payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -1668,48 +1470,25 @@ void test_receive_secured_get__server_response_is_nonce_sync_406__server_nonce_u
     coap_set_header_uri_path(&request_packet, "/nx/pc", strlen("/nx/pc"));
     coap_set_header_content_format(&request_packet, APPLICATION_COSE_MAC0);
 
-    // MAC value determined from computed result
-    const uint8_t mac[8] = {0x72, 0xD4, 0xBA, 0xEF, 0x61, 0x5C, 0x71, 0x70};
+    // create a cose mac0 signed payload and set it as the packet payload
+    const nexus_cose_mac0_common_macparams_t mac_params = {
+        &link_key,
+        54, // 54 < 55, should trigger a nonce sync
+        // aad
+        {
+            request_packet.code,
+            (uint8_t*) request_packet.uri_path,
+            request_packet.uri_path_len,
+        },
+        NULL, // get request, no payload
+        0,
+    };
 
-    uint8_t protected_header[5] = {0};
-    protected_header[0] = COAP_GET;
-    uint32_t nonce = 54; // 54 < 55, should trigger a nonce sync
-    memcpy(&protected_header[1], &nonce, sizeof(uint32_t));
-
-    // encode the outgoing data to test
-    uint8_t enc_data[OC_BLOCK_SIZE] = {0};
-    oc_rep_new(enc_data, OC_BLOCK_SIZE);
-
-    oc_rep_begin_root_object();
-    // 'protected' in a bstr; single byte for CoAP type code
-    oc_rep_set_byte_string(root, p, protected_header, 5);
-
-    // empty payload (GET)
-    char payload[1] = "";
-
-    // 'unprotected' elements as a map of length 2
-    oc_rep_open_object(root, u);
-    oc_rep_set_uint(u, 4, 15); // key id 15
-    oc_rep_close_object(root, u);
-    // 'payload' in a bstr
-    oc_rep_set_byte_string(root, d, payload, strlen(payload));
-    // 'tag' in a bstr
-    oc_rep_set_byte_string(root, m, mac, sizeof(mac));
-    oc_rep_end_root_object();
-
-    int enc_size = oc_rep_get_encoded_payload_size();
-
-    // lifted from oc_ri.c to initialize oc_rep memory
-    char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-    oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-    memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-    memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-    struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                  OC_MAX_NUM_REP_OBJECTS,
-                                  rep_objects_alloc,
-                                  (void*) rep_objects_pool,
-                                  0};
-    oc_rep_set_pool(&rep_objects);
+    uint8_t enc_data[NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE];
+    size_t enc_size;
+    nexus_cose_error encode_result = nexus_cose_mac0_sign_encode_message(
+        &mac_params, enc_data, sizeof(enc_data), &enc_size);
+    TEST_ASSERT_EQUAL(NEXUS_COSE_ERROR_NONE, encode_result);
 
     coap_set_payload(&request_packet, enc_data, enc_size);
     // includes security information
@@ -1741,7 +1520,7 @@ void test_receive_secured_get__server_response_is_nonce_sync_406__server_nonce_u
     nxp_channel_network_send_StubWithCallback(
         CALLBACK_test_receive_secured_get__server_response_is_nonce_sync_406__server_nonce_unchanged__nxp_channel_network_send);
 
-    // one event for outgoing message
+    // one pending event for previously received message (from oc_network_event)
     TEST_ASSERT_EQUAL(1, oc_process_nevents());
     nexus_channel_core_process(0);
 
@@ -1770,14 +1549,10 @@ static void nexus_channel_test_fake_resource_get_handler_valid(
 void _get_nx_pc_response_handler_verify_payload_is_not_cose_mac0(
     nx_channel_client_response_t* response)
 {
-    oc_rep_t* rep = response->payload;
-    nexus_security_mode0_cose_mac0_t mac0_data;
-    bool is_parseable_cose_mac0 =
-        _nexus_channel_sm_parse_cose_mac0(rep, &mac0_data);
-    TEST_ASSERT_FALSE(is_parseable_cose_mac0);
-
     // equal to payload constructed in
     // `nexus_channel_test_fake_resource_get_handler_valid`
+    // which is not a MAC0 payload
+    oc_rep_t* rep = response->payload;
     TEST_ASSERT_EQUAL(OC_REP_INT, rep->type);
     TEST_ASSERT_EQUAL(0, strcmp(oc_string(rep->name), "'fakepayloadkey'"));
     TEST_ASSERT_EQUAL(5, rep->value.integer);
@@ -1810,6 +1585,8 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_valid__client_app_receive
         COAP_NO_ERROR,
         coap_udp_parse_message(coap_pkt, message.data, message.length));
 
+    // Here, we are sending a request outboung to `nx/myfakeuri` with a valid
+    // nonce
     if (NumCalls == 0)
     {
         TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
@@ -1819,16 +1596,29 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_valid__client_app_receive
         // 'nx/pc'
         const char* uri_path;
         size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
-        TEST_ASSERT_EQUAL(12, path_len);
-        TEST_ASSERT_EQUAL_STRING_LEN("nx/myfakeuri", uri_path, 12);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
         // has COSE MAC0 payload (secured GET message)
-        TEST_ASSERT_EQUAL(31, coap_pkt->payload_len);
+        TEST_ASSERT_EQUAL(17, coap_pkt->payload_len);
 
-        // test the encoded payload (is a COSE MAC0 for GET)
-        const uint8_t payload_encoded[31] = {
-            0xBF, 0x61, 0x70, 0x45, 0x01, 0x19, 0x00, 0x00, 0x00, 0x61, 0x75,
-            0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x40, 0x61, 0x6d, 0x48,
-            0xbf, 0xd0, 0xef, 0x61, 0xcc, 0xcd, 0x0e, 0x46, 0xff};
+        // test the encoded payload (is a COSE MAC0 for GET, no payload)
+        const uint8_t payload_encoded[17] = {0x84,
+                                             0x44,
+                                             0xa1,
+                                             0x05,
+                                             0x18,
+                                             0x1A,
+                                             0xa0,
+                                             0x40,
+                                             0x48,
+                                             0xa3,
+                                             0xeb,
+                                             0x39,
+                                             0x20,
+                                             0xde,
+                                             0x15,
+                                             0xe5,
+                                             0x42};
 
         TEST_ASSERT_EQUAL_UINT8_ARRAY(
             payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -1838,9 +1628,12 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_valid__client_app_receive
         // We have to set up another expect here to handle the second send
         // (which will be handled within this stub in the `NumCalls == 1`
         // block below)
+
         nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
         nx_channel_network_receive(bytes_to_send, bytes_count, source);
     }
+    // here, we are sending a response to the message sent in `NumCalls == 0`,
+    // with a valid, secured response payload.
     else if (NumCalls == 1)
     {
         // data being sent here is a 'response' to the initial request
@@ -1856,31 +1649,35 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_valid__client_app_receive
         size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
         TEST_ASSERT_EQUAL(0, path_len);
         // has COSE MAC0 payload (secured GET message)
-        TEST_ASSERT_EQUAL(51, coap_pkt->payload_len);
+        TEST_ASSERT_EQUAL(37, coap_pkt->payload_len);
 
         // test the encoded payload (is a COSE MAC0 for server response to GET)
-        const uint8_t payload_encoded[51] = {
-            0xBF, 0x61, 0x70, 0x45, 0x45, 0x19, 0x00, 0x00, 0x00, 0x61, 0x75,
-            0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x54, 0xBF, 0x70, 0x27,
-            0x66, 0x61, 0x6B, 0x65, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
-            0x6b, 0x65, 0x79, 0x27, 0x05, 0xff, 0x61, 0x6d, 0x48, 0x20, 0x6f,
-            0x4c, 0xeb, 0xe2, 0x73, 0xca, 0x4f, 0xff};
+        // [h'A105181A', {}, h'BF702766616B657061796C6F61646B65792705FF',
+        // h'C77322FC22D268AB'] encapsulated payload (BF702766...) decodes as:
+        // {"'fakepayloadkey'": 5}
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x44, 0xA1, 0x05, 0x18, 0x1A, 0xA0, 0x54, 0xBF, 0x70,
+            0x27, 0x66, 0x61, 0x6B, 0x65, 0x70, 0x61, 0x79, 0x6C, 0x6F,
+            0x61, 0x64, 0x6B, 0x65, 0x79, 0x27, 0x05, 0xFF, 0x48, 0xC7,
+            0x73, 0x22, 0xFC, 0x22, 0xD2, 0x68, 0xAB};
 
         TEST_ASSERT_EQUAL_UINT8_ARRAY(
             payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
 
-        // here, we 'receive' the sent data, completing the end-to-end
-        // round trip
-        nxp_common_request_processing_Expect();
+        // here, we 'receive' the sent data, which will be passed to the
+        // response handler. No further messages are sent.
         nx_channel_network_receive(bytes_to_send, bytes_count, source);
     }
     else
     {
         OC_WRN("Value of calls %d\n", NumCalls);
-        // this callback is used only twice
+        // this callback is used only twice - if we reach this 'else'
+        // block, it means that the response we sent from the previous
+        // loop has triggered *another* response. A response should
+        // never trigger a response (even a nonce sync), only requests
+        // should trigger responses.
         TEST_ASSERT_FALSE(1);
     }
-
     return NX_CHANNEL_ERROR_NONE;
 }
 
@@ -1925,19 +1722,20 @@ void test_do_secured_get__server_response_nonce_is_valid__client_app_receives_re
     // controller to the secured resource/method (GET /nx/pc).
     nxp_common_request_processing_Expect();
     nx_channel_error result = nx_channel_do_get_request_secured(
-        "nx/myfakeuri",
+        "nx/fakeuri",
         &linked_id,
         NULL,
         // *RESPONSE* handler
         &_get_nx_pc_response_handler_verify_payload_is_not_cose_mac0,
         NULL);
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
 
     // serve the same resource that we made a request to GET, and secure the
     // GET
     const struct nx_channel_resource_props fake_res_props = {
-        .uri = "nx/myfakeuri",
+        .uri = "nx/fakeuri",
         .resource_type = "angaza.com.nexus.fake_resource",
         .rtr = 65001,
         .num_interfaces = 2,
@@ -1951,28 +1749,32 @@ void test_do_secured_get__server_response_nonce_is_valid__client_app_receives_re
     nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
 
-    // should send a request to the network
-    // examine the raw data sent to network
-    nxp_channel_network_send_StopIgnore();
-    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
-    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
-
     // will be called as a result of `oc_do_get`
     // This callback is configured to check the outbound data for expected
     // values, then 'receive' the data
     // Here, nonce is correct (25), and we'll call `get_handler_valid`
-    nxp_channel_network_send_StubWithCallback(
+    nxp_channel_network_send_Stub(
         CALLBACK_test_do_secured_get__server_response_nonce_is_valid__client_app_receives_response__nx_channel_network_send);
 
-    // Still 1 (waiting to send outbound message)
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
-    nxp_common_request_processing_Expect();
+    // Still haven't polled to handle pending processes
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // Calling `core_process` will cause our earlier call of
+    // `nx_channel_do_get_request_secured` to be handled, sending an outbound
+    // message. We'll capture and examine that message (and subsequent calls)
+    // inside our `nxp_channel_network_send_Stub`, but we need these expects
+    // here for the first call.
+    nxp_common_request_processing_Ignore();
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
     nexus_channel_core_process(0);
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
 }
 
-// Checks that the payload doesn't appear to be COSE MAC0, as the
-// client response handler should not see the security wrapper
+// simple response handler to test that a request which will cause an
+// error response will not be passed down to the application layer response
+// handler
 void _get_nx_pc_response_handler_should_not_be_called(
     nx_channel_client_response_t* response)
 {
@@ -2016,16 +1818,29 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_r
         // 'nx/pc'
         const char* uri_path;
         size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
-        TEST_ASSERT_EQUAL(12, path_len);
-        TEST_ASSERT_EQUAL_STRING_LEN("nx/myfakeuri", uri_path, 12);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
         // has COSE MAC0 payload (secured GET message)
-        TEST_ASSERT_EQUAL(31, coap_pkt->payload_len);
+        TEST_ASSERT_EQUAL(17, coap_pkt->payload_len);
 
-        // test the encoded payload (is a COSE MAC0 for GET)
-        const uint8_t payload_encoded[31] = {
-            0xBF, 0x61, 0x70, 0x45, 0x01, 0x19, 0x00, 0x00, 0x00, 0x61, 0x75,
-            0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x40, 0x61, 0x6d, 0x48,
-            0xbf, 0xd0, 0xef, 0x61, 0xcc, 0xcd, 0x0e, 0x46, 0xff};
+        // test the encoded payload (is a COSE MAC0 for GET with nonce=26)
+        const uint8_t payload_encoded[17] = {0x84,
+                                             0x44,
+                                             0xA1,
+                                             0x05,
+                                             0x18,
+                                             0x1a,
+                                             0xA0,
+                                             0x40,
+                                             0x48,
+                                             0xa3,
+                                             0xeb,
+                                             0x39,
+                                             0x20,
+                                             0xde,
+                                             0x15,
+                                             0xe5,
+                                             0x42};
 
         TEST_ASSERT_EQUAL_UINT8_ARRAY(
             payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -2040,11 +1855,10 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_r
     }
     else if (NumCalls == 1)
     {
-        // data being sent here is a 'response' to the initial request
-        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
-
         // response generated in
         // `nexus_channel_test_fake_resource_get_handler_valid`
+        // data being sent here is a 'response' to the initial request
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
         TEST_ASSERT_EQUAL(CONTENT_2_05, coap_pkt->code);
         TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
 
@@ -2053,15 +1867,15 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_r
         size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
         TEST_ASSERT_EQUAL(0, path_len);
         // has COSE MAC0 payload (secured GET message)
-        TEST_ASSERT_EQUAL(51, coap_pkt->payload_len);
+        TEST_ASSERT_EQUAL(37, coap_pkt->payload_len);
 
-        // test the encoded payload (is a COSE MAC0 for server response to GET)
-        const uint8_t payload_encoded[51] = {
-            0xBF, 0x61, 0x70, 0x45, 0x45, 0x19, 0x00, 0x00, 0x00, 0x61, 0x75,
-            0xBF, 0x61, 0x34, 0x00, 0xFF, 0x61, 0x64, 0x54, 0xBF, 0x70, 0x27,
-            0x66, 0x61, 0x6B, 0x65, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
-            0x6b, 0x65, 0x79, 0x27, 0x05, 0xff, 0x61, 0x6d, 0x48, 0x20, 0x6f,
-            0x4c, 0xeb, 0xe2, 0x73, 0xca, 0x4f, 0xff};
+        // test the encoded payload (is a CoAP message with response code
+        // 0x44 = decimal 68 = "CHANGED_2_04"
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x44, 0xa1, 0x05, 0x18, 0x1a, 0xa0, 0x54, 0xbf, 0x70,
+            0x27, 0x66, 0x61, 0x6b, 0x65, 0x70, 0x61, 0x79, 0x6c, 0x6f,
+            0x61, 0x64, 0x6b, 0x65, 0x79, 0x27, 0x05, 0xff, 0x48, 0xc7,
+            0x73, 0x22, 0xfc, 0x22, 0xd2, 0x68, 0xab};
 
         TEST_ASSERT_EQUAL_UINT8_ARRAY(
             payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
@@ -2077,21 +1891,57 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_r
                                                                &sec_data.mode0);
         TEST_ASSERT_TRUE(sec_data_exists);
 
-        TEST_ASSERT_EQUAL(25, sec_data.mode0.nonce);
+        TEST_ASSERT_EQUAL(26, sec_data.mode0.nonce);
 
-        // incoming message has a nonce of 25, by setting our nonce to 26
-        // we will reject the response (not call response handler)
-        nexus_channel_link_manager_set_security_data_auth_nonce(&linked_id, 26);
+        // response message has a nonce of 26, same as the outbound request.
+        // Normally, we'd accept this response:
+        // sent with nonce = 26 (local nonce = 26)
+        // response nonce = 26 (local nonce = 26, accepted)
+        // but, since here we're overriding the local nonce to be 27, we won't
+        // call the response handler - and should instead trigger a 'nonce sync'
+        // response.
+        nexus_channel_link_manager_set_security_data_auth_nonce(&linked_id, 27);
 
         // one from calling `nx_channel_network_receive`
-        nxp_common_request_processing_Expect();
         nx_channel_network_receive(bytes_to_send, bytes_count, source);
     }
     else
     {
-        OC_WRN("Value of calls %d\n", NumCalls);
-        // this callback is used only twice
-        TEST_ASSERT_FALSE(1);
+        // here, we are sending the nonce sync response back in response
+        // to the request. Since we locally updated the nonce to 27 (see above),
+        // we expect to see 27 as the value sent here.
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(17, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for server response to GET)
+        const uint8_t payload_encoded[17] = {0x84,
+                                             0x44,
+                                             0xa1,
+                                             0x05,
+                                             0x18,
+                                             0x1b,
+                                             0xa0,
+                                             0x40,
+                                             0x48,
+                                             0x01,
+                                             0x6f,
+                                             0x82,
+                                             0x27,
+                                             0xf0,
+                                             0x65,
+                                             0x58,
+                                             0x63};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
     }
 
     return NX_CHANNEL_ERROR_NONE;
@@ -2103,6 +1953,13 @@ CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_r
 // (gets to the server's handler for the request), and a response is
 // sent back to the client. HOWEVER, the server response is invalid (invalid
 // nonce) and is dropped by the client.
+//
+// 1. Send valid request message (GET)
+// 2. Receive valid request message from #1, generate a valid 2xx responmse
+// 3. Manually update the security data/nonce on the simulated device
+// 4. Send back the response created in #2
+// 5. Requester silently drops the response (response with invalid nonce is
+// silently ignored)
 //
 // Test does not verify message contents already confirmed by
 // `test_do_secured_get__server_response_nonce_is_valid__client_app_receives_response`
@@ -2117,6 +1974,9 @@ void test_do_secured_get__server_response_nonce_is_invalid__client_ignores_respo
     struct nx_common_check_key link_key;
     memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
 
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
     union nexus_channel_link_security_data sec_data = {
         0}; // nonce and sym key are set explicitly below
 
@@ -2125,7 +1985,6 @@ void test_do_secured_get__server_response_nonce_is_invalid__client_ignores_respo
     memcpy(
         &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
 
-    nxp_common_request_processing_Expect();
     // this device will be linked to
     nexus_channel_link_manager_create_link(
         &linked_id,
@@ -2135,23 +1994,10 @@ void test_do_secured_get__server_response_nonce_is_invalid__client_ignores_respo
     nexus_channel_core_process(0);
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
 
-    // Now, simulate sending a secured request from this linked accessory to the
-    // controller to the secured resource/method (GET /nx/pc)
-    nxp_common_request_processing_Expect();
-    nx_channel_error result = nx_channel_do_get_request_secured(
-        "nx/myfakeuri",
-        &linked_id,
-        NULL,
-        // *RESPONSE* handler
-        &_get_nx_pc_response_handler_should_not_be_called,
-        NULL);
-    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
-
-    // serve the same resource that we made a request to GET, and secure the
+    // serve a fake resource we will attempt to get
     // GET
     const struct nx_channel_resource_props fake_res_props = {
-        .uri = "nx/myfakeuri",
+        .uri = "nx/fakeuri",
         .resource_type = "angaza.com.nexus.fake_resource",
         .rtr = 65001,
         .num_interfaces = 2,
@@ -2164,23 +2010,1375 @@ void test_do_secured_get__server_response_nonce_is_invalid__client_ignores_respo
 
     nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
     TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method (GET /nx/pc)
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, we won't call this as the response should
+        // be a nonce sync, not a valid response -- so the security layer
+        // should capture the response instead of invoking the response handler
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
 
     // should send a request to the network
     // examine the raw data sent to network
     nxp_channel_network_send_StopIgnore();
-    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
-    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
 
     // will be called as a result of `oc_do_get`
     // This callback is configured to check the outbound data for expected
     // values, then 'receive' the data
-    nxp_channel_network_send_StubWithCallback(
+    nxp_channel_network_send_Stub(
         CALLBACK_test_do_secured_get__server_response_nonce_is_invalid__client_ignores_response__nx_channel_network_send);
 
-    // Still 1 (waiting to send outbound message)
-    TEST_ASSERT_EQUAL(1, oc_process_nevents());
-    nxp_common_request_processing_Expect();
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
     nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+}
+
+nx_channel_error
+CALLBACK_test_do_secured_get__server_response_nonce_nearing_overflow_should_reset__client_resets_local_nonce__nx_channel_network_send(
+    const void* const bytes_to_send,
+    unsigned int bytes_count,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
+    bool is_multicast,
+    int NumCalls)
+{
+    (void) source;
+    (void) dest;
+    TEST_ASSERT_FALSE(is_multicast);
+
+    // Note: Breakpoint here and examine bytes_to_send and bytes_count
+    // to get the 'raw' data which would be sent on the wire
+
+    // interpret the message sent as oc_message_t
+    oc_message_t message = {0};
+    message.length = bytes_count;
+    memcpy(message.data, bytes_to_send, message.length);
+
+    coap_packet_t coap_pkt[1];
+    TEST_ASSERT_EQUAL(
+        COAP_NO_ERROR,
+        coap_udp_parse_message(coap_pkt, message.data, message.length));
+
+    // this is the original outbound client request - a valid message
+    if (NumCalls == 0)
+    {
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        // 'nx/pc'
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // nonce=4294967265 - nonce NV write interval)
+        const uint8_t payload_encoded[20] = {
+            0x84, 0x47, 0xA1, 0x05, 0x1A, 0xFF, 0xFF, 0xFF, 0xC1, 0xA0,
+            0x40, 0x48, 0x78, 0x27, 0x5f, 0xfe, 0x80, 0x85, 0x70, 0x04};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // In this test, loop the outbound data back to the same device under
+        // test (which is also acting as a server for the secured request)
+        // We have to set up another expect here to handle the second send
+        // (which will be handled within this stub in the `NumCalls == 1`
+        // block below)
+        nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 1)
+    {
+        // response being sent back here by the 'server' receiving the
+        // previous request will be a 406 nonce sync with a special reset value
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a CoAP message with response code 406
+        // and nonce of 0xFFFFFFFF)
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x47, 0xa1, 0x05, 0x1a, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0x40, 0x48, 0x91, 0x7c, 0x6d, 0x28, 0x4f, 0x7e, 0xa3, 0x93};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // arbitrary ID from related test
+        struct nx_id linked_id = {0};
+        linked_id.authority_id = 53932;
+        linked_id.device_id = 4244308258;
+        union nexus_channel_link_security_data sec_data;
+
+        bool sec_data_exists =
+            nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                               &sec_data.mode0);
+
+        TEST_ASSERT_TRUE(sec_data_exists);
+        // because server and client are the same device here, the server
+        // sending the nonce sync has already reset the link nonce to 0.
+        TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
+
+        // response message has a nonce of UINT32_MAX, as its a special
+        // nonce sync 'reset'.
+        // Lets set our local nonce to something not-zero, and ensure that
+        // we reset it to 0 after receiving this message
+        nexus_channel_link_manager_set_security_data_auth_nonce(&linked_id, 30);
+
+        // Now, receive the nonce sync reset that is being sent (loop it back
+        // to the 'client'), which should update its nonce from 30 to 0
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 2)
+    {
+        // here, the client is *re-requesting* the original request, but
+        // with an updated nonce in response to a 406 nonce sync.
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(16, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // updated nonce=1)
+        const uint8_t payload_encoded[16] = {0x84,
+                                             0x43,
+                                             0xA1,
+                                             0x05,
+                                             0x01,
+                                             0xA0,
+                                             0x40,
+                                             0x48,
+                                             0x96,
+                                             0x6c,
+                                             0xad,
+                                             0x41,
+                                             0xff,
+                                             0x3a,
+                                             0x13,
+                                             0x84};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // loop the requested back to the same device under test -- here,
+        // this is the client 'resending' the request after updating its nonce
+        // to the server again (which should send a valid response next,
+        // not another nonce sync)
+        nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 3)
+    {
+        // second response being sent back by the server, in response to
+        // the second request sent by the client with the updated nonce.
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(CONTENT_2_05, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured CONTENT_2_05 response)
+        TEST_ASSERT_EQUAL(36, coap_pkt->payload_len);
+
+        const uint8_t payload_encoded[36] = {
+            0x84, 0x43, 0xa1, 0x05, 0x01, 0xa0, 0x54, 0xbf, 0x70,
+            0x27, 0x66, 0x61, 0x6b, 0x65, 0x70, 0x61, 0x79, 0x6c,
+            0x6f, 0x61, 0x64, 0x6b, 0x65, 0x79, 0x27, 0x05, 0xff,
+            0x48, 0xb7, 0xd7, 0xf7, 0xc8, 0x0d, 0x7f, 0x49, 0x68};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // arbitrary ID from related test
+        struct nx_id linked_id = {0};
+        linked_id.authority_id = 53932;
+        linked_id.device_id = 4244308258;
+        union nexus_channel_link_security_data sec_data;
+
+        bool sec_data_exists =
+            nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                               &sec_data.mode0);
+
+        TEST_ASSERT_TRUE(sec_data_exists);
+        // still have a nonce of 1
+        TEST_ASSERT_EQUAL(1, sec_data.mode0.nonce);
+
+        // send valid reply back to the client after nonce updated
+        // we do *not* expect another nxp_channel_network_send to be called
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else
+    {
+        // should be no other sent NXC messages
+        TEST_ASSERT_FALSE(1);
+    }
+
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// simple response handler to test that a request which will cause an
+// error response will not be passed down to the application layer response
+// handler
+void _get_nx_pc_response_handler_finally_receives_ok(
+    nx_channel_client_response_t* response)
+{
+    // equal to payload constructed in
+    // `nexus_channel_test_fake_resource_get_handler_valid`
+    // which is not a MAC0 payload
+    oc_rep_t* rep = response->payload;
+    TEST_ASSERT_EQUAL(OC_REP_INT, rep->type);
+    TEST_ASSERT_EQUAL(0, strcmp(oc_string(rep->name), "'fakepayloadkey'"));
+    TEST_ASSERT_EQUAL(5, rep->value.integer);
+    TEST_ASSERT_EQUAL(NULL, rep->next);
+}
+
+// Simulate a linked accessory (linked to itself as a server) which sends
+// a secured GET request (as a client) with a valid nonce to a test resource.
+// However, before sending the GET request, set the link nonce to a very large
+// value (UINT32_MAX - 5).
+//
+// This should cause the server to accept the message as valid, but respond
+// with a nonce sync to reset the nonce to 0. We check that the message sent
+// to the client is this value, and that no subsequent message is sent again.
+//
+// We may need to update this test once nonce sync has 'automatic retries' to
+// account for the clients retry with its new nonce of 0.
+//
+// 1. Send valid request message (GET) with high valued nonce (as client)
+// 2. Receive valid request message from #1, set local nonce to 0, generate a
+// 406 response with 'reset nonce' value (as server)
+// 3. Manually update the security data/nonce on the client device (set nonce to
+// some nonzero value)
+// 4. Send back the response created in #2 to the original client
+// 5. Client receives the nonce sync, and resets its nonce to 0.
+// 6. Client *resends* the previously sent request (from step 1) with a correct
+// nonce.
+// 7. Server receives the valid request, processes it, sends a valid response
+// (not nonce sync)
+// 8. Client receives and processes the valid response.
+
+void test_do_secured_get__server_response_nonce_nearing_overflow_should_reset__client_resets_local_nonce(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce =
+        UINT32_MAX -
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT + 1;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // this device will be linked to
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // serve a fake resource we will attempt to get
+    // GET
+    const struct nx_channel_resource_props fake_res_props = {
+        .uri = "nx/fakeuri",
+        .resource_type = "angaza.com.nexus.fake_resource",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // *REQUEST* handler
+        .get_handler = nexus_channel_test_fake_resource_get_handler_valid,
+        .get_secured = true, // we are testing the secured GET handler behavior
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method (GET /nx/pc)
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, we will eventually call this - once the
+        // nonce sync completes and we retry (automatically) with a new nonce.
+        &_get_nx_pc_response_handler_finally_receives_ok,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // should send a request to the network
+    // examine the raw data sent to network
+    nxp_channel_network_send_StopIgnore();
+
+    // will be called as a result of `oc_do_get`
+    // This callback is configured to check the outbound data for expected
+    // values, then 'receive' the data
+    nxp_channel_network_send_Stub(
+        CALLBACK_test_do_secured_get__server_response_nonce_nearing_overflow_should_reset__client_resets_local_nonce__nx_channel_network_send);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes, and all message buffers are empty
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+    // transactions
+    TEST_ASSERT_EQUAL(COAP_MAX_OPEN_TRANSACTIONS,
+                      coap_transactions_free_count());
+    // client callbacks
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS + 1,
+                      oc_ri_client_cb_free_count());
+    // oc_message incoming/outgoing buffers
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS,
+                      oc_buffer_outgoing_free_count());
+    // 1 incoming buffer consumed within test setup function...
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_incoming_free_count());
+
+    // after this nonce sync reset occurs, the new nonce is 1 - we were
+    // reset to 0 upon receiving the nonce sync,
+    bool sec_data_exists = nexus_channel_link_manager_security_data_from_nxid(
+        &linked_id, &sec_data.mode0);
+
+    TEST_ASSERT_TRUE(sec_data_exists);
+
+    // because server and client are the same device here, the server
+    // sending the nonce sync has already reset the link nonce to 0. It then
+    // sent the reset nonce sync message to the 'client', which will then
+    // reset its own local nonce to 0 after receiving it.
+    // The client will *retry* the previous request with an increased
+    // nonce of 1 because the server expects to receive messages with
+    // nonces greater than its own.
+    TEST_ASSERT_EQUAL(1, sec_data.mode0.nonce);
+}
+
+nx_channel_error
+CALLBACK_test_do_secured_get__server_response_nonce_sync__transaction_endpoint_changed__fails(
+    const void* const bytes_to_send,
+    unsigned int bytes_count,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
+    bool is_multicast,
+    int NumCalls)
+{
+    (void) source;
+    (void) dest;
+    TEST_ASSERT_FALSE(is_multicast);
+
+    // Note: Breakpoint here and examine bytes_to_send and bytes_count
+    // to get the 'raw' data which would be sent on the wire
+
+    // interpret the message sent as oc_message_t
+    oc_message_t message = {0};
+    message.length = bytes_count;
+    memcpy(message.data, bytes_to_send, message.length);
+
+    coap_packet_t coap_pkt[1];
+    TEST_ASSERT_EQUAL(
+        COAP_NO_ERROR,
+        coap_udp_parse_message(coap_pkt, message.data, message.length));
+
+    // this is the original outbound client request - a valid message
+    if (NumCalls == 0)
+    {
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        // 'nx/pc'
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // nonce=4294967265 - nonce NV write interval)
+        const uint8_t payload_encoded[20] = {
+            0x84, 0x47, 0xA1, 0x05, 0x1A, 0xFF, 0xFF, 0xFF, 0xC1, 0xA0,
+            0x40, 0x48, 0x78, 0x27, 0x5f, 0xfe, 0x80, 0x85, 0x70, 0x04};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // In this test, loop the outbound data back to the same device under
+        // test (which is also acting as a server for the secured request)
+        // We have to set up another expect here to handle the second send
+        // (which will be handled within this stub in the `NumCalls == 1`
+        // block below)
+        nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 1)
+    {
+        // response being sent back here by the 'server' receiving the
+        // previous request will be a 406 nonce sync with a fixed value
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a CoAP message with response code 406
+        // and nonce of 0xFFFFFFFF)
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x47, 0xa1, 0x05, 0x1a, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0x40, 0x48, 0x91, 0x7c, 0x6d, 0x28, 0x4f, 0x7e, 0xa3, 0x93};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // arbitrary ID from related test
+        struct nx_id linked_id = {0};
+        linked_id.authority_id = 53932;
+        linked_id.device_id = 4244308258;
+        union nexus_channel_link_security_data sec_data;
+
+        bool sec_data_exists =
+            nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                               &sec_data.mode0);
+
+        TEST_ASSERT_TRUE(sec_data_exists);
+        // because server and client are the same device here, the server
+        // sending the nonce sync has already reset the link nonce to 0.
+        TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
+
+        // clear out the endpoint of the buffered request
+        coap_transaction_t* buffered_t =
+            coap_get_transaction_by_mid(coap_pkt->mid);
+        TEST_ASSERT_NOT_EQUAL(buffered_t, NULL);
+        memset(&buffered_t->message->endpoint, 0x00, sizeof(oc_endpoint_t));
+
+        // will not send any response
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else
+    {
+        // no other calls
+        TEST_ASSERT_FALSE(true);
+    }
+
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// Simulate a linked accessory (linked to itself as a server) which sends
+// a secured GET request (as a client) with a valid nonce to a test resource.
+//
+// However, before the 'server' hosting the test resource receives the request,
+// we modify the server state or the request contents in some way to cause
+// it to be invalid.
+// Test ensures this is handled gracefully.
+void test_do_secured_get__server_response_nonce_sync__transaction_endpoint_changed__fails(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce =
+        UINT32_MAX -
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT + 1;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // this device will be linked to
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // serve a fake resource we will attempt to get
+    // GET
+    const struct nx_channel_resource_props fake_res_props = {
+        .uri = "nx/fakeuri",
+        .resource_type = "angaza.com.nexus.fake_resource",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // *REQUEST* handler
+        .get_handler = nexus_channel_test_fake_resource_get_handler_valid,
+        .get_secured = true, // we are testing the secured GET handler behavior
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method (GET /nx/pc)
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, we will eventually call this - once the
+        // nonce sync completes and we retry (automatically) with a new nonce.
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`
+    // This callback is configured to check the outbound data for expected
+    // values, then 'receive' the data
+    nxp_channel_network_send_Stub(
+        CALLBACK_test_do_secured_get__server_response_nonce_sync__transaction_endpoint_changed__fails);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes, and all message buffers are empty
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+}
+
+nx_channel_error
+CALLBACK_test_do_secured_get__server_response_nonce_sync__transaction_deleted_before_resend_occurs__fails(
+    const void* const bytes_to_send,
+    unsigned int bytes_count,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
+    bool is_multicast,
+    int NumCalls)
+{
+    (void) source;
+    (void) dest;
+    TEST_ASSERT_FALSE(is_multicast);
+
+    // Note: Breakpoint here and examine bytes_to_send and bytes_count
+    // to get the 'raw' data which would be sent on the wire
+
+    // interpret the message sent as oc_message_t
+    oc_message_t message = {0};
+    message.length = bytes_count;
+    memcpy(message.data, bytes_to_send, message.length);
+
+    coap_packet_t coap_pkt[1];
+    TEST_ASSERT_EQUAL(
+        COAP_NO_ERROR,
+        coap_udp_parse_message(coap_pkt, message.data, message.length));
+
+    // this is the original outbound client request - a valid message
+    if (NumCalls == 0)
+    {
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        // 'nx/pc'
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // nonce=4294967265 - nonce NV write interval)
+        const uint8_t payload_encoded[20] = {
+            0x84, 0x47, 0xA1, 0x05, 0x1A, 0xFF, 0xFF, 0xFF, 0xC1, 0xA0,
+            0x40, 0x48, 0x78, 0x27, 0x5f, 0xfe, 0x80, 0x85, 0x70, 0x04};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // In this test, loop the outbound data back to the same device under
+        // test (which is also acting as a server for the secured request)
+        // We have to set up another expect here to handle the second send
+        // (which will be handled within this stub in the `NumCalls == 1`
+        // block below)
+        nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 1)
+    {
+        // response being sent back here by the 'server' receiving the
+        // previous request will be a 406 nonce sync with a fixed value
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a CoAP message with response code 406
+        // and nonce of 0xFFFFFFFF)
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x47, 0xa1, 0x05, 0x1a, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0x40, 0x48, 0x91, 0x7c, 0x6d, 0x28, 0x4f, 0x7e, 0xa3, 0x93};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // arbitrary ID from related test
+        struct nx_id linked_id = {0};
+        linked_id.authority_id = 53932;
+        linked_id.device_id = 4244308258;
+        union nexus_channel_link_security_data sec_data;
+
+        bool sec_data_exists =
+            nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                               &sec_data.mode0);
+
+        TEST_ASSERT_TRUE(sec_data_exists);
+        // because server and client are the same device here, the server
+        // sending the nonce sync has already reset the link nonce to 0.
+        TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
+
+        // clear all transactions, causing us to lose the buffered message to
+        // resend.
+        coap_free_all_transactions();
+        // will not send any response
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else
+    {
+        // no other calls
+        TEST_ASSERT_FALSE(true);
+    }
+
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// Simulate a linked accessory (linked to itself as a server) which sends
+// a secured GET request (as a client) with a valid nonce to a test resource.
+//
+// However, before the 'server' hosting the test resource receives the request,
+// we modify the server state or the request contents in some way to cause
+// it to be invalid.
+// Test ensures this is handled gracefully.
+void test_do_secured_get__server_response_nonce_sync__transaction_deleted_before_resend_occurs__fails(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce =
+        UINT32_MAX -
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT + 1;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // this device will be linked to
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // serve a fake resource we will attempt to get
+    // GET
+    const struct nx_channel_resource_props fake_res_props = {
+        .uri = "nx/fakeuri",
+        .resource_type = "angaza.com.nexus.fake_resource",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // *REQUEST* handler
+        .get_handler = nexus_channel_test_fake_resource_get_handler_valid,
+        .get_secured = true, // we are testing the secured GET handler behavior
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method (GET /nx/pc)
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, we will eventually call this - once the
+        // nonce sync completes and we retry (automatically) with a new nonce.
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`
+    // This callback is configured to check the outbound data for expected
+    // values, then 'receive' the data
+    nxp_channel_network_send_Stub(
+        CALLBACK_test_do_secured_get__server_response_nonce_sync__transaction_deleted_before_resend_occurs__fails);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes, and all message buffers are empty
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+}
+
+nx_channel_error
+CALLBACK_test_do_secured_get__server_response_nonce_sync__link_lost_before_attempting_resend__ok(
+    const void* const bytes_to_send,
+    unsigned int bytes_count,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
+    bool is_multicast,
+    int NumCalls)
+{
+    (void) source;
+    (void) dest;
+    TEST_ASSERT_FALSE(is_multicast);
+
+    // Note: Breakpoint here and examine bytes_to_send and bytes_count
+    // to get the 'raw' data which would be sent on the wire
+
+    // interpret the message sent as oc_message_t
+    oc_message_t message = {0};
+    message.length = bytes_count;
+    memcpy(message.data, bytes_to_send, message.length);
+
+    coap_packet_t coap_pkt[1];
+    TEST_ASSERT_EQUAL(
+        COAP_NO_ERROR,
+        coap_udp_parse_message(coap_pkt, message.data, message.length));
+
+    // this is the original outbound client request - a valid message
+    if (NumCalls == 0)
+    {
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        // 'nx/pc'
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // nonce=4294967265 - nonce NV write interval)
+        const uint8_t payload_encoded[20] = {
+            0x84, 0x47, 0xA1, 0x05, 0x1A, 0xFF, 0xFF, 0xFF, 0xC1, 0xA0,
+            0x40, 0x48, 0x78, 0x27, 0x5f, 0xfe, 0x80, 0x85, 0x70, 0x04};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // In this test, loop the outbound data back to the same device under
+        // test (which is also acting as a server for the secured request)
+        // We have to set up another expect here to handle the second send
+        // (which will be handled within this stub in the `NumCalls == 1`
+        // block below)
+        nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 1)
+    {
+        // response being sent back here by the 'server' receiving the
+        // previous request will be a 406 nonce sync with a fixed value
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(NOT_ACCEPTABLE_4_06, coap_pkt->code);
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+
+        // response has zero URI path length
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(0, path_len);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(20, coap_pkt->payload_len);
+
+        // test the encoded payload (is a CoAP message with response code 406
+        // and nonce of 0xFFFFFFFF)
+        const uint8_t payload_encoded[37] = {
+            0x84, 0x47, 0xa1, 0x05, 0x1a, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0x40, 0x48, 0x91, 0x7c, 0x6d, 0x28, 0x4f, 0x7e, 0xa3, 0x93};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // arbitrary ID from related test
+        struct nx_id linked_id = {0};
+        linked_id.authority_id = 53932;
+        linked_id.device_id = 4244308258;
+        union nexus_channel_link_security_data sec_data;
+
+        bool sec_data_exists =
+            nexus_channel_link_manager_security_data_from_nxid(&linked_id,
+                                                               &sec_data.mode0);
+
+        TEST_ASSERT_TRUE(sec_data_exists);
+        // because server and client are the same device here, the server
+        // sending the nonce sync has already reset the link nonce to 0.
+        TEST_ASSERT_EQUAL(0, sec_data.mode0.nonce);
+
+        // here, delete the nexus channel link before we are able to resend.
+        // nonce sync 'reset'.
+        // Lets set our local nonce to something not-zero, and ensure that
+        // we reset it to 0 after receiving this message
+        nexus_channel_link_manager_clear_all_links();
+        nexus_channel_link_manager_process(0);
+        // Should elicit an error response
+        nx_channel_network_receive(bytes_to_send, bytes_count, source);
+    }
+    else if (NumCalls == 2)
+    {
+        // response to NumCalls == 1, error message
+        TEST_ASSERT_EQUAL(5, bytes_count);
+
+        const uint8_t expected_bytes[5] = {0x51, 0x81, 0xe2, 0x41, 0x40};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            bytes_to_send, expected_bytes, sizeof(expected_bytes));
+        nexus_channel_core_process(1);
+    }
+    else
+    {
+        // no other calls
+        TEST_ASSERT_FALSE(true);
+    }
+
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// Simulate a linked accessory (linked to itself as a server) which sends
+// a secured GET request (as a client) with a valid nonce to a test resource.
+//
+// However, before the 'server' hosting the test resource receives the request,
+// we modify the server state or the request contents in some way to cause
+// it to be invalid.
+// Test ensures this is handled gracefully.
+void test_do_secured_get__server_response_nonce_sync__link_lost_before_attempting_resend__ok(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce =
+        UINT32_MAX -
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT + 1;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // this device will be linked to
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // serve a fake resource we will attempt to get
+    // GET
+    const struct nx_channel_resource_props fake_res_props = {
+        .uri = "nx/fakeuri",
+        .resource_type = "angaza.com.nexus.fake_resource",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // *REQUEST* handler
+        .get_handler = nexus_channel_test_fake_resource_get_handler_valid,
+        .get_secured = true, // we are testing the secured GET handler behavior
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method (GET /nx/pc)
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, we will eventually call this - once the
+        // nonce sync completes and we retry (automatically) with a new nonce.
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`
+    // This callback is configured to check the outbound data for expected
+    // values, then 'receive' the data
+    nxp_channel_network_send_Stub(
+        CALLBACK_test_do_secured_get__server_response_nonce_sync__link_lost_before_attempting_resend__ok);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes, and all message buffers are empty
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // link was deleted as part of mocked network_send stub
+    TEST_ASSERT_FALSE(nexus_channel_link_manager_security_data_from_nxid(
+        &linked_id, &sec_data.mode0));
+}
+
+/* Simulate a number of secured GET requests, which should be cached in a local
+ * buffer. We should hit a limit (ultimately driven by
+ * `OC_MAX_NUM_CONCURRENT_REQUESTS`) after which we cannot send more secured
+ * messages until the buffered ones clear out (after a timeout elapses).
+ */
+void test_do_secured_get__multiple_requests_consuming_transaction_buffer__buffer_frees_after_timeout(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce =
+        UINT32_MAX -
+        NEXUS_CHANNEL_LINK_SECURITY_NONCE_NV_STORAGE_INTERVAL_COUNT + 1;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // this device will be linked to
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to
+    // itself, which will essentially be ignored
+    // controller to the secured resource/method
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // response handler won't be called, request is never received
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`. We ignore the message,
+    // so no response will be generated.
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+    // transactions
+    TEST_ASSERT_EQUAL(COAP_MAX_OPEN_TRANSACTIONS - 1,
+                      coap_transactions_free_count());
+    // client callbacks (cbs allow 1 + OC_MAX_NUM_CONCURRENT_REQUESTS)
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS,
+                      oc_ri_client_cb_free_count());
+    // oc_message incoming/outgoing buffers
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_outgoing_free_count());
+
+    // 1 incoming buffer consumed within test setup function...
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_incoming_free_count());
+
+    // send another GET request
+    result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // response handler won't be called, request is never received
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+
+    // will be called as a result of `oc_do_get`. We ignore the message,
+    // so no response will be generated.
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // transactions
+    TEST_ASSERT_EQUAL(COAP_MAX_OPEN_TRANSACTIONS - 2,
+                      coap_transactions_free_count());
+    // client callbacks (cbs allow 1 + OC_MAX_NUM_CONCURRENT_REQUESTS)
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_ri_client_cb_free_count());
+    // oc_message incoming/outgoing buffers
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 2,
+                      oc_buffer_outgoing_free_count());
+
+    // 1 incoming buffer consumed within test setup function...
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_incoming_free_count());
+
+    // we've used the max - no more transactions are possible. Will fail
+    // another GET request.
+
+    // send another GET request
+    result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // response handler won't be called, request is never received
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_UNSPECIFIED, result);
+
+    // no pending processes - we didn't trigger any outbound message
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // allow time to elapse - hardcoded to exceed transaction cache timeout
+    // of 5 seconds (by passing 6 seconds as elapsed here).
+    // `nx_common_process` is the interface to update Nexus 'uptime' value.
+    nexus_keycode_core_process_IgnoreAndReturn(0);
+    (void) nx_common_process(6);
+
+    // now, the buffered transactions should be cleared out so we can
+    // make another secured request.
+    result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // response handler won't be called, request is never received
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`. We ignore the message,
+    // so no response will be generated.
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+    // transactions
+    TEST_ASSERT_EQUAL(COAP_MAX_OPEN_TRANSACTIONS - 1,
+                      coap_transactions_free_count());
+    // client callbacks (cbs allow 1 + OC_MAX_NUM_CONCURRENT_REQUESTS)
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS,
+                      oc_ri_client_cb_free_count());
+    // oc_message incoming/outgoing buffers
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_outgoing_free_count());
+
+    TEST_ASSERT_EQUAL(OC_MAX_NUM_CONCURRENT_REQUESTS - 1,
+                      oc_buffer_incoming_free_count());
+}
+
+nx_channel_error
+CALLBACK_test_do_secured_get_to_unsecured_resource__unsecured_reply_ignored(
+    const void* const bytes_to_send,
+    unsigned int bytes_count,
+    const struct nx_id* const source,
+    const struct nx_id* const dest,
+    bool is_multicast,
+    int NumCalls)
+{
+    (void) source;
+    (void) dest;
+    TEST_ASSERT_FALSE(is_multicast);
+
+    // Note: Breakpoint here and examine bytes_to_send and bytes_count
+    // to get the 'raw' data which would be sent on the wire
+
+    // interpret the message sent as oc_message_t
+    oc_message_t message = {0};
+    message.length = bytes_count;
+    memcpy(message.data, bytes_to_send, message.length);
+
+    coap_packet_t coap_pkt[1];
+    TEST_ASSERT_EQUAL(
+        COAP_NO_ERROR,
+        coap_udp_parse_message(coap_pkt, message.data, message.length));
+
+    // this is the original outbound client request - a valid message
+    if (NumCalls == 0)
+    {
+        TEST_ASSERT_EQUAL(COAP_TYPE_NON, coap_pkt->type);
+        TEST_ASSERT_EQUAL(COAP_GET, coap_pkt->code);
+
+        TEST_ASSERT_EQUAL(APPLICATION_COSE_MAC0, coap_pkt->content_format);
+        const char* uri_path;
+        size_t path_len = coap_get_header_uri_path(coap_pkt, &uri_path);
+        TEST_ASSERT_EQUAL(10, path_len);
+        TEST_ASSERT_EQUAL_STRING_LEN("nx/fakeuri", uri_path, 10);
+        // has COSE MAC0 payload (secured GET message)
+        TEST_ASSERT_EQUAL(16, coap_pkt->payload_len);
+
+        // test the encoded payload (is a COSE MAC0 for GET with
+        // nonce=5)
+        const uint8_t payload_encoded[16] = {0x84,
+                                             0x43,
+                                             0xA1,
+                                             0x05,
+                                             0x06,
+                                             0xA0,
+                                             0x40,
+                                             0x48,
+                                             0x2D,
+                                             0x9D,
+                                             0x38,
+                                             0x15,
+                                             0x7F,
+                                             0xAC,
+                                             0xA1,
+                                             0xF9};
+
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(
+            payload_encoded, coap_pkt->payload, sizeof(payload_encoded));
+
+        // simulated reply message from MITM; all correct except that it is
+        // unsecured
+        coap_packet_t mitm_packet;
+        // initialize packet: PUT with arbitrary message ID
+        coap_udp_init_message(
+            &mitm_packet, COAP_TYPE_CON, CONTENT_2_05, coap_pkt->mid);
+        // set the request URI path and content format
+        coap_set_header_uri_path(
+            &mitm_packet, "nx/fakeuri", strlen("nx/fakeuri"));
+        coap_set_header_content_format(&mitm_packet, APPLICATION_VND_OCF_CBOR);
+        coap_set_token(&mitm_packet, coap_pkt->token, coap_pkt->token_len);
+
+        // HELLO WORLD
+        uint8_t unsecured_payload[11] = {
+            0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x20, 0x57, 0x4F, 0x52, 0x4C, 0x44};
+
+        coap_set_payload(
+            &mitm_packet, unsecured_payload, sizeof(unsecured_payload));
+
+        uint8_t out_buffer[NEXUS_CHANNEL_MAX_COAP_TOTAL_MESSAGE_SIZE];
+        size_t out_length =
+            coap_serialize_message((void*) &mitm_packet, out_buffer);
+
+        nx_channel_network_receive((void*) out_buffer, out_length, source);
+    }
+    else
+    {
+        // no other calls
+        TEST_ASSERT_FALSE(true);
+    }
+
+    return NX_CHANNEL_ERROR_NONE;
+}
+
+// Simulate a linked accessory (linked to itself as a server) which sends
+// a secured GET request (as a client) with a valid nonce to an *unsecured*
+// resource.
+//
+// We then simulate a MITM attack by sending back an *unsecured* reply to this
+// request and ensure that the security layer does not allow the client
+// callback function to be invoked.
+void test_do_secured_get_to_unsecured_resource__unsecured_reply_ignored__ok(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 53932;
+    linked_id.device_id = 4244308258;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    // not testing where this is called in this test
+    nxp_common_request_processing_Ignore();
+
+    union nexus_channel_link_security_data sec_data = {
+        0}; // nonce and sym key are set explicitly below
+
+    // set the local nonce to 'a high value' nearing rollover.
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    // link the device
+    nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    nexus_channel_core_process(0);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // serve a fake resource we will attempt to GET
+    const struct nx_channel_resource_props fake_res_props = {
+        .uri = "nx/fakeuri",
+        .resource_type = "angaza.com.nexus.fake_resource",
+        .rtr = 65001,
+        .num_interfaces = 2,
+        .if_masks = if_mask_arr,
+        // *REQUEST* handler
+        .get_handler = nexus_channel_test_fake_resource_get_handler_valid,
+        .get_secured = false, // the resource is UNSECURED
+        .post_handler = NULL,
+        .post_secured = false};
+
+    nx_channel_error reg_result = nx_channel_register_resource(&fake_res_props);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, reg_result);
+    TEST_ASSERT_EQUAL(0, oc_process_nevents());
+
+    // Now, simulate sending a secured request from this linked accessory to the
+    // controller to the secured resource/method
+    nxp_channel_get_nexus_id_IgnoreAndReturn(linked_id);
+    nxp_channel_network_send_ExpectAnyArgsAndReturn(NX_CHANNEL_ERROR_NONE);
+
+    nx_channel_error result = nx_channel_do_get_request_secured(
+        "nx/fakeuri",
+        &linked_id,
+        NULL,
+        // *RESPONSE* handler, should NOT be called in this test
+        &_get_nx_pc_response_handler_should_not_be_called,
+        NULL);
+    TEST_ASSERT_EQUAL(NX_CHANNEL_ERROR_NONE, result);
+    // one event for OUTBOUND_NETWORK_EVENT, + 1 for `poll_requested` flag
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+
+    // will be called as a result of `oc_do_get`
+    // This callback is configured to check the outbound data for expected
+    // values, then 'receive' the data
+    nxp_channel_network_send_Stub(
+        CALLBACK_test_do_secured_get_to_unsecured_resource__unsecured_reply_ignored);
+
+    // Still waiting to send outbound message
+    TEST_ASSERT_EQUAL(2, oc_process_nevents());
+    nexus_channel_core_process(0);
+
+    // ensure there are no pending processes, and all message buffers are empty
     TEST_ASSERT_EQUAL(0, oc_process_nevents());
 }
 

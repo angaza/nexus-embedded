@@ -44,7 +44,7 @@
  *
  * This file is part of the Contiki operating system.
  *
- * Modifications (c) 2020 Angaza, Inc.
+ * Modifications (c) 2021 Angaza, Inc.
  */
 
 // transactions.h includes coap.h which includes oc_config.h
@@ -56,26 +56,25 @@
 #include "utils/oc_list.h"
 #include <string.h>
 
-/*
-#ifdef OC_BLOCK_WISE
-#include "oc_blockwise.h"
-#endif // OC_BLOCK_WISE
-*/
-
 //#ifdef OC_CLIENT
 #include "oc_client_state.h"
 //#endif // OC_CLIENT
 
-/*
-#ifdef OC_SECURITY
-#include "security/oc_tls.h"
-#endif
-*/
+// How long to wait before clearing a cached 'secure' request message.
+// We cache secured messages so that we can automatically retry them
+// if the response indicates the nonce is out of sync, and we need to retry
+#define OC_TRANSACTION_CACHED_IDLE_TIMEOUT_SECONDS 5
+
 /*---------------------------------------------------------------------------*/
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
 static struct oc_process* transaction_handler_process = NULL;
+
+int coap_transactions_free_count(void)
+{
+    return oc_memb_numfree(&transactions_memb);
+}
 
 /*---------------------------------------------------------------------------*/
 /*- Internal API ------------------------------------------------------------*/
@@ -85,7 +84,8 @@ void coap_register_as_transaction_handler(void)
     transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, oc_endpoint_t* endpoint)
+coap_transaction_t* coap_new_transaction(uint16_t mid,
+                                         const oc_endpoint_t* endpoint)
 {
     coap_transaction_t* t =
         (coap_transaction_t*) oc_memb_alloc(&transactions_memb);
@@ -116,10 +116,12 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, oc_endpoint_t* endpoint)
         OC_WRN("insufficient memory to create transaction");
     }
 
+    OC_DBG("Available CoAP transactions: %d\n", coap_transactions_free_count());
+
     return t;
 }
 /*---------------------------------------------------------------------------*/
-void coap_send_transaction(coap_transaction_t* t)
+void coap_send_transaction(coap_transaction_t* t, bool should_cache)
 {
     if (!oc_main_initialized())
     {
@@ -140,13 +142,8 @@ void coap_send_transaction(coap_transaction_t* t)
             true :
             false;
 
-    /*
-    #ifdef OC_TCP
-      if (!(t->message->endpoint.flags & TCP) && confirmable) {
-    #else  // OC_TCP*/
     if (confirmable)
     {
-        //#endif // !OC_TCP
         if (t->retrans_counter < COAP_MAX_RETRANSMIT)
         {
             // not timed out yet
@@ -173,7 +170,7 @@ void coap_send_transaction(coap_transaction_t* t)
 
             oc_message_add_ref(t->message);
 
-            coap_send_message(t->message);
+            oc_send_message(t->message);
 
             t = NULL;
         }
@@ -211,9 +208,37 @@ void coap_send_transaction(coap_transaction_t* t)
 #endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
         oc_message_add_ref(t->message);
 
-        coap_send_message(t->message);
+        oc_send_message(t->message);
 
-        coap_clear_transaction(t);
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        // In some cases, (outbound NX secured requests) we want to buffer
+        // the transaction so we can look it up later by message ID and resend
+        // in the event of a nonce sync.
+        // Don't clear transaction now, but create a timer to clear it later.
+        // When the idle timer expires, PROCESS_EVENT_TIMER will be posted to
+        // the `transaction_handler_process` within coap/engine.c, and
+        // the transaction will be cleared.
+        if (should_cache)
+        {
+            OC_DBG("Starting idle timer for sent transaction...");
+            OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
+            oc_etimer_set(&t->idle_timeout_timer,
+                          OC_TRANSACTION_CACHED_IDLE_TIMEOUT_SECONDS);
+            OC_PROCESS_CONTEXT_END(transaction_handler_process);
+            OC_DBG("Transaction idle timer started for MID %d, interval %d "
+                   "seconds",
+                   (int) t->mid,
+                   (int) t->idle_timeout_timer.timer.interval);
+            t = NULL;
+        }
+        else
+        {
+            coap_clear_transaction(t);
+        }
+#else
+    coap_clear_transaction(t);
+#endif
+
 #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
     }
 #endif // NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
@@ -226,6 +251,9 @@ void coap_clear_transaction(coap_transaction_t* t)
         OC_DBG("Freeing transaction %u: %p", t->mid, (void*) t);
 
         oc_etimer_stop(&t->retrans_timer);
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        oc_etimer_stop(&t->idle_timeout_timer);
+#endif
         oc_message_unref(t->message);
         oc_list_remove(transactions_list, t);
         oc_memb_free(&transactions_memb, t);
@@ -255,12 +283,24 @@ void coap_check_transactions(void)
     while (t != NULL)
     {
         next = t->next;
-        if (oc_etimer_expired(&t->retrans_timer))
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        if (oc_etimer_expired(&t->idle_timeout_timer))
+        {
+            OC_DBG("Clearing transaction with MID %d due to idle timeout\n",
+                   t->mid);
+            oc_ri_free_client_cbs_by_mid(t->mid);
+            coap_clear_transaction(t);
+        }
+        // is 'else if' only if checking idle_timeout_timer first,
+        // otherwise retrans_timer check is standalone
+        else
+#endif
+            if (oc_etimer_expired(&t->retrans_timer))
         {
             ++(t->retrans_counter);
             OC_DBG("Retransmitting %u (%u)", t->mid, t->retrans_counter);
             int removed = oc_list_length(transactions_list);
-            coap_send_transaction(t);
+            coap_send_transaction(t, false);
             if ((removed - oc_list_length(transactions_list)) > 1)
             {
                 t = (coap_transaction_t*) oc_list_head(transactions_list);
@@ -273,9 +313,10 @@ void coap_check_transactions(void)
 /*---------------------------------------------------------------------------*/
 void coap_free_all_transactions(void)
 {
-    coap_transaction_t *t = (coap_transaction_t*) oc_list_head(
-                           transactions_list),
-                       *next;
+    coap_transaction_t* t =
+        (coap_transaction_t*) oc_list_head(transactions_list);
+    coap_transaction_t* next;
+
     while (t != NULL)
     {
         next = t->next;
@@ -284,7 +325,8 @@ void coap_free_all_transactions(void)
     }
 }
 
-void coap_free_transactions_by_endpoint(oc_endpoint_t* endpoint)
+/*
+void coap_free_transactions_by_endpoint(const oc_endpoint_t* endpoint)
 {
     coap_transaction_t *t = (coap_transaction_t*) oc_list_head(
                            transactions_list),
@@ -309,3 +351,4 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t* endpoint)
         t = next;
     }
 }
+*/

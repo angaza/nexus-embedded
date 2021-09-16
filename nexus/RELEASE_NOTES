@@ -6,7 +6,7 @@ Version can be found in `include/MODULE_VERSION.h`.
 changes that do not necessarily impact any functionality outside of the
 embedded repository.
 
-`NEXUS_VERSION` is a systemwide version number, which indicates compatibility
+`NEXUS_GLOBAL_VERSION` (`NEXUS_VERSION` in older releases) is a systemwide version number, which indicates compatibility
 with other repositories (primarily with the [`nexus-python`](https://github.com/angaza/nexus-python)
 repository, which is the 'server-side' code coordinating with the embedded code
 in this repository).
@@ -18,6 +18,34 @@ Both version fields are semantic version numbers, e.g.:
 Where any code from the same major version should be backwards-compatible
 with other code of the same major version, but is *not* compatible with
 different major version codes.
+
+## Embedded Module Version 2.0.0
+
+Compatible with NEXUS_GLOBAL_VERSION >= 3.0.0
+
+Provide full support for receiving Nexus Channel "Create Link" and "Erase Links" origin
+commands, as well as portable demonstration projects for both a Nexus Channel
+"Controller" and "Accessory" device using the [PAYG credit resource](https://angaza.github.io/nexus-channel-models/resource_types/core/401-paygcredit/redoc_wrapper.html) on an STM32F103 using the open-source [Zephyr RTOS](https://www.zephyrproject.org/).
+
+The "Controller" example project may also be used as a "Nexus Keycode" example project, it fully
+supports Nexus Keycodes (see specific example project folders for more details).
+
+* Reduce static code size of projects compiled with Nexus Channel support (by reducing the memory dedicated to CBOR parsing to ensure space
+for 25 'objects' instead of 100, see `OC_MAX_NUM_REP_OBJECTS`).
+* Provide Nexus Channel secured POST operation on PAYG credit resource reference implementation
+* Implement accessory and controller PAYG credit resource behavior to match Nexus Channel Core resource model
+* Correct built-in reference resource RTRs to match published RTRs from the [Nexus Channel Resource Type Registry](https://angaza.github.io/nexus-channel-models/resource_type_registry.html)
+* COSE MAC0 verification skips 0-length URIs
+* Correct maximum secured payload size to account for COSE overhead
+* Introduce CoAP transaction retries when received MAC0 nonce is out of sync ('nonce sync')
+* Timeout/remove client-side request callbacks if no reply is received
+* Add CoAP parser CLI tool
+* Move reused constants related to CoAP/CBOR into `shared_oc_config.h`
+* Remove dead code from OC (primarily related to TCP)
+* Add deobfuscation for [Nexus Channel Origin Commands](https://github.com/angaza/nexus-python#nexus-channel-origin-commands)
+* Add Zephyr-based STM32F103 [Secured Nexus Channel **Controller** (with PAYG) Example](examples/Nexus_Channel_Controller_F103RB)
+* Add Zephyr-based STM32F103 [Secured Nexus Channel **Accessory** (with PAYG) Example](examples/Nexus_Channel_Accessory_F103RB)
+See also: [Nexus Channel Demonstration using Zephyr Example](https://www.youtube.com/watch?v=A_SJdJS7SMQ)
 
 ## Embedded Module Version 1.2.0
 

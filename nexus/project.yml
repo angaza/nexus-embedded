@@ -51,6 +51,12 @@
     - NEXUS_DEFINED_DURING_TESTING
     - NEXUS_USE_DEFAULT_ASSERT  # enable runtime asserts in unit tests
     - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
+  :test_nexus_channel_payg_credit_accessory_only:
+    - *common_defines
+    - CEEDLING_OVERRIDE_ACCESSORY_ONLY_TEST
+    - NEXUS_DEFINED_DURING_TESTING
+    - NEXUS_USE_DEFAULT_ASSERT  # enable runtime asserts in unit tests
+    - NEXUS_INTERNAL_IMPL_NON_STATIC  #expose certain functions in unit tests
   :test_preprocess:
     - *common_defines
 

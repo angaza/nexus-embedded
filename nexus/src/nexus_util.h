@@ -188,13 +188,13 @@ uint16_t nexus_bitstream_pull_uint16_be(struct nexus_bitstream* bitstream,
 // digit stream
 struct nexus_digits
 {
-    const char* chars;
+    char* chars;
     uint16_t length; // in digits
     uint16_t position; // in digits
 };
 
 void nexus_digits_init(struct nexus_digits* digits,
-                       const char* chars,
+                       char* chars,
                        uint16_t length);
 
 // Inlined to save space

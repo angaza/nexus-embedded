@@ -33,6 +33,9 @@ extern "C"
 
 OC_PROCESS_NAME(message_buffer_handler);
 
+int oc_buffer_incoming_free_count(void);
+int oc_buffer_outgoing_free_count(void);
+
 oc_message_t *oc_allocate_message(void);
 /*
 void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb);

@@ -66,10 +66,8 @@ oc_rep_get_encoded_payload_size(void)
 {
   size_t size = cbor_encoder_get_buffer_size(&g_encoder, g_buf);
   if (g_err == (int) CborErrorOutOfMemory) {
-    /* XXX uncomment once we add the loggers back in
-    OC_WRN("Insufficient memory: Increase OC_MAX_APP_DATA_SIZE to "
+    OC_WRN("Insufficient memory: Increase NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE to "
            "accomodate a larger payload");
-           */
   }
   if (g_err != CborNoError)
     return -1;

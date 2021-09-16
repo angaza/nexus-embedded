@@ -9,7 +9,7 @@ CLANG_FORMAT="clang-format"
 
 PROJECT_NAME="Nexus"
 SOURCE_ROOT="../nexus"
-SEARCH_PATH="$SOURCE_ROOT/oc/ $SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/utils/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/ $SOURCE_ROOT/examples/Channel_Core_PIO_Zephyr_Nucleo-F103RB/src/ $SOURCE_ROOT/examples/Channel_Core_PIO_Zephyr_Nucleo-F103RB/include/"
+SEARCH_PATH="$SOURCE_ROOT/oc/ $SOURCE_ROOT/src/ $SOURCE_ROOT/include/ $SOURCE_ROOT/utils/ $SOURCE_ROOT/test $SOURCE_ROOT/examples/desktop_sample_program/src/ $SOURCE_ROOT/examples/desktop_sample_program/inc/ $SOURCE_ROOT/examples/Channel_Core_PIO_Zephyr_Nucleo-F103RB/src/ $SOURCE_ROOT/examples/Channel_Core_PIO_Zephyr_Nucleo-F103RB/include/ $SOURCE_ROOT/examples/Nexus_Channel_Controller_F103RB/src $SOURCE_ROOT/examples/Nexus_Channel_Controller_F103RB/include"
 
 TOOLPATH=`which $CLANG_FORMAT`
 

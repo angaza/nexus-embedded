@@ -117,30 +117,75 @@ uint32_t nexus_channel_core_process(uint32_t seconds_elapsed)
 {
     uint32_t min_sleep = NEXUS_COMMON_IDLE_TIME_BETWEEN_PROCESS_CALL_SECONDS;
     // Execute any OC/IoTivity processes until completion
-    // oc_clock_time_t is a typecast for uint64_t
-    const oc_clock_time_t secs_until_next_oc_process = oc_main_poll();
+    // oc_clock_time_t is a typecast for uint64_t, but should not normally
+    // be larger than a uint32_t
+    const oc_clock_time_t next_oc_event_future_second_requiring_processing =
+        oc_main_poll();
+
+    uint32_t secs_until_next_oc_process = UINT32_MAX;
+
+    // there is some event OC has scheduled that requires processing
+    if (next_oc_event_future_second_requiring_processing > 0)
+    {
+        const uint32_t current_uptime = nexus_common_uptime();
+        if (current_uptime <
+            (uint32_t) next_oc_event_future_second_requiring_processing)
+        {
+            secs_until_next_oc_process =
+                (uint32_t) next_oc_event_future_second_requiring_processing -
+                nexus_common_uptime();
+        }
+        else
+        {
+            // uptime that OC wanted to execute the event has already
+            // elapsed, consider an immediate execution required.
+            secs_until_next_oc_process = 0;
+        }
+
+        OC_DBG("nexus channel core: %d seconds until next oc process\n",
+               secs_until_next_oc_process);
+    }
 
     // If the next timer is more than UINT32_MAX in the future, don't modify
     // our callback (we will callback sooner than that)
     //
     // if `oc_main_poll` returns `0`, there are no pending event timers
     // and the IoTivity core is idle.
-    if (secs_until_next_oc_process != 0 &&
-        secs_until_next_oc_process < UINT32_MAX)
+    if (secs_until_next_oc_process < UINT32_MAX)
     {
         min_sleep = (uint32_t) secs_until_next_oc_process;
     }
     #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
     min_sleep =
         u32min(min_sleep, nexus_channel_res_link_hs_process(seconds_elapsed));
-    // XXX send pending handshakes out
     min_sleep =
         u32min(min_sleep, nexus_channel_link_manager_process(seconds_elapsed));
+        #if NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
+    min_sleep = u32min(min_sleep,
+                       nexus_channel_res_payg_credit_process(seconds_elapsed));
+        #endif // NEXUS_CHANNEL_USE_PAYG_CREDIT_RESOURCE
     #else
     (void) seconds_elapsed;
     #endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
     return min_sleep;
 }
+
+    #if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+        #if NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+nx_channel_error nx_channel_accessory_delete_all_links(void)
+{
+    if (nexus_channel_link_manager_operating_mode() !=
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY)
+    {
+        // Controllers clear links via Origin Commands, no hard reset button
+        return NX_CHANNEL_ERROR_ACTION_REJECTED;
+    }
+    // clear any links (also calls `nxp_common_request_processing`)
+    nexus_channel_link_manager_clear_all_links();
+    return NX_CHANNEL_ERROR_NONE;
+}
+        #endif // NEXUS_CHANNEL_SUPPORT_ACCESSORY_MODE
+    #endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
 
 nx_channel_error
 nx_channel_register_resource(const struct nx_channel_resource_props* props)

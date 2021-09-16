@@ -25,6 +25,9 @@
 #include <stddef.h>
 #include <string.h>
 
+// for NEXUS_ASSERT
+#include "src/internal_common_config.h"
+
 #include "util/oc_etimer.h"
 #include "utils/oc_list.h"
 #include "util/oc_memb.h"
@@ -32,11 +35,6 @@
 #include "messaging/coap/constants.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/oc_coap.h"
-/*
-#ifdef OC_TCP
-#include "messaging/coap/coap_signal.h"
-#endif // OC_TCP
-*/
 #include "port/oc_random.h"
 #include "oc_buffer.h"
 #include "oc_core_res.h"
@@ -45,9 +43,6 @@
 #ifdef NEXUS_USE_OC_NETWORK_EVENT_PROCESS
 #include "oc_network_events.h"
 #endif
-/*#ifdef OC_TCP
-#include "oc_session_events.h"
-#endif // OC_TCP*/
 #include "oc_api.h"
 #include "oc_ri.h"
 #include "oc_uuid.h"
@@ -55,6 +50,12 @@
 #if defined(OC_COLLECTIONS) && defined(OC_SERVER)
 #include "oc_collection.h"
 #endif // OC_COLLECTIONS && OC_SERVER
+
+#ifdef OC_CLIENT
+#include "oc_client_state.h"
+OC_LIST(client_cbs);
+OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
+#endif // OC_CLIENT
 
 #ifdef OC_SERVER
 OC_LIST(app_resources);
@@ -64,12 +65,6 @@ OC_LIST(observe_callbacks);
 OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
 #endif // OC_SERVER
 
-#ifdef OC_CLIENT
-#include "oc_client_state.h"
-OC_LIST(client_cbs);
-OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
-#endif // OC_CLIENT
-
 OC_LIST(timed_callbacks);
 OC_MEMB(event_callbacks_s, oc_event_callback_t,
         1 + OCF_D * OC_MAX_NUM_DEVICES + OC_MAX_APP_RESOURCES +
@@ -77,17 +72,16 @@ OC_MEMB(event_callbacks_s, oc_event_callback_t,
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
 
-/*
-#ifdef OC_TCP
-oc_event_callback_retval_t oc_remove_ping_handler(void *data);
-#endif // OC_TCP
-*/
-
 extern int strncasecmp(const char *s1, const char *s2, size_t n);
 
 static unsigned int oc_coap_status_codes[__NUM_OC_STATUS_CODES__];
 
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
+
+int oc_ri_client_cb_free_count(void)
+{
+    return oc_memb_numfree(&client_cbs_s);
+}
 
 static void
 set_mpro_status_codes(void)
@@ -160,8 +154,16 @@ oc_ri_get_query_nth_key_value(const char *query, size_t query_len, char **key,
 {
   int next_pos = -1;
   size_t i = 0;
-  char *start = (char *)query, *current, *end = (char *)query + query_len;
+  const char *start = query;
+  const char *current;
+  const char *end = query + query_len;
   current = start;
+
+  // don't perform memchr later if start is NULL
+  if (start == NULL)
+  {
+      return -1;
+  }
 
   while (i < (n - 1) && current != NULL) {
     current = (char*) memchr(start, '&', end - start);
@@ -175,15 +177,15 @@ oc_ri_get_query_nth_key_value(const char *query, size_t query_len, char **key,
   current = (char*) memchr(start, '=', end - start);
   if (current != NULL) {
     *key_len = (current - start);
-    *key = start;
-    *value = current + 1;
+    *key = (char*) start;
+    *value = (char*) (current + 1);
     current = (char*) memchr(*value, '&', end - *value);
     if (current == NULL) {
       *value_len = (end - *value);
     } else {
       *value_len = (current - *value);
     }
-    next_pos = (int)(*value + *value_len - query + 1);
+    next_pos = (int)((*value + *value_len - query) + 1);
   }
   return next_pos;
 }
@@ -192,8 +194,11 @@ int
 oc_ri_get_query_value(const char *query, size_t query_len, const char *key,
                       char **value)
 {
-  int next_pos = 0, found = -1;
-  size_t kl, vl, pos = 0;
+  int next_pos = 0;
+  int found = -1;
+  size_t kl;
+  size_t vl;
+  size_t pos = 0;
   char *k;
 
   while (pos < query_len) {
@@ -238,17 +243,11 @@ start_processes(void)
 #ifdef NEXUS_USE_OC_NETWORK_EVENT_PROCESS
   oc_process_start(&oc_network_events, NULL);
 #endif // NEXUS_USE_OC_NETWORK_EVENT_PROCESS
-/*#ifdef OC_TCP
-  oc_process_start(&oc_session_events, NULL);
-#endif // OC_TCP*/
 }
 
 static void
 stop_processes(void)
 {
-/*#ifdef OC_TCP
-  oc_process_exit(&oc_session_events);
-#endif // OC_TCP*/
 #ifdef NEXUS_USE_OC_NETWORK_EVENT_PROCESS
   oc_process_exit(&oc_network_events);
 #endif // NEXUS_USE_OC_NETWORK_EVENT_PROCESS
@@ -422,43 +421,6 @@ oc_ri_add_timed_event_callback_ticks(void *cb_data, oc_trigger_t event_callback,
   }
 }
 
-static void
-poll_event_callback_timers(oc_list_t list, struct oc_memb *cb_pool)
-{
-  oc_event_callback_t *event_cb = (oc_event_callback_t *)oc_list_head(list),
-                      *next;
-
-  while (event_cb != NULL) {
-    next = event_cb->next;
-
-    if (oc_etimer_expired(&event_cb->timer)) {
-      if (event_cb->callback(event_cb->data) == OC_EVENT_DONE) {
-        oc_list_remove(list, event_cb);
-        oc_memb_free(cb_pool, event_cb);
-        event_cb = (oc_event_callback_t*) oc_list_head(list);
-        continue;
-      } else {
-        OC_PROCESS_CONTEXT_BEGIN(&timed_callback_events);
-        oc_etimer_restart(&event_cb->timer);
-        OC_PROCESS_CONTEXT_END(&timed_callback_events);
-      }
-    }
-
-    event_cb = next;
-  }
-}
-
-static void
-check_event_callbacks(void)
-{
-/*
-#ifdef OC_SERVER
-  poll_event_callback_timers(observe_callbacks, &event_callbacks_s);
-#endif // OC_SERVER
-*/
-  poll_event_callback_timers(timed_callbacks, &event_callbacks_s);
-}
-
 // OBSERVE is not currently implemented
 #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 #ifdef OC_SERVER
@@ -546,6 +508,41 @@ add_periodic_observe_callback(oc_resource_t *resource)
 #endif // #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
 
 static void
+poll_event_callback_timers(oc_list_t list, struct oc_memb *cb_pool)
+{
+  oc_event_callback_t *event_cb = (oc_event_callback_t *)oc_list_head(list);
+  oc_event_callback_t *next;
+
+  while (event_cb != NULL) {
+    next = event_cb->next;
+
+    if (oc_etimer_expired(&event_cb->timer)) {
+      if (event_cb->callback(event_cb->data) == OC_EVENT_DONE) {
+        oc_list_remove(list, event_cb);
+        oc_memb_free(cb_pool, event_cb);
+        event_cb = (oc_event_callback_t*) oc_list_head(list);
+        continue;
+      } else {
+        OC_PROCESS_CONTEXT_BEGIN(&timed_callback_events);
+        oc_etimer_restart(&event_cb->timer);
+        OC_PROCESS_CONTEXT_END(&timed_callback_events);
+      }
+    }
+
+    event_cb = next;
+  }
+}
+
+static void
+check_event_callbacks(void)
+{
+#if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+  poll_event_callback_timers(observe_callbacks, &event_callbacks_s);
+#endif // #if NEXUS_CHANNEL_USE_OC_OBSERVABILITY_AND_CONFIRMABLE_COAP_APIS
+  poll_event_callback_timers(timed_callbacks, &event_callbacks_s);
+}
+
+static void
 free_all_event_timers(void)
 {
 #ifdef OC_SERVER
@@ -610,8 +607,6 @@ does_interface_support_method(oc_interface_mask_t iface_mask,
     break;
   /* Per section 7.5.3 of the OCF Core spec, the following three interfaces
    * support RETRIEVE, UPDATE.
-   * TODO: Refine logic below after adding logic that identifies
-   * and handles CREATE requests using PUT/POST.
    */
   case OC_IF_RW:
   case OC_IF_B:
@@ -635,8 +630,11 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
   /* Flags that capture status along various stages of processing
    *  the request.
    */
-  bool method_impl = true, bad_request = false, success = false,
-       forbidden = false, entity_too_large = false;
+  bool method_impl = true;
+  bool bad_request = false;
+  bool success = false;
+  bool forbidden = false;
+  bool entity_too_large = false;
 
   endpoint->version = OCF_VER_1_0_0;
 #ifdef OC_SPEC_VER_OIC
@@ -813,7 +811,7 @@ oc_ri_invoke_coap_entity_handler(void *request, void *response, uint8_t *buffer,
 
 // Alloc response_state. It also affects request_obj.response.
   response_buffer.buffer = buffer;
-  response_buffer.buffer_size = (uint16_t)OC_BLOCK_SIZE;
+  response_buffer.buffer_size = (uint16_t)NEXUS_CHANNEL_MAX_CBOR_PAYLOAD_SIZE;
 
   OC_DBG("Checking current resource and not bad request...");
   if (cur_resource && !bad_request) {
@@ -1291,16 +1289,6 @@ oc_ri_invoke_client_cb(void *response, oc_client_cb_t *cb,
     }
   }
 
-/*
-#ifdef OC_TCP
-  if (pkt->code == PONG_7_03 ||
-      (oc_string_len(cb->uri) == 5 &&
-       memcmp((const char *)oc_string(cb->uri), "/ping", 5) == 0)) {
-    oc_ri_remove_timed_event_callback(cb, oc_remove_ping_handler);
-  }
-#endif // OC_TCP
-*/
-
   if (!oc_ri_is_client_cb_valid(cb)) {
     return true;
   }
@@ -1402,6 +1390,9 @@ oc_ri_alloc_client_cb(const char *uri, oc_endpoint_t *endpoint,
   if (query && strlen(query) > 0) {
     oc_new_string(&cb->query, query, strlen(query));
   }
+#if NEXUS_CHANNEL_LINK_SECURITY_ENABLED
+  cb->nx_request_secured = false;
+#endif // NEXUS_CHANNEL_LINK_SECURITY_ENABLED
   oc_list_add(client_cbs, cb);
   return cb;
 }
@@ -1441,7 +1432,7 @@ oc_ri_shutdown(void)
   oc_ri_delete_all_app_resources();
 #endif // OC_SERVER
 
-  // XXX: Unsure that this is needed
+  // Not currently needed
   //oc_random_destroy();
 }
 
@@ -1452,6 +1443,10 @@ OC_PROCESS_THREAD(timed_callback_events, ev, data)
   while (1) {
     OC_PROCESS_YIELD();
     if (ev == OC_PROCESS_EVENT_TIMER) {
+      // here, we clear out client callbacks after a timeout
+      // see "dispatch_coap_request" where `oc_set_delayed_callback` is called
+      // for where these event callbacks would come from
+      OC_DBG("oc_ri: Checking event callbacks");
       check_event_callbacks();
     }
   }

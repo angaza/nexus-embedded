@@ -13,12 +13,14 @@
  * See also:
  * https://angaza.github.io/nexus-channel-models/resource_type_registry.html
  */
-#ifndef EXAMPLE_BATTERY_RES__H
-#define EXAMPLE_BATTERY_RES__H
 
-#ifdef __cplusplus
+#ifdef CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED
+    #ifndef EXAMPLE_BATTERY_RES__H
+        #define EXAMPLE_BATTERY_RES__H
+
+        #ifdef __cplusplus
 extern "C" {
-#endif
+        #endif
 
 /* Initialize the battery resource.
  *
@@ -28,8 +30,9 @@ extern "C" {
  */
 void battery_res_init(void);
 
-#ifdef __cplusplus
+        #ifdef __cplusplus
 }
-#endif
+        #endif
 
-#endif // EXAMPLE_BATTERY_RES__H
+    #endif // EXAMPLE_BATTERY_RES__H
+#endif // CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED

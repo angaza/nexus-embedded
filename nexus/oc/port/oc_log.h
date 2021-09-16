@@ -37,12 +37,6 @@ extern "C"
 
 #define PRINTipaddr(endpoint)                                                  \
   do {                                                                         \
-    if ((endpoint).flags & IPV4) {                                             \
-      PRINT("[%d.%d.%d.%d]:%d", ((endpoint).addr.ipv4.address)[0],             \
-            ((endpoint).addr.ipv4.address)[1],                                 \
-            ((endpoint).addr.ipv4.address)[2],                                 \
-            ((endpoint).addr.ipv4.address)[3], (endpoint).addr.ipv4.port);     \
-    } else {                                                                   \
       PRINT(                                                                   \
         "[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%"    \
         "02x%"                                                                 \
@@ -58,7 +52,6 @@ extern "C"
         ((endpoint).addr.ipv6.address)[13],                                    \
         ((endpoint).addr.ipv6.address)[14],                                    \
         ((endpoint).addr.ipv6.address)[15], (endpoint).addr.ipv6.port);        \
-    }                                                                          \
   } while (0)
 
 #define PRINTipaddr_local(endpoint)                                            \

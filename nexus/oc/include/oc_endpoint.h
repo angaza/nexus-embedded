@@ -40,12 +40,6 @@ typedef struct
 
 typedef struct
 {
-  uint16_t port;
-  uint8_t address[4];
-} oc_ipv4_addr_t;
-
-typedef struct
-{
   uint8_t type;
   uint8_t address[6];
 } oc_le_addr_t;
@@ -68,7 +62,6 @@ typedef struct oc_endpoint_t
   oc_uuid_t di;
   union dev_addr {
     oc_ipv6_addr_t ipv6;
-    oc_ipv4_addr_t ipv4;
     oc_le_addr_t bt;
   } addr, addr_local;
   int interface_index;
@@ -76,33 +69,13 @@ typedef struct oc_endpoint_t
   ocf_version_t version;
 } oc_endpoint_t;
 
-/*
-#define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)              \
-  oc_endpoint_t __name__ = { .flags = __flags__,                               \
-                             .addr.ipv4 = { .port = __port__,                  \
-                                            .address = { __VA_ARGS__ } } }
-
-#define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
-  oc_endpoint_t __name__ = { .flags = __flags__,                               \
-                             .addr.ipv6 = { .port = __port__,                  \
-                                            .address = { __VA_ARGS__ } } }
-*/
-
-oc_endpoint_t *oc_new_endpoint(void);
-void oc_free_endpoint(oc_endpoint_t *endpoint);
 void oc_endpoint_set_di(oc_endpoint_t *endpoint, oc_uuid_t *di);
 
-int oc_endpoint_to_string(oc_endpoint_t *endpoint, oc_string_t *endpoint_str);
-int oc_string_to_endpoint(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
-                          oc_string_t *uri);
-int oc_endpoint_string_parse_path(oc_string_t *endpoint_str, oc_string_t *path);	
 int oc_ipv6_endpoint_is_link_local(oc_endpoint_t *endpoint);
 int oc_endpoint_compare(const oc_endpoint_t *ep1, const oc_endpoint_t *ep2);
 
 int oc_endpoint_compare_address(oc_endpoint_t *ep1, oc_endpoint_t *ep2);
-void oc_endpoint_set_local_address(oc_endpoint_t *ep, int interface_index);
 void oc_endpoint_copy(oc_endpoint_t *dst, oc_endpoint_t *src);
-void oc_endpoint_list_copy(oc_endpoint_t **dst, oc_endpoint_t *src);
 
 #ifdef __cplusplus
 }

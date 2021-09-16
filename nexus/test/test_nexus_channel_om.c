@@ -72,29 +72,45 @@ struct nx_common_check_key ACCESSORY_KEY = {{0xC4,
                                              0x36}};
 
 // generated using CONTROLLER_KEY, command count = 15
+// token =
+// protocol.ChannelOriginAction.UNLINK_ALL_ACCESSORIES.build(controller_command_count=15,
+// controller_sym_key=b"\xfe" * 8 + b"\xa2" * 8)
 char* VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLINK_ALL_ACCESSORIES =
-    "000018783";
+    "555018783";
+// token =
+// protocol.ChannelOriginAction.UNLOCK_ALL_ACCESSORIES.build(controller_command_count=15,
+// controller_sym_key=b"\xfe" * 8 + b"\xa2" * 8)
 char* VALID_ASCII_ORIGIN_GENERIC_CONTROLLER_ACTION_UNLOCK_ALL_ACCESSORIES =
-    "001906394";
+    "034906394";
 
-// accessory ID 0x0102948372A4 ('0' last decimal digit truncated)
-// controller command count = 15 (this MAC), accessory command count = 312
-char* VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY = "10244210";
-char* VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLINK_ACCESSORY = "20536545";
+// accessory ID 0x0102948372A4 ('2' last decimal digit truncated)
+// controller command count = 15 (this MAC)
+// token =
+// protocol.ChannelOriginAction.UNLOCK_ACCESSORY.build(controller_command_count=15,
+// accessory_nexus_id=0x0102948372A4,
+// controller_sym_key=b"\xfe" * 8 + b"\xa2" * 8)
+char* VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY = "89214226";
+
+// token =
+// protocol.ChannelOriginAction.UNLINK_ACCESSORY.build(controller_command_count=15,
+//	accessory_nexus_id=0x0102948372A4,
+// controller_sym_key=b"\xfe" * 8 + b"\xa2" * 8)
+char* VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLINK_ACCESSORY = "88325773";
 
 // generated using ACCESSORY_KEY and CONTROLLER_KEY
 // controller command count 15
-// accessory asp ID = 0x0102948372A4
-// accessory command count 2
+// accessory command count 312
 // controller/accessory sym keys from above
 // controller command count 15, accessory command count 2
 /* otoken =
- * protocol.LinkCommandToken.challenge_mode_3(accessory_asp_id=0x0102948372A4,
- * controller_command_count=15, accessory_command_count=2,
+ * protocol.ChannelOriginAction.LINK_ACCESSORY_MODE_3.build(
+ * controller_command_count=15,
+ * accessory_command_count=312,
  * accessory_sym_key=b'\xc4\xb8@H\xcf\x04$\xa2]\xc5\xe9\xd3\xf0g@6',
  * controller_sym_key='\xfe' * 8 + '\xa2' * 8)
+ * Unobscured accessory challenge = 707962
  */
-char* VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3 = "92382847582879";
+char* VALID_ASCII_ORIGIN_CREATE_LINK_ACCESSORY_MODE_3 = "4780123960006";
 
 // test message which is populated in some tests
 struct nexus_channel_om_command_message message;
@@ -298,8 +314,8 @@ void test_ascii_parse_message__accessory_action_unlock__parsed_ok(void)
                       message.type);
     TEST_ASSERT_EQUAL(1,
                       message.body.accessory_action.trunc_acc_id.digits_count);
-    TEST_ASSERT_EQUAL(0, message.body.accessory_action.trunc_acc_id.digits_int);
-    TEST_ASSERT_EQUAL(244210, message.auth.six_int_digits);
+    TEST_ASSERT_EQUAL(2, message.body.accessory_action.trunc_acc_id.digits_int);
+    TEST_ASSERT_EQUAL(214226, message.auth.six_int_digits);
 }
 
 void test_ascii_parse_message__accessory_action_unlink__parsed_ok(void)
@@ -320,8 +336,8 @@ void test_ascii_parse_message__accessory_action_unlink__parsed_ok(void)
                       message.type);
     TEST_ASSERT_EQUAL(1,
                       message.body.accessory_action.trunc_acc_id.digits_count);
-    TEST_ASSERT_EQUAL(0, message.body.accessory_action.trunc_acc_id.digits_int);
-    TEST_ASSERT_EQUAL(536545, message.auth.six_int_digits);
+    TEST_ASSERT_EQUAL(2, message.body.accessory_action.trunc_acc_id.digits_int);
+    TEST_ASSERT_EQUAL(325773, message.auth.six_int_digits);
 }
 
 void test_ascii_parse_message__create_link_accessory_mode_3__parsed_ok(void)
@@ -341,8 +357,8 @@ void test_ascii_parse_message__create_link_accessory_mode_3__parsed_ok(void)
         NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3,
         message.type);
     TEST_ASSERT_EQUAL(
-        382847, message.body.create_link.accessory_challenge.six_int_digits);
-    TEST_ASSERT_EQUAL(582879, message.auth.six_int_digits);
+        707962, message.body.create_link.accessory_challenge.six_int_digits);
+    TEST_ASSERT_EQUAL(960006, message.auth.six_int_digits);
 }
 
 void test_ascii_parse_message__create_link_accessory_mode_3_too_short_command__parsing_fails(
@@ -358,21 +374,13 @@ void test_ascii_parse_message__create_link_accessory_mode_3_too_short_command__p
     TEST_ASSERT_FALSE(
         _nexus_channel_om_ascii_parse_message(&command_digits, &message));
 
-    // parsed fields OK? (even though parsing failed, it still tried to populate
-    // something..)
-    TEST_ASSERT_EQUAL(
-        NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3,
-        message.type);
-    TEST_ASSERT_EQUAL(
-        382847, message.body.create_link.accessory_challenge.six_int_digits);
-
-    // sentinel failure value from util pull
-    TEST_ASSERT_EQUAL(UINT32_MAX, message.auth.six_int_digits);
+    // However, we still extracted the 6 auth digits/MAC correctly (- 1)
+    TEST_ASSERT_EQUAL(396000, message.auth.six_int_digits);
 }
 
 void test_ascii_parse_message__invalid_message_type__parsing_fails(void)
 {
-    // '5' not currently implemented
+    // '5' not currently implemented (deinterleaves to invalid type)
     char* invalid_msg = "5589373";
     struct nexus_digits command_digits;
     nexus_digits_init(
@@ -642,11 +650,9 @@ void test_nexus_channel_om_ascii_infer_fields_compute_auth__link_command_mode_3_
     // VALID_ASCII_ORIGIN_ACCESSORY_ACTION_UNLOCK_ACCESSORY
     // computed ID is given a nonsense value (should be overwritten)
     message.type = NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3;
-    message.body.create_link.trunc_acc_id.digits_count = 1;
-    message.body.create_link.trunc_acc_id.digits_int = 0;
-    message.body.create_link.accessory_challenge.six_int_digits = 382847;
+    message.body.create_link.accessory_challenge.six_int_digits = 707962;
     message.computed_command_id = 0xFFFFFFFF;
-    message.auth.six_int_digits = 429307;
+    message.auth.six_int_digits = 960006;
 
     // give valid message with ID 15
     const bool valid = _nexus_channel_om_ascii_infer_fields_compute_auth(
@@ -666,12 +672,11 @@ void test__nexus_channel_om_ascii_apply_message__common_rejects_command__return_
     // valid message, but will be 'rejected' for unrelated reasons by Nexus
     // common
     struct nexus_channel_om_command_message input_msg = {
-        // LinkCommandToken(9, '2382847', '173346',))
+        // LinkCommandToken(9, '387852', '083499',))
         NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
         // om_command_body (union)
-        {.create_link = {.trunc_acc_id = {2, 1},
-                         .accessory_challenge = {382847}}},
-        {339665}, // auth
+        {.create_link = {.accessory_challenge = {387852}}},
+        {83499}, // auth
         0,
     };
 
@@ -704,13 +709,12 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
     // be the same in each case...)
     struct test_scenario scenarios[] = {
         {{
-             // LinkCommandToken(9, '2382847', '173346',))
+             // LinkCommandToken(9, '387852', '869800',))
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {339665}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {869800}, // auth
              0,
          },
          4},
@@ -718,9 +722,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {632168}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {19524}, // auth
              0,
          },
          2},
@@ -728,9 +731,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {411721}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {929316}, // auth
              0,
          },
          1},
@@ -738,9 +740,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {470303}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {66986}, // auth
              0,
          },
          9},
@@ -748,9 +749,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {279227}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {270974}, // auth
              0,
          },
          22},
@@ -758,9 +758,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {245606}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {650998}, // auth
              0,
          },
          8},
@@ -768,9 +767,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {472745}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {336934}, // auth
              0,
          },
          30},
@@ -778,9 +776,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {502818}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {436794}, // auth
              29,
          },
          29},
@@ -788,9 +785,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {382847}}},
-             {26217}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {230914}, // auth
              31, // center index
          },
          31}};
@@ -837,9 +833,8 @@ void test__nexus_channel_om_ascii_apply_message__fill_left_window_and_move_one__
     struct nexus_channel_om_command_message msg_32 = {
         NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
         // om_command_body (union)
-        {.create_link = {.trunc_acc_id = {2, 1},
-                         .accessory_challenge = {382847}}},
-        {525252}, // auth
+        {.create_link = {.accessory_challenge = {387852}}},
+        {470214}, // auth
         0};
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(CONTROLLER_KEY);
@@ -893,13 +888,12 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
     // be the same in each case...)
     struct test_scenario scenarios[] = {
         {{
-             // LinkCommandToken(9, '2382847', '173346',))
+             // LinkCommandToken(9, '387852', '399721',))
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {900378}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {399721}, // auth
              0,
          },
          39},
@@ -907,9 +901,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {290601}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {21267}, // auth
              0,
          },
          47},
@@ -917,9 +910,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {169248}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {512537}, // auth
              0, // center index
          },
          55},
@@ -927,9 +919,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {466213}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {293121}, // auth
              0,
          },
          63},
@@ -937,9 +928,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {739934}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {317795}, // auth
              0,
          },
          71},
@@ -947,9 +937,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {40877}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {817060}, // auth
              0,
          },
          79},
@@ -957,9 +946,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {958743}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {717854}, // auth
              0,
          },
          87},
@@ -967,9 +955,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {724871}}},
-             {960262}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {69065}, // auth
              0,
          },
          95},
@@ -979,9 +966,8 @@ void test__nexus_channel_om_ascii_apply_message__move_window_over_hundred__right
              NEXUS_CHANNEL_OM_COMMAND_TYPE_CREATE_ACCESSORY_LINK_MODE_3, // type
                                                                          // om_command_body
                                                                          // (union)
-             {.create_link = {.trunc_acc_id = {2, 1},
-                              .accessory_challenge = {9616}}},
-             {935755}, // auth
+             {.create_link = {.accessory_challenge = {387852}}},
+             {449077}, // auth
              0,
          },
          103},

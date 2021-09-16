@@ -34,14 +34,15 @@ void process_nexus(void)
     nx_common_init((uint32_t)(k_uptime_get() >> 10));
     LOG_INF("Nexus successfully initialized\n");
 
+#ifdef CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED
     // initialize any Nexus Channel Core resources (in this case, 'battery')
     // after `nx_common_init`
     battery_res_init();
+#endif // CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED
 
     while (1)
     {
         next_call_seconds = nx_common_process((uint32_t)(k_uptime_get() >> 10));
-        // LED LD2 ON when ready/waiting for input
         LOG_INF(
             "Completed Nexus processing; will call `nx_common_process` again "
             "in %d seconds\n",
@@ -51,12 +52,18 @@ void process_nexus(void)
 }
 
 // Run `process_nexus` as a standalone thread. It will sleep/idle when
-// there is nothing to process.
+// there is nothing to process. Stack is sized to handle full Nexus Channel
+// operation, and can be greatly reduced in a keycode only configuration.
+#ifdef CHANNEL_CORE_SUPPORTED_DEMO_BUILD_ENABLED
 K_THREAD_DEFINE(
-    process_nexus_id, 5248, process_nexus, NULL, NULL, NULL, 5, 0, 0);
+    process_nexus_th, 5504, process_nexus, NULL, NULL, NULL, 5, 0, 0);
+#else
+K_THREAD_DEFINE(
+    process_nexus_th, 2048, process_nexus, NULL, NULL, NULL, 5, 0, 0);
+#endif
 
 // wakes up `process_nexus` if processing is requested
 void nxp_common_request_processing(void)
 {
-    k_wakeup(process_nexus_id);
+    k_wakeup(process_nexus_th);
 }
