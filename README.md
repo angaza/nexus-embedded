@@ -3,6 +3,7 @@
 This repository contains the embedded implementations of two [Nexus](https://nexus.angaza.com/) technologies:
 - [Nexus Keycode](https://nexus.angaza.com/keycode) (an interoperable PAYG token system deployed in millions of devices)
 - [Nexus Channel](https://nexus.angaza.com/channel) (an application layer for secure device-to-device communication)
+
 These platform-independent libraries are standard, portable C99 requiring
 no dynamic memory allocation, suitable for use on highly constrained
 embedded platforms.
@@ -11,21 +12,39 @@ embedded platforms.
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=angaza_nexus-keycode-embedded-internal&metric=alert_status&token=3c0218f9fde1d544fd2060ec1075c15fefeffd4f)](https://sonarcloud.io/dashboard?id=angaza_nexus-keycode-embedded-internal)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=angaza_nexus-keycode-embedded-internal&metric=coverage&token=3c0218f9fde1d544fd2060ec1075c15fefeffd4f)](https://sonarcloud.io/dashboard?id=angaza_nexus-keycode-embedded-internal)
 
-## BEFORE YOU BEGIN:
+## BEFORE YOU BEGIN
 1. Make sure you're familiar with Angaza's [Integration Process](https://nexus.angaza.com/mfg_home#integration-overview)
-2. Review Angaza's PAYG requirements and tamper mitigation strategies to ensure your product will meet all requirements [PAYG Requirements](https://nexus.angaza.com/mfg_home#payg-requirements)
+2. Review Angaza's [PAYG Requirements](https://nexus.angaza.com/mfg_home#payg-requirements) and [Tamper Mitigation Strategies](https://nexus.angaza.com/mfg_home#tamper-mitigation-strategies) to ensure that your product can be sold on Angaza and that common tamper risks have been eliminated
 
-
-## PROJECT OVERVIEW
-1. Download this reposity
-2. Copy the `nexus` directory into your project. See [here](#nexus-directory-structure) for more information about the structure of the directory.
-3. Decide which [Configuration Settings](#configuration-options) you want to use for your project.
-4. Run the [Config Tool](#configuration-setup)
-5. Integrate with your product firmware [Integration Info](#integration-details)
-6. Test integration using our [Testing framework](#unit-tests)
-
+## INTEGRATION PROCESS
+1. Download the source code of this repository
+2. Copy the [`nexus` directory](#nexus-directory-structure) into your project
+3. Decide which [Configuration Options](#configuration-options) you want to use for your project
+4. Run the [Configuration Tool](#configuration-setup)
+5. [Integrate](#implementation-details) the Nexus library with your product firmware
 
 ## ADDITIONAL INFORMATION
+
+### Nexus Directory Structure
+
+The directory contains these folders:
+
+* `nexus/include` - Header files that must be included in a project using the
+Nexus embedded solutions (do not modify)
+* `nexus/src` - Nexus module implementation files (do not modify)
+* `nexus/oc` - IoTivity-based files for Nexus Channel (do not modify)
+* `nexus/utils` - Nexus support utilities and functions (do not modify)
+* `nexus/stub` - Stub functions used during static analysis
+* `nexus/build` - temporary output artifacts related to unit tests and static
+* `nexus/test` - Unit tests for the code contained in `src`
+* `nexus/examples` - Examples of the Nexus protocol in use
+
+You must add include paths in your project to the following subset:
+* `nexus`
+* `nexus/src`
+* `nexus/include`
+* `nexus/utils`
+* `nexus/oc` (Required only for Nexus Channel or Nexus debug logs)
 
 ### Configuration Options
 
@@ -35,10 +54,10 @@ This library contains an interactive tool to select which features and configura
     - Full Pad (0-9) OR Small Pad (0-5)
 - Nexus Keycode Rate Limiting: feature to prevent brute force attacks
     - Enabled OR Disabled
-    - See FAQ at bottom for more info on settings
+    - See [FAQ](#faq) for more info on settings
 - "Universal" Factory Test Codes: feature to give access to special tokens that can be used in a factory, manufacturing or test setting.
     - Enabled OR Disabled
-    - See FAQ at bottom for more info on settings
+    - See [FAQ](#faq) for more info on settings
 - Keycode Entry
     - The number of seconds between user keypresses before nexus resets to accept a new keycode.
 - Nexus Channel: turn on if you're looking for device to device communication 
@@ -59,33 +78,6 @@ python conf_nexus.py
 7) Save (shift+S)
 8) Now the setup is done! You can proceed with development. 
 
-
-### Nexus Directory Structure
-
-The C implementation of Nexus uses the [ceedling](https://www.throwtheswitch.org/ceedling)
-framework to organize automated testing of this source code.
-
-The directory contains these folders
-
-* `nexus/include` - Header files that must be included in a project using the
-Nexus embedded solutions (do not modify)
-* `nexus/src` - Nexus module implementation files (do not modify)
-* `nexus/oc` - IoTivity-based files for Nexus Channel (do not modify)
-* `nexus/utils` - Nexus support utilities and functions (do not modify)
-* `nexus/stub` - Stub functions used during static analysis
-* `nexus/build` - temporary output artifacts related to unit tests and static
-* `nexus/test` - Unit tests for the code contained in `src`
-* `nexus/examples` - Examples of the Nexus protocol in use
-* `buildkite` - Scripts for continuous integration tests (on Buildkite)
-* `support` - Scripts related to code formatting and analysis
-
-You must add include paths in your project to the following subset:
-* `nexus`
-* `nexus/src`
-* `nexus/include`
-* `nexus/utils`
-* `nexus/oc` (Required only for Nexus Channel or Nexus debug logs)
-
 ### Implementation Details
 
 Warning: Do NOT modify any of the src code. 
@@ -97,6 +89,7 @@ Within `nexus/include` there are files that begin with:
 - `nx_` (i.e nx_keycode.h) - these contain the functions available in the Nexus system and modules that *your code* must call and utilize at the appropriate times.  
 
 **Additional Information**
+
 The functions declared in `include/nxp_common.h` provide the Nexus
 System with the ability to store and retrieve data from nonvolatile
 storage (flash), as well as determine the current system uptime. These are
@@ -116,18 +109,47 @@ hardware (dependent on the implementing platform), and retrieve unique keying
 information used to validate Nexus Channel link communications.
 (This is a non-exhaustive list).
 
+## DOCUMENTATION
 
-## Static analysis
+To regenerate the code documentation locally, execute:
+
+`doxygen ./Doxyfile`
+
+from the repository root directory.  The documentation will be placed in a
+`docs` folder, open `html/index.html` to view it.
+
+## FAQ
+
+**What is rate-limiting and the options available?**
+Rate limiting is the ability to prevent and discourage users from trying a bruteforce attack to find an unlock code by randomly entering tokens. This functionality is implemented using a “rate limiting bucket” which tracks how many token attempts are allowed. Once this bucket is empty (0), rate-limiting is active and no keys will be accepted. 
+
+(6) Initial number of tokens in rate limiting bucket - this is the # of tokens that a freshly-programmed device starts with. It is nonzero to allow keycodes to be entered immediately as part of factory testing.
+
+(128) Maximum number of tokens in rate limiting bucket. The maximum number of keycodes, defined as *(any number of digits)# that can be accumulated in the rate-limiting bucket.
+
+(720) Seconds per each token attempt - this is the number of seconds required to add another keycode to the rate-limiting bucket, up to the maximum. If the device is rate-limited (0 keycodes in the rate-limiting bucket), the user will have to wait this number of seconds before they can enter another token. For example - if your device uses the default values, after ~1 day (720 seconds * 128 max tokens), the rate limiting bucket will have 128 tokens available. An attacker would only be able to enter 128 tokens in a brute force attack. After the 128 tokens are used, the attacker would have to wait 720 seconds before every new token entry. 
+
+**What are the factory codes and options available?**
+
+(5) Number of times a device may accept '10 minute' universal code (NEW)
+
+(5) Number of times a device may accept '1 hour' universal code (NEW)
+
+## DEVELOPER TOOLS
+
+The C implementation of Nexus uses the [ceedling](https://www.throwtheswitch.org/ceedling) framework to organize automated testing of this source code.
+
+### Static analysis
 `ceedling release` will attempt to build a stub implementation of Nexus (
-contained in `nexus/stub`) with Channel and Keycode featured enabled. This
+contained in `nexus/stub`) with Channel and Keycode features enabled. This
 build is used as a supplemental static analysis build (static analysis is also
 performed against unit test builds).
 
-## Unit tests
-The unit tests themselves are found within the `nexus/test` folder. The
+### Unit tests
+The unit tests are found within the `nexus/test` folder. The
 configuration of `ceedling` is contained within the `nexus/project.yml` file.
 
-### Installing Tools for Unit Tests
+#### Installing Tools for Unit Tests
 
 First, install [Conda](https://docs.conda.io/en/latest/), which is used to
 manage the packages for building and testing the `nexus-embedded` repository.
@@ -172,27 +194,3 @@ following commands:
 * `ceedling clobber` - destroy all generated test files
 * `ceedling test:all` - compile and execute all unit tests
 * `ceedling gcov:all` - generate gcov test coverage reports
-
-## Documentation
-
-To regenerate the code documentation locally, execute:
-
-`doxygen ./Doxyfile`
-
-from the repository root directory.  The documentation will be placed in a
-`docs` folder, open `html/index.html` to view it.
-
-
-## FAQ
-**What is rate-limiting and the options available?**
-Rate limiting is the ability to prevent and discourage users from trying a bruteforce attack to find an unlock code by randomly entering tokens. This functionality is implemented using a “rate limiting bucket” which tracks how many token attempts are allowed. Once this bucket is empty (0), rate-limiting is active and no keys will be accepted. 
-
-(6) Initial number of tokens in rate limiting bucket - this is the # of tokens that a freshly-programmed device starts with. It is nonzero to allow keycodes to be entered immediately as part of factory testing. 
-(128) Maximum number of tokens in rate limiting bucket. The maximum number of keycodes, defined as *<any number of digits># that can be accumulated in the rate-limiting bucket.
-(720) Seconds per each token attempt -  this is the # of seconds required to add another keycode to the rate-limiting bucket, up to the maximum. If the device is rate-limited (0 keycodes in the rate-limiting bucket), the user will have to wait this number of seconds before they can enter another token
-
-For example - if your device uses the default values, after ~1 day (720 seconds * 128 max tokens), the rate limiting bucket will have 128 tokens available. An attacker would only be able to enter 128 tokens in a brute force attack. After the 128 tokens are used, the attacker would have to wait 720 seconds before every new token entry. 
-
-**What are the factory codes and options available?**
-(5) Number of times a device may accept '10 minute' universal code (NEW)
-(5) Number of times a device may accept '1 hour' universal code (NEW)
