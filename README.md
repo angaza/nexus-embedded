@@ -1,6 +1,6 @@
 # Nexus Firmware Libraries
 
-This repository contains the embedded implementations of Nexus technology.
+This repository contains the embedded implementations of two [Nexus](https://nexus.angaza.com/) technologies:
 - [Nexus Keycode](https://nexus.angaza.com/keycode) (an interoperable PAYG token system deployed in millions of devices)
 - [Nexus Channel](https://nexus.angaza.com/channel) (an application layer for secure device-to-device communication)
 These platform-independent libraries are standard, portable C99 requiring
