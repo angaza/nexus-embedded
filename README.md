@@ -1,10 +1,6 @@
 # Nexus Firmware Libraries
 
-This repository contains the embedded implementations of two [Nexus](https://nexus.angaza.com/) technologies:
-
-- [Nexus Keycode](https://nexus.angaza.com/keycode) (an interoperable PAYG token system deployed in millions of devices)
-- [Nexus Channel](https://nexus.angaza.com/channel) (an application layer for secure device-to-device communication)
-
+This repository contains the embedded implementations of Nexus technology.
 These platform-independent libraries are standard, portable C99 requiring
 no dynamic memory allocation, suitable for use on highly constrained
 embedded platforms.
@@ -13,16 +9,92 @@ embedded platforms.
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=angaza_nexus-keycode-embedded-internal&metric=alert_status&token=3c0218f9fde1d544fd2060ec1075c15fefeffd4f)](https://sonarcloud.io/dashboard?id=angaza_nexus-keycode-embedded-internal)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=angaza_nexus-keycode-embedded-internal&metric=coverage&token=3c0218f9fde1d544fd2060ec1075c15fefeffd4f)](https://sonarcloud.io/dashboard?id=angaza_nexus-keycode-embedded-internal)
 
-## Using in Your Project
+## BEFORE YOU BEGIN:
+1. Make sure you're familiar with Angaza's [Integration Process](https://nexus.angaza.com/mfg_home#integration-overview)
+2. Review Angaza's PAYG requirements and tamper mitigation strategies to ensure your product will meet all requirements [PAYG Requirements](https://nexus.angaza.com/mfg_home#payg-requirements)
 
-1. Copy the `nexus` directory into your project
-2. Add include paths for `nexus` and `nexus/include`
-3. Run `cd nexus && python conf_nexus.py` and select configuration options (*Important*: Must run `python conf_nexus.py` from within the `nexus` folder).
-4. Implement the functions specified in `nexus/include/nxp_common.h`
-5. [Keycode only] Implement the functions specified in `nexus/include/nxp_keycode.h`
-6. [Channel only] Implement the functions specified in `nexus/include/nxp_channel.h`
-7. Use the functions provided by `nexus/include/nx_keycode.h`, `nexus/include/nx_channel.h`, and `nexus/include/nx_common.h` to interact with Nexus
 
+## PROJECT OVERVIEW
+1. Download this reposity
+2. Copy the `nexus` directory into your project. See [here](#nexus-directory-structure) for more information about the structure of the directory.
+3. Decide which [Configuration Settings](#configuration-options) you want to use for your project.
+4. Run the [Config Tool](#configuration-setup)
+5. Integrate with your product firmware [Integration Info](#integration-details)
+6. Test integration using our [Testing framework](#unit-tests)
+
+
+## ADDITIONAL INFORMATION
+
+### Configuration Options
+
+This library contains an interactive tool to select which features and configuration options you want to use for your project. The tool will automatically update and saves your configuration into a header. This header is used by Nexus code to determine which features to expose to your product firmware.
+- Nexus Keycode: turn on if you want to implement the nexus keycode (likely yes)
+- Protocol Type: what digits are available on your product keypad?
+    - Full Pad (0-9) OR Small Pad (0-5)
+- Nexus Keycode Rate Limiting: feature to prevent brute force attacks
+    - Enabled OR Disabled
+    - See FAQ at bottom for more info on settings
+- "Universal" Factory Test Codes: feature to give access to special tokens that can be used in a factory, manufacturing or test setting.
+    - Enabled OR Disabled
+    - See FAQ at bottom for more info on settings
+- Keycode Entry
+    - The number of seconds between user keypresses before nexus resets to accept a new keycode.
+- Nexus Channel: turn on if you're looking for device to device communication 
+
+### Configuration Setup
+
+To set up this configuration:
+1. Go to the `nexus` directory (required because the tools needs the `Kconfiglib` files are stored here)
+2. Run the python tool located at `nexus/conf_nexus.py`. (any platform using python 3)
+
+```
+python conf_nexus.py
+```
+4) You may also need to install the package `python3-tk`.
+5) Once the interactive menu opens, use "enter" to toggle each option on and off. Use arrow keys to move between options.
+    Note: For Nexus Keycode only, turn off oc-logging and nexus-channel
+6) Select options (see below for more info about each option). 
+7) Save (shift+S)
+8) Now the setup is done! You can proceed with development. 
+
+
+### Nexus Directory Structure
+
+The C implementation of Nexus uses the [ceedling](https://www.throwtheswitch.org/ceedling)
+framework to organize automated testing of this source code.
+
+The directory contains these folders
+
+* `nexus/include` - Header files that must be included in a project using the
+Nexus embedded solutions (do not modify)
+* `nexus/src` - Nexus module implementation files (do not modify)
+* `nexus/oc` - IoTivity-based files for Nexus Channel (do not modify)
+* `nexus/utils` - Nexus support utilities and functions (do not modify)
+* `nexus/stub` - Stub functions used during static analysis
+* `nexus/build` - temporary output artifacts related to unit tests and static
+* `nexus/test` - Unit tests for the code contained in `src`
+* `nexus/examples` - Examples of the Nexus protocol in use
+* `buildkite` - Scripts for continuous integration tests (on Buildkite)
+* `support` - Scripts related to code formatting and analysis
+
+You must add include paths in your project to the following subset:
+* `nexus`
+* `nexus/src`
+* `nexus/include`
+* `nexus/utils`
+* `nexus/oc` (Required only for Nexus Channel or Nexus debug logs)
+
+### Implementation Details
+
+Warning: Do NOT modify any of the src code. 
+
+The `nexus/include` file contains all of the information you need to integrate with nexus. 
+
+Within `nexus/include` there are files that begin with:
+- `nxp_` (i.e nxp_keycode.h) - these contain the functions that *your code* must implement. These are functions that nexus src code will call. 
+- `nx_` (i.e nx_keycode.h) - these contain the functions available in the Nexus system and modules that *your code* must call and utilize at the appropriate times.  
+
+**Additional Information**
 The functions declared in `include/nxp_common.h` provide the Nexus
 System with the ability to store and retrieve data from nonvolatile
 storage (flash), as well as determine the current system uptime. These are
@@ -42,69 +114,8 @@ hardware (dependent on the implementing platform), and retrieve unique keying
 information used to validate Nexus Channel link communications.
 (This is a non-exhaustive list).
 
-Please add the following folders to your project include paths:
-
-* `nexus`
-* `nexus/src`
-* `nexus/include`
-* `nexus/utils`
-* `nexus/oc` (Required only for Nexus Channel or Nexus debug logs)
-
-Other folders are used for automated testing or support, and are not required
-to build a project using Nexus.
-
-## Project Structure
-
-The C implementation of Nexus uses the [ceedling](https://www.throwtheswitch.org/ceedling)
-framework to organize automated testing of this source code.
-
-All source code is contained under the `nexus` folder.
-
-Note that files named `nxp` contain functions that *your code* must implement,
-and files named `nx` expose functions and structures that the Nexus system
-and modules provide.
-
-**The only folders which must be copied to your own project when using the Nexus
-Keycode protocol are `nexus/include`, `nexus/src`, and `nexus/utils`**.
-
-The folders in this project are:
-
-* `nexus/include` - Header files that must be included in a project using the
-Nexus embedded solutions (do not modify)
-* `nexus/src` - Nexus module implementation files (do not modify)
-* `nexus/oc` - IoTivity-based files for Nexus Channel (do not modify)
-* `nexus/utils` - Nexus support utilities and functions (do not modify)
-* `nexus/stub` - Stub functions used during static analysis
-* `nexus/build` - temporary output artifacts related to unit tests and static
-* `nexus/test` - Unit tests for the code contained in `src`
-* `nexus/examples` - Examples of the Nexus protocol in use
-* `buildkite` - Scripts for continuous integration tests (on Buildkite)
-* `support` - Scripts related to code formatting and analysis
-
-### Configuration Options
-
-To adjust configuration options (such as keycode protocol options), run
-the configuration tool located at `nexus/conf_nexus.py`.
-
-The tool can be run on any platform using Python 3, as below:
-
-```
-python conf_nexus.py
-```
-
-You may also need to install the package `python3-tk`.
-
-This tool must be run from within the `nexus` directory to gain access to
-the required `Kconfiglib` files.
-
-This tool will launch an interactive configuration menu, where you may
-modify the configuration of Nexus features to suit your application.
-Afterwards, the tool automatically updates and saves your selections into
-a header which is parsed by the Nexus code to determine what features to
-expose to your application.
 
 ## Static analysis
-
 `ceedling release` will attempt to build a stub implementation of Nexus (
 contained in `nexus/stub`) with Channel and Keycode featured enabled. This
 build is used as a supplemental static analysis build (static analysis is also
@@ -168,3 +179,18 @@ To regenerate the code documentation locally, execute:
 
 from the repository root directory.  The documentation will be placed in a
 `docs` folder, open `html/index.html` to view it.
+
+
+## FAQ
+**What is rate-limiting and the options available?**
+Rate limiting is the ability to prevent and discourage users from trying a bruteforce attack to find an unlock code by randomly entering tokens. This functionality is implemented using a “rate limiting bucket” which tracks how many token attempts are allowed. Once this bucket is empty (0), rate-limiting is active and no keys will be accepted. 
+
+(6) Initial number of tokens in rate limiting bucket - this is the # of tokens that a freshly-programmed device starts with. It is nonzero to allow keycodes to be entered immediately as part of factory testing. 
+(128) Maximum number of tokens in rate limiting bucket. The maximum number of keycodes, defined as *<any number of digits># that can be accumulated in the rate-limiting bucket.
+(720) Seconds per each token attempt -  this is the # of seconds required to add another keycode to the rate-limiting bucket, up to the maximum. If the device is rate-limited (0 keycodes in the rate-limiting bucket), the user will have to wait this number of seconds before they can enter another token
+
+For example - if your device uses the default values, after ~1 day (720 seconds * 128 max tokens), the rate limiting bucket will have 128 tokens available. An attacker would only be able to enter 128 tokens in a brute force attack. After the 128 tokens are used, the attacker would have to wait 720 seconds before every new token entry. 
+
+**What are the factory codes and options available?**
+(5) Number of times a device may accept '10 minute' universal code (NEW)
+(5) Number of times a device may accept '1 hour' universal code (NEW)
