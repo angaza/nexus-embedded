@@ -19,6 +19,20 @@ Where any code from the same major version should be backwards-compatible
 with other code of the same major version, but is *not* compatible with
 different major version codes.
 
+## Embedded Module Version 2.0.1
+
+Compatible with NEXUS_GLOBAL_VERSION >= 3.0.0
+
+This version includes bugfixes related to linking behavior and clarifies some
+confusing docstrings.
+
+* Controllers and accessories, when completing a new link handshake to a device that they are already
+linked to, will replace the existing link (remove and then add the link again)
+* Controllers and accessories will replace their oldest existing accessory links (this device is
+in the accessory role) when they reach their maximum number of links and a new link handshake
+is completed. Existing controller links (this device is in the controller role) will not be replaced
+* Remove mention of payments/loans from docstrings
+
 ## Embedded Module Version 2.0.0
 
 Compatible with NEXUS_GLOBAL_VERSION >= 3.0.0

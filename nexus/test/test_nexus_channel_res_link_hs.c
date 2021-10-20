@@ -190,38 +190,6 @@ oc_endpoint_t FAKE_CONTROLLER_ENDPOINT = {
     0, // ocf_version_t (unused)
 };
 
-oc_endpoint_t FAKE_CONTROLLER_ENDPOINT_B = {
-    NULL, // 'next'
-    0, // device
-    IPV6, // flags
-    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, // di
-    {(oc_ipv6_addr_t){
-        5683, // port
-        {// arbitrary link local address that represents a Nexus ID
-         0xff,
-         0x80,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0,
-         0xAE,
-         0xD2,
-         0x22,
-         0xFF,
-         0xFE,
-         0xC1,
-         0xA5,
-         0xFC},
-        2 // scope
-    }},
-    {{0}}, // addr_local (not used)
-    0, // interface index (not used)
-    0, // priority (not used)
-    0, // ocf_version_t (unused)
-};
-
 // Global message that can be allocated and deallocated at start and end
 // of tests regardless of failures
 static oc_message_t* G_OC_MESSAGE = 0;
@@ -1534,34 +1502,23 @@ void test_res_link_hs_server_post_response__separate_commands_window_moved__both
         coap_serialize_message(&request_packet, G_OC_MESSAGE->data);
 
     nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
+    // delete the existing link to this controller
+    nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
     // `request_processing` will be called to finalize the new link
+    nxp_common_request_processing_Expect();
     memset(&response_packet, 0x00, sizeof(response_packet));
     handled = oc_ri_invoke_coap_entity_handler(&request_packet,
                                                &response_packet,
                                                (void*) &RESP_BUFFER,
                                                &FAKE_CONTROLLER_ENDPOINT);
     TEST_ASSERT_TRUE(handled);
-
-    // Check response code and content -- fails because we have not changed
-    // the endpoint (cannot create two links to the same nexus ID)
-    TEST_ASSERT_EQUAL_UINT(BAD_REQUEST_4_00, response_packet.code);
-    TEST_ASSERT_EQUAL_UINT(0, response_packet.payload_len);
-
-    // try again from a different endpoint - should succeed
-    nxp_channel_symmetric_origin_key_ExpectAndReturn(fake_origin_key);
-    // `request_processing` will be called to finalize the new link
-    nxp_common_request_processing_Expect();
-
-    memset(&response_packet, 0x00, sizeof(response_packet));
-
-    handled = oc_ri_invoke_coap_entity_handler(&request_packet,
-                                               &response_packet,
-                                               (void*) &RESP_BUFFER,
-                                               &FAKE_CONTROLLER_ENDPOINT_B);
-    TEST_ASSERT_TRUE(handled);
-
     TEST_ASSERT_EQUAL_UINT(CREATED_2_01, response_packet.code);
     TEST_ASSERT_EQUAL_UINT(14, response_packet.payload_len);
+
+    // create the new link
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_core_process(1);
 }
 
 void test_res_link_hs_challenge_mode_3_key_derivation__result_expected(void)
@@ -2199,7 +2156,6 @@ void test_res_link_hs_server_post_finalize_state__move_window_right__preserves_i
             matched_handshake_index, &window, &derived_link_key);
     }
 }
-/*
 
 void test_res_link_hs_client_post_cb__null_data__returns_early(void)
 {
@@ -2212,15 +2168,3 @@ void test_res_link_hs_client_post_cb__null_data__returns_early(void)
     dummy_post_resp.user_data = (void*) 0x0;
     nexus_channel_res_link_hs_client_post(&dummy_post_resp);
 }
-
-void test_res_link_hs_client_get_cb__dummy__todo(void)
-{
-    oc_client_response_t dummy_get_resp;
-    dummy_get_resp.code = OC_STATUS_OK;
-    nexus_channel_res_link_hs_client_get(&dummy_get_resp);
-    dummy_get_resp.code = OC_STATUS_FORBIDDEN;
-    nexus_channel_res_link_hs_client_get(&dummy_get_resp);
-
-    TEST_ASSERT_TRUE(1);
-}
-*/

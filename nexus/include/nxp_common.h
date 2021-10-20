@@ -155,31 +155,31 @@ bool nxp_common_nv_read(const struct nx_common_nv_block_meta block_meta,
  * Certain Nexus features and modules may use the existing device
  * PAYG state to determine whether to perform an action or not. For example,
  * the Nexus Keycode module will first detect whether a unit is already
- * 'unlocked', before attempting to apply an "ADD_CREDIT" keycode to
+ * unlocked before attempting to apply an ADD_CREDIT keycode to
  * that unit.
  */
 enum nxp_common_payg_state
 {
     /** Unit functionality should be restricted.
      *
-     * The unit has not been paid off and its payment period has elapsed.
-     * Product functionality should be disabled or otherwise restricted.
+     * The unit's PAYG credit has expired.
+     * Product functionality should be disabled or otherwise restricted
+     * until more PAYG credit is added or the unit is unlocked.
      */
     NXP_COMMON_PAYG_STATE_DISABLED,
 
     /** Unit functionality should be unrestricted.
      *
-     * The unit has not yet been fully paid off, so eventually it will
-     * return to NXP_COMMON_PAYG_STATE_DISABLED state.
+     * The unit will return to NXP_COMMON_PAYG_STATE_DISABLED state after
+     * the PAYG credit expires.
      */
     NXP_COMMON_PAYG_STATE_ENABLED,
 
     /** Unit functionality should be unrestricted.
      *
-     * The unit has been fully paid off, so will never become
-     * NXP_COMMON_PAYG_STATE_DISABLED. Alternatively, this value may be
-     * returned for a device which does not implement any PAYG
-     * functionality (and is always enabled).
+     * The unit will not automatically disable, and will not become
+     * NXP_COMMON_PAYG_STATE_DISABLED unless it receives a keycode/command
+     * to go back into a PAYG ENABLED/DISABLED state.
      */
     NXP_COMMON_PAYG_STATE_UNLOCKED
 };

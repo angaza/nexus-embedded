@@ -587,7 +587,7 @@ void test_link_manager_next_linked_accessory__rolls_around_list_of_ids_finds_nex
     TEST_ASSERT_EQUAL_MEMORY(&next_id, &second_nxid, sizeof(struct nx_id));
 }
 
-void test_link_manager_create_identical_link__create_link_fails(void)
+void test_link_manager_create_identical_link__create_link_success(void)
 {
     // initializes with no links present
     struct nx_id linked_id = {0};
@@ -617,17 +617,89 @@ void test_link_manager_create_identical_link__create_link_fails(void)
         NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
     nexus_channel_link_manager_process(0);
 
-    // creating a link to a device which is already linked will fail.
+    // creating a link to a device which is already linked will succeed.
+    nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
+    nxp_common_request_processing_Expect();
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
         NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
         &sec_data);
     // first link is created OK
+    TEST_ASSERT_TRUE(result);
+    // actually create the link
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
+    nexus_channel_link_manager_process(0);
+}
+
+void test_link_manager_create_controller_link__exceeded_link_limit__create_controller_link__returns_false(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 5921;
+    linked_id.device_id = 123456;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    nexus_channel_link_t result_link = {0};
+
+    // first, no links exist
+    bool result =
+        nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
+    TEST_ASSERT_FALSE(result);
+
+    for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
+    {
+        nxp_common_request_processing_Expect();
+        // increment device ID each time so we don't attempt to create an
+        // identical link
+        linked_id.device_id++;
+        result = nexus_channel_link_manager_create_link(
+            &linked_id,
+            CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+            NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+            &sec_data);
+        TEST_ASSERT_TRUE(result);
+
+        nxp_channel_notify_event_Expect(
+            NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
+        nexus_channel_link_manager_process(0);
+    }
+
+    // cannot create more links than MAX_SIMULTANEOUS
+    // does not expect to call `nxp_common_request_processing_Expect`
+    linked_id.device_id++;
+    result = nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    TEST_ASSERT_FALSE(result);
+
+    // Creating an accessory link will also fail, as new accessory
+    // links can only replace the oldest existing accessory link, never
+    // controller links
+    linked_id.device_id++;
+    result = nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
     TEST_ASSERT_FALSE(result);
 }
 
-void test_link_manager_create_link__exceeded_link_limit__return_false(void)
+void test_link_manager_create_accessory_link__exceeded_link_limit__create_accessory_link__only_controller_links_present__returns_false(
+    void)
 {
     // initializes with no links present
     struct nx_id linked_id = {0};
@@ -669,14 +741,103 @@ void test_link_manager_create_link__exceeded_link_limit__return_false(void)
         TEST_ASSERT_TRUE(result);
     }
 
-    // cannot create more links than MAX_SIMULTANEOUS
     // does not expect to call `nxp_common_request_processing_Expect`
+    linked_id.device_id++;
+    result = nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+    TEST_ASSERT_FALSE(result);
+}
+
+void test_link_manager_create_link__exceeded_link_limit__create_accessory_link__replaces_accessory_link(
+    void)
+{
+    // initializes with no links present
+    struct nx_id linked_id = {0};
+    linked_id.authority_id = 5921;
+    linked_id.device_id = 123456;
+
+    struct nx_common_check_key link_key;
+    memset(&link_key, 0xFA, sizeof(link_key)); // arbitrary
+
+    union nexus_channel_link_security_data sec_data;
+    memset(&sec_data, 0xBB, sizeof(sec_data)); // arbitrary
+
+    sec_data.mode0.nonce = 5;
+    memcpy(
+        &sec_data.mode0.sym_key, &link_key, sizeof(struct nx_common_check_key));
+
+    nexus_channel_link_t result_link = {0};
+
+    // first, no links exist
+    bool result =
+        nexus_channel_link_manager_link_from_nxid(&linked_id, &result_link);
+    TEST_ASSERT_FALSE(result);
+
+    enum nexus_channel_link_operating_mode link_op_mode;
+    for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
+    {
+        nxp_common_request_processing_Expect();
+        // increment device ID each time so we don't attempt to create an
+        // identical link
+        linked_id.device_id++;
+
+        // create both controller and accessory links
+        link_op_mode = CHANNEL_LINK_OPERATING_MODE_CONTROLLER;
+        if (i % 2 == 0)
+        {
+            link_op_mode = CHANNEL_LINK_OPERATING_MODE_ACCESSORY;
+        }
+
+        result = nexus_channel_link_manager_create_link(
+            &linked_id,
+            link_op_mode,
+            NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+            &sec_data);
+
+        if (link_op_mode == CHANNEL_LINK_OPERATING_MODE_ACCESSORY)
+        {
+            nxp_channel_notify_event_Expect(
+                NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+        }
+        else
+        {
+            nxp_channel_notify_event_Expect(
+                NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_CONTROLLER);
+        }
+
+        nexus_channel_link_manager_process(0);
+        TEST_ASSERT_TRUE(result);
+    }
+
+    // the only 'replacement' occurs if we are trying to create a new accessory
+    // link as an accessory. New Controller links do not replace existing
+    // controller links, they must be explicitly cleared.
+    linked_id.device_id++;
     result = nexus_channel_link_manager_create_link(
         &linked_id,
         CHANNEL_LINK_OPERATING_MODE_CONTROLLER,
         NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
         &sec_data);
+    nexus_channel_link_manager_process(0);
     TEST_ASSERT_FALSE(result);
+
+    // However, *accessory* links will be overwritten
+    linked_id.device_id++;
+    nxp_channel_notify_event_Expect(NXP_CHANNEL_EVENT_LINK_DELETED);
+    nxp_common_request_processing_Expect();
+    result = nexus_channel_link_manager_create_link(
+        &linked_id,
+        CHANNEL_LINK_OPERATING_MODE_ACCESSORY,
+        NEXUS_CHANNEL_LINK_SECURITY_MODE_KEY128SYM_COSE_MAC0_AUTH_SIPHASH24,
+        &sec_data);
+
+    nxp_channel_notify_event_Expect(
+        NXP_CHANNEL_EVENT_LINK_ESTABLISHED_AS_ACCESSORY);
+    nexus_channel_link_manager_process(0);
+    TEST_ASSERT_TRUE(result);
 }
 
 void test_link_manager__security_data_from_nxid__no_data_present__returns_false(

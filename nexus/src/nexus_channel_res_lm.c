@@ -320,51 +320,29 @@ bool nexus_channel_link_manager_link_from_nxid(
     return found;
 }
 
-bool nexus_channel_link_manager_create_link(
-    const struct nx_id* linked_device_id,
-    enum nexus_channel_link_operating_mode operating_mode,
-    enum nexus_channel_link_security_mode security_mode,
-    const union nexus_channel_link_security_data* security_data)
+// Return false if there are no existing accessory links.
+static bool
+_nexus_channel_link_manager_oldest_accessory_link_idx(uint8_t* oldest_idx)
 {
-    if (_this.link_count >= NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS)
+    bool found = false;
+    uint32_t oldest_secs_since_init = 0;
+    for (uint8_t i = 0; i < NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS; i++)
     {
-        return false;
+        if (_this.stored.links[i].operating_mode !=
+            CHANNEL_LINK_OPERATING_MODE_ACCESSORY)
+        {
+            continue;
+        }
+        else if (_this.link_idx_in_use[i] &&
+                 _this.stored.links[i].seconds_since_init >=
+                     oldest_secs_since_init)
+        {
+            oldest_secs_since_init = _this.stored.links[i].seconds_since_init;
+            *oldest_idx = i;
+            found = true;
+        }
     }
-
-    struct nexus_channel_link_t matching_link;
-    // first, check if a link already exists with this NXID
-    if (nexus_channel_link_manager_link_from_nxid(linked_device_id,
-                                                  &matching_link))
-    {
-        OC_WRN("Cannot create new link, already exists");
-        return false;
-    }
-
-    // Not a true mutex, but we don't expect `create_link` to be called
-    // multiple times without processing (this would indicate an error).
-    if (_this.pending_add_link)
-    {
-        NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(0, "Already modifying list of links");
-        return false;
-    }
-
-    PRINT("res_lm: Identified new link to persist\n");
-    _this.pending_add_link = true;
-
-    memset(&_this.pending_link_to_create, 0x00, sizeof(nexus_channel_link_t));
-    _this.pending_link_to_create.operating_mode = (uint8_t) operating_mode;
-    _this.pending_link_to_create.security_mode = (uint8_t) security_mode;
-    memcpy(&_this.pending_link_to_create.linked_device_id,
-           linked_device_id,
-           sizeof(struct nx_id));
-    memcpy(&_this.pending_link_to_create.security_data,
-           security_data,
-           sizeof(union nexus_channel_link_security_data));
-
-    nxp_common_request_processing();
-
-    // will try to add link on next `_process` call
-    return true;
+    return found;
 }
 
 // clear a single link
@@ -410,6 +388,73 @@ void nexus_channel_link_manager_clear_all_links(void)
     // `process`
     _this.pending_clear_all_links = true;
     nxp_common_request_processing();
+}
+
+bool nexus_channel_link_manager_create_link(
+    const struct nx_id* linked_device_id,
+    enum nexus_channel_link_operating_mode operating_mode,
+    enum nexus_channel_link_security_mode security_mode,
+    const union nexus_channel_link_security_data* security_data)
+{
+    // Not a true mutex, but we don't expect `create_link` to be called
+    // multiple times without processing (this would indicate an error).
+    if (_this.pending_add_link)
+    {
+        NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY(0, "Already modifying list of links");
+        return false;
+    }
+
+    NEXUS_ASSERT(_this.link_count <= NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS,
+                 "_this.link_count indicates that too many links exist!");
+
+    uint8_t idx_to_delete;
+    if (_nexus_channel_link_manager_link_index_from_nxid(linked_device_id,
+                                                         &idx_to_delete))
+    {
+        // replace existing links, as controllers and accessories can delete
+        // links to each other silently
+        PRINT("deleting existing link before re-linking");
+        _nexus_channel_link_manager_clear_link_internal(idx_to_delete);
+    }
+    else if (_this.link_count == NEXUS_CHANNEL_MAX_SIMULTANEOUS_LINKS)
+    {
+        if (operating_mode != CHANNEL_LINK_OPERATING_MODE_ACCESSORY)
+        {
+            // we do not overwrite any existing links if we're trying to
+            // establish a new link where this device is *not* in an accessory
+            // role.
+            return false;
+        }
+        // Otherwise, we delete the oldest link where this device is an
+        // accessory, and replace it with the newly created link.
+        if (!_nexus_channel_link_manager_oldest_accessory_link_idx(
+                &idx_to_delete))
+        {
+            // No existing links where this device is an accessory.
+            return false;
+        }
+        // Delete the oldest link to a controller where this device is an
+        // accessory.
+        _nexus_channel_link_manager_clear_link_internal(idx_to_delete);
+    }
+
+    PRINT("res_lm: Identified new link to persist\n");
+    _this.pending_add_link = true;
+
+    memset(&_this.pending_link_to_create, 0x00, sizeof(nexus_channel_link_t));
+    _this.pending_link_to_create.operating_mode = (uint8_t) operating_mode;
+    _this.pending_link_to_create.security_mode = (uint8_t) security_mode;
+    memcpy(&_this.pending_link_to_create.linked_device_id,
+           linked_device_id,
+           sizeof(struct nx_id));
+    memcpy(&_this.pending_link_to_create.security_data,
+           security_data,
+           sizeof(union nexus_channel_link_security_data));
+
+    nxp_common_request_processing();
+
+    // will try to add link on next `_process` call
+    return true;
 }
 
 enum nexus_channel_link_operating_mode
