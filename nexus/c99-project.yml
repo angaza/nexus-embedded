@@ -113,7 +113,7 @@
           - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
           - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
           - -DDEBUG  # enables NEXUS_ASSERT_FAIL_IN_DEBUG_ONLY
-          - -DFORTIFY_SOURCE=2
+          - -D_FORTIFY_SOURCE=2
           - -O1
           - -Werror
           - -Wall
